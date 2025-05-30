@@ -131,7 +131,7 @@ class Shooter {
         ctx.stroke();
 
         // Draw aim line with wall bounces
-        if (this.angle !== 0 && this.canShoot()) {
+        if (this.canShoot()) {
             this.drawAimLine(ctx, this.x, this.y, this.angle, 800);
         }
 
@@ -169,7 +169,7 @@ class Shooter {
             // Check for wall collision
             if (nextX < BUBBLE_RADIUS) {
                 // Hit left wall
-                const distToWall = x - BUBBLE_RADIUS;
+                const distToWall = Math.abs(x - BUBBLE_RADIUS);
                 const timeToWall = distToWall / Math.abs(Math.cos(currentAngle) * SHOOTER_SPEED);
                 const yAtWall = y + Math.sin(currentAngle) * SHOOTER_SPEED * timeToWall;
                 
@@ -177,7 +177,7 @@ class Shooter {
                 x = BUBBLE_RADIUS;
                 y = yAtWall;
                 currentAngle = Math.PI - currentAngle; // Reflect angle
-                remainingLength -= distToWall / Math.cos(currentAngle);
+                remainingLength -= distToWall;
             } else if (nextX > ctx.canvas.width - BUBBLE_RADIUS) {
                 // Hit right wall
                 const distToWall = ctx.canvas.width - BUBBLE_RADIUS - x;
@@ -188,7 +188,7 @@ class Shooter {
                 x = ctx.canvas.width - BUBBLE_RADIUS;
                 y = yAtWall;
                 currentAngle = Math.PI - currentAngle; // Reflect angle
-                remainingLength -= distToWall / Math.cos(currentAngle);
+                remainingLength -= distToWall;
             } else {
                 // No wall collision
                 ctx.lineTo(nextX, nextY);
@@ -203,10 +203,27 @@ class Shooter {
     }
 
     aimAt(mouseX, mouseY) {
-        this.angle = Math.atan2(mouseY - this.y, mouseX - this.x);
-        // Limit angle to prevent shooting downward
-        if (this.angle > Math.PI / 2) this.angle = Math.PI / 2;
-        if (this.angle < -Math.PI / 2) this.angle = -Math.PI / 2;
+        // Calculate relative position
+        const deltaX = mouseX - this.x;
+        const deltaY = mouseY - this.y;
+        
+        // Calculate the basic angle from shooter to mouse
+        let angle = Math.atan2(deltaY, deltaX);
+        
+        // Convert any angle to the upward shooting range (-PI to 0)
+        // This ensures we can aim anywhere from left to right but only shoot upward
+        
+        if (angle > Math.PI / 2) {
+            // Bottom right quadrant -> map to top left
+            angle = angle - Math.PI;
+        } else if (angle > 0) {
+            // Bottom left quadrant -> map to top right  
+            angle = -angle;
+        }
+        // Top quadrants (angle <= 0) are already in correct range
+        
+        // Clamp to valid upward shooting range (-PI to 0)
+        this.angle = Math.max(-Math.PI, Math.min(0, angle));
     }
 
     canShoot() {
@@ -276,13 +293,16 @@ class Game {
             master: { rowsToStart: 7, colors: 6, addRowFrequency: 3 }
         };
         
+        this.gameStarted = false; // Track if game has been started
         this.setupEventListeners();
+        this.initGame(); // Initialize the game grid and basic setup
+        this.gameLoop(); // Start the rendering loop
     }
     
     start() {
         this.resizeCanvas(); // Ensure proper sizing before starting
-        this.initGame();
-        this.gameLoop();
+        this.gameStarted = true; // Mark game as started
+        // Game loop is already running from constructor
     }
 
     loadHighScores() {
@@ -387,7 +407,7 @@ class Game {
         
         // Use document for mouse movement to ensure full canvas coverage
         document.addEventListener('mousemove', (e) => {
-            if (this.gameOver || this.gameWon) return;
+            if (!this.gameStarted || this.gameOver || this.gameWon) return;
             const rect = this.canvas.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
             this.mouseY = e.clientY - rect.top;
@@ -395,6 +415,8 @@ class Game {
         });
 
         document.addEventListener('click', (e) => {
+            if (!this.gameStarted) return;
+            
             if (this.gameOver || this.gameWon) {
                 // Restart the game if it's over
                 this.restartGame();
@@ -424,7 +446,7 @@ class Game {
 
         // Touch support for mobile
         document.addEventListener('touchmove', (e) => {
-            if (this.gameOver || this.gameWon) return;
+            if (!this.gameStarted || this.gameOver || this.gameWon) return;
             e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
             const touch = e.touches[0];
@@ -434,6 +456,8 @@ class Game {
         }, { passive: false });
 
         document.addEventListener('touchstart', (e) => {
+            if (!this.gameStarted) return;
+            
             if (this.gameOver || this.gameWon) {
                 // Restart the game if it's over
                 this.restartGame();
@@ -465,10 +489,8 @@ class Game {
 
     restartGame() {
         this.initGame();
-        // Only start a new game loop if not already running
-        if (this.gameOver || this.gameWon) {
-            this.gameLoop();
-        }
+        this.gameStarted = true; // Ensure game is marked as started
+        // The game loop should already be running, no need to start it again
     }
 
     playSound(type) {
@@ -497,15 +519,17 @@ class Game {
     update() {
         if (this.gameOver || this.gameWon) return;
         
-        // Update shooter
-        this.shooter.update();
-        
-        // Update arcade mode timer
-        if (this.gameMode === "arcade") {
-            this.timeLeft -= 1/60; // Assuming 60 FPS
-            if (this.timeLeft <= 0) {
-                this.gameOver = true;
-                return;
+        // Only update shooter and game logic if game has started
+        if (this.gameStarted) {
+            this.shooter.update();
+            
+            // Update arcade mode timer
+            if (this.gameMode === "arcade") {
+                this.timeLeft -= 1/60; // Assuming 60 FPS
+                if (this.timeLeft <= 0) {
+                    this.gameOver = true;
+                    return;
+                }
             }
         }
         
@@ -926,7 +950,7 @@ class Game {
         }
 
         // Draw shooter
-        if (!this.gameOver && !this.gameWon) {
+        if (!this.gameOver && !this.gameWon && this.gameStarted) {
             this.shooter.draw(this.ctx);
         }
 
@@ -990,6 +1014,7 @@ class Game {
     gameLoop() {
         this.update();
         this.draw();
+        // Always continue the game loop to keep drawing even when not started
         requestAnimationFrame(() => this.gameLoop());
     }
 }
