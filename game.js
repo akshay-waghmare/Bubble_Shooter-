@@ -2,8 +2,8 @@
 
 // Game constants
 const BUBBLE_RADIUS = 20;
-const BUBBLE_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3'];
-const SHOOTER_SPEED = 8;
+const BUBBLE_COLORS = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88', '#FECA57', '#FF9FF3'];
+const SHOOTER_SPEED = 35;
 const GRID_ROWS = 10;
 const GRID_COLS = 14;
 const GRID_TOP_MARGIN = BUBBLE_RADIUS * 2;
@@ -34,17 +34,35 @@ class Bubble {
 
     draw(ctx) {
         if (this.removing) {
-            // Draw pop animation
+            // Smooth pop animation with scale and fade
+            const animationProgress = (this.animationTimer || 0) / 20;
+            const scale = 1 + animationProgress * 0.5;
+            const alpha = 1 - animationProgress;
+            
             ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius * 1.2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.arc(this.x, this.y, this.radius * scale, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
             ctx.fill();
             return;
         }
 
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
+        
+        // Create gradient for better visual appeal, especially for green bubbles
+        if (this.color === '#00FF88') {
+            // Special gradient for the bright green bubble
+            const gradient = ctx.createRadialGradient(
+                this.x - 5, this.y - 5, 0,
+                this.x, this.y, this.radius
+            );
+            gradient.addColorStop(0, '#88FFCC');
+            gradient.addColorStop(1, '#00FF88');
+            ctx.fillStyle = gradient;
+        } else {
+            ctx.fillStyle = this.color;
+        }
+        
         ctx.fill();
         ctx.strokeStyle = '#333';
         ctx.lineWidth = 2;
@@ -63,7 +81,7 @@ class Bubble {
         }
         
         if (this.falling) {
-            this.vy += 0.5; // Increase falling speed
+            this.vy += 0.8; // Increase falling speed for smoother gameplay
             this.y += this.vy;
             return;
         }
@@ -79,8 +97,8 @@ class Bubble {
         const dy = this.y - other.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // More precise collision detection - optimized for proper grid placement
-        return distance < (this.radius + other.radius) * 0.85; // Adjusted collision threshold
+        // More precise collision detection - adjusted for proper bubble placement
+        return distance < (this.radius + other.radius) * 0.95; // Slightly tighter collision for better placement
     }
 }
 
@@ -196,8 +214,8 @@ class Shooter {
             }
         }
         
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // More visible aim line
+        ctx.lineWidth = 3; // Thicker line for better visibility
         ctx.stroke();
         ctx.setLineDash([]);
     }
@@ -285,6 +303,7 @@ class Game {
         this.timeLeft = Infinity; // For arcade mode
         this.soundEnabled = true;
         this.highScores = this.loadHighScores();
+        this.lastTime = 0; // For smooth frame rate control
         this.difficultySettings = {
             novice: { rowsToStart: 3, colors: 3, addRowFrequency: 10 },
             easy: { rowsToStart: 4, colors: 4, addRowFrequency: 8 },
@@ -351,10 +370,30 @@ class Game {
                     const x = this.getColPosition(row, col);
                     const y = this.getRowPosition(row);
                     
-                    // Ensure we don't place bubbles too close to the edge
+                    // Ensure we don't place bubbles too close to the edge or overlapping
                     if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
                         continue;
                     }
+                    
+                    // Check for potential overlaps with existing bubbles
+                    let wouldOverlap = false;
+                    for (let checkRow = 0; checkRow < row; checkRow++) {
+                        for (let checkCol = 0; checkCol < GRID_COLS; checkCol++) {
+                            const existingBubble = this.gridBubbles[checkRow][checkCol];
+                            if (existingBubble) {
+                                const dx = x - existingBubble.x;
+                                const dy = y - existingBubble.y;
+                                const distance = Math.sqrt(dx * dx + dy * dy);
+                                if (distance < BUBBLE_RADIUS * 2 * 0.95) {
+                                    wouldOverlap = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (wouldOverlap) break;
+                    }
+                    
+                    if (wouldOverlap) continue;
                     
                     // Create color clusters for more strategic gameplay
                     let color;
@@ -387,9 +426,10 @@ class Game {
 
     getColPosition(row, col) {
         const evenRow = row % 2 === 0;
-        // Use GRID_COL_SPACING for better horizontal spacing to prevent overlaps
-        const x = col * GRID_COL_SPACING + BUBBLE_RADIUS + (evenRow ? 0 : BUBBLE_RADIUS);
-        return x;
+        // Proper hexagonal grid positioning with precise spacing
+        const baseX = col * GRID_COL_SPACING + BUBBLE_RADIUS;
+        const offsetX = evenRow ? 0 : GRID_COL_SPACING / 2; // Half spacing offset for odd rows
+        return baseX + offsetX;
     }
 
     getRowPosition(row) {
@@ -540,7 +580,7 @@ class Game {
 
             // Check collision with walls
             if (bubble.x - bubble.radius <= 0 || bubble.x + bubble.radius >= this.canvas.width) {
-                bubble.vx *= -0.8; // Bounce with some energy loss
+                bubble.vx *= -0.95; // Smoother bounce with less energy loss
                 bubble.x = Math.max(bubble.radius, Math.min(this.canvas.width - bubble.radius, bubble.x));
                 this.playSound('bounce');
             }
@@ -567,8 +607,8 @@ class Game {
                 if (row < 0 || row >= GRID_ROWS) continue;
                 
                 // Calculate approximate column range to check based on X position
-                const approximateCol = Math.floor(bubble.x / GRID_COL_SPACING);
-                const colStart = Math.max(0, approximateCol - 2);
+                const approximateCol = Math.floor((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
+                const colStart = Math.max(0, approximateCol - 1);
                 const colEnd = Math.min(GRID_COLS - 1, approximateCol + 2);
                 
                 for (let col = colStart; col <= colEnd; col++) {
@@ -581,6 +621,29 @@ class Game {
                     }
                 }
                 if (collided) break;
+            }
+            
+            // Additional safety check - if bubble is very close to any grid bubble, snap it
+            if (!collided) {
+                for (let row = 0; row < GRID_ROWS; row++) {
+                    for (let col = 0; col < GRID_COLS; col++) {
+                        const gridBubble = this.gridBubbles[row][col];
+                        if (gridBubble) {
+                            const dx = bubble.x - gridBubble.x;
+                            const dy = bubble.y - gridBubble.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            
+                            // If very close to any bubble, snap to grid
+                            if (distance < BUBBLE_RADIUS * 2.1) {
+                                this.snapBubbleToGrid(bubble);
+                                this.flyingBubbles.splice(i, 1);
+                                collided = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (collided) break;
+                }
             }
         }
 
@@ -595,11 +658,16 @@ class Game {
             }
         }
 
-        // Update removing bubbles
+        // Update removing bubbles with smooth animation
         for (let i = this.removingBubbles.length - 1; i >= 0; i--) {
             const bubble = this.removingBubbles[i];
-            // Removal animation would be here
-            this.removingBubbles.splice(i, 1);
+            if (!bubble.animationTimer) bubble.animationTimer = 0;
+            bubble.animationTimer += 1;
+            
+            // Remove after animation completes (smoother feedback)
+            if (bubble.animationTimer > 20) {
+                this.removingBubbles.splice(i, 1);
+            }
         }
 
         // Check if all bubbles are cleared
@@ -629,38 +697,82 @@ class Game {
     }
 
     snapBubbleToGrid(bubble) {
-        // Find the closest grid position with improved accuracy
+        // Find the closest valid grid position that ensures connectivity to the top
         let closestRow = -1;
         let closestCol = -1;
         let minDistance = Infinity;
         
+        // First, prioritize positions that maintain connectivity to the top row
         for (let row = 0; row < GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (!this.gridBubbles[row][col]) {
                     const x = this.getColPosition(row, col);
                     const y = this.getRowPosition(row);
+                    
+                    // Check if this position would overlap with existing bubbles
+                    if (this.wouldOverlap(x, y, row, col)) {
+                        continue; // Skip positions that would cause overlap
+                    }
+                    
                     const dx = bubble.x - x;
                     const dy = bubble.y - y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
-                    // Add a bias toward positions closer to where the bubble hit
-                    // and prioritize positions that have adjacent bubbles
-                    let hasAdjacent = this.hasAdjacentBubble(row, col);
-                    let adjacentBonus = hasAdjacent ? 0.7 : 1.3;
+                    // Only consider positions that are:
+                    // 1. In the top row (always valid)
+                    // 2. Adjacent to bubbles that are connected to the top row
+                    let isTopRow = row === 0;
+                    let isConnectedToTop = isTopRow || this.isPositionConnectedToTop(row, col);
                     
-                    // Final weighted distance calculation
-                    let weightedDistance = distance * adjacentBonus;
-                    
-                    if (weightedDistance < minDistance) {
-                        minDistance = weightedDistance;
-                        closestRow = row;
-                        closestCol = col;
+                    if (isConnectedToTop) {
+                        // Prefer positions closer to the bubble
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            closestRow = row;
+                            closestCol = col;
+                        }
                     }
                 }
             }
         }
         
-        // Snap to closest position
+        // If no connected position found, force placement in top row or connected area
+        if (closestRow === -1) {
+            // Try to find any position in the top row first
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (!this.gridBubbles[0][col]) {
+                    const x = this.getColPosition(0, col);
+                    const y = this.getRowPosition(0);
+                    
+                    if (!this.wouldOverlap(x, y, 0, col)) {
+                        closestRow = 0;
+                        closestCol = col;
+                        break;
+                    }
+                }
+            }
+            
+            // If still no position, find the highest available connected position
+            if (closestRow === -1) {
+                for (let row = 0; row < GRID_ROWS; row++) {
+                    for (let col = 0; col < GRID_COLS; col++) {
+                        if (!this.gridBubbles[row][col]) {
+                            const x = this.getColPosition(row, col);
+                            const y = this.getRowPosition(row);
+                            
+                            if (!this.wouldOverlap(x, y, row, col) && this.isPositionConnectedToTop(row, col)) {
+                                closestRow = row;
+                                closestCol = col;
+                                break;
+                            }
+                        }
+                    }
+                    if (closestRow !== -1) break;
+                }
+            }
+        }
+        
+        // Snap to closest valid position
         if (closestRow >= 0 && closestCol >= 0) {
             bubble.x = this.getColPosition(closestRow, closestCol);
             bubble.y = this.getRowPosition(closestRow);
@@ -686,33 +798,93 @@ class Game {
                 }
             }
         } else {
-            // If no position found, try to place at a valid position in the bottom row
-            for (let col = 0; col < GRID_COLS; col++) {
-                if (!this.gridBubbles[GRID_ROWS - 1][col]) {
-                    bubble.x = this.getColPosition(GRID_ROWS - 1, col);
-                    bubble.y = this.getRowPosition(GRID_ROWS - 1);
-                    bubble.stuck = true;
-                    bubble.row = GRID_ROWS - 1;
-                    bubble.col = col;
-                    bubble.vx = 0;
-                    bubble.vy = 0;
-                    this.gridBubbles[GRID_ROWS - 1][col] = bubble;
-                    this.missedShots++;
-                    
-                    if (this.missedShots >= MISSED_SHOTS_LIMIT) {
-                        this.addNewRow();
-                        this.missedShots = 0;
+            // Emergency fallback - place in first available position in top rows
+            for (let row = 0; row < 3; row++) { // Only check top 3 rows for emergency placement
+                for (let col = 0; col < GRID_COLS; col++) {
+                    if (!this.gridBubbles[row][col]) {
+                        bubble.x = this.getColPosition(row, col);
+                        bubble.y = this.getRowPosition(row);
+                        bubble.stuck = true;
+                        bubble.row = row;
+                        bubble.col = col;
+                        bubble.vx = 0;
+                        bubble.vy = 0;
+                        this.gridBubbles[row][col] = bubble;
+                        this.missedShots++;
+                        
+                        if (this.missedShots >= MISSED_SHOTS_LIMIT) {
+                            this.addNewRow();
+                            this.missedShots = 0;
+                        }
+                        return;
                     }
-                    break;
                 }
             }
         }
     }
 
-    hasAdjacentBubble(row, col) {
-        // Check if there are any bubbles adjacent to this position
+    isPositionConnectedToTop(row, col) {
+        // Check if placing a bubble at this position would be connected to the top row
+        // through a chain of adjacent bubbles
+        
+        // Get neighbors of this position
+        const neighbors = this.getNeighborPositions(row, col);
+        
+        // Check if any neighbor exists and is connected to top
+        for (const [nRow, nCol] of neighbors) {
+            if (nRow >= 0 && nRow < GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
+                const neighborBubble = this.gridBubbles[nRow][nCol];
+                if (neighborBubble) {
+                    // If neighbor is in top row, we're connected
+                    if (nRow === 0) {
+                        return true;
+                    }
+                    // Otherwise, check if this neighbor is connected to top
+                    if (this.isBubbleConnectedToTop(nRow, nCol)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    isBubbleConnectedToTop(row, col) {
+        // Use breadth-first search to check if a bubble is connected to the top row
+        if (row === 0) return true; // Already in top row
+        
+        const visited = new Set();
+        const queue = [[row, col]];
+        visited.add(`${row},${col}`);
+        
+        while (queue.length > 0) {
+            const [currentRow, currentCol] = queue.shift();
+            
+            // If we reached the top row, we're connected
+            if (currentRow === 0) {
+                return true;
+            }
+            
+            // Check all neighbors
+            const neighbors = this.getNeighborPositions(currentRow, currentCol);
+            for (const [nRow, nCol] of neighbors) {
+                const key = `${nRow},${nCol}`;
+                if (nRow >= 0 && nRow < GRID_ROWS && nCol >= 0 && nCol < GRID_COLS && 
+                    !visited.has(key) && this.gridBubbles[nRow][nCol]) {
+                    visited.add(key);
+                    queue.push([nRow, nCol]);
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    getNeighborPositions(row, col) {
+        // Get all 6 neighbor positions in hexagonal grid
         const isEvenRow = row % 2 === 0;
-        const neighbors = [
+        return [
             [row - 1, col + (isEvenRow ? -1 : 0)], // Top left
             [row - 1, col + (isEvenRow ? 0 : 1)],  // Top right
             [row, col - 1],                         // Left
@@ -720,6 +892,37 @@ class Game {
             [row + 1, col + (isEvenRow ? -1 : 0)], // Bottom left
             [row + 1, col + (isEvenRow ? 0 : 1)]   // Bottom right
         ];
+    }
+
+    wouldOverlap(x, y, targetRow, targetCol) {
+        // Check if placing a bubble at this position would overlap with existing bubbles
+        const testBubble = { x: x, y: y, radius: BUBBLE_RADIUS };
+        
+        // Check nearby positions for overlaps
+        for (let row = Math.max(0, targetRow - 1); row <= Math.min(GRID_ROWS - 1, targetRow + 1); row++) {
+            for (let col = Math.max(0, targetCol - 1); col <= Math.min(GRID_COLS - 1, targetCol + 1); col++) {
+                if (row === targetRow && col === targetCol) continue; // Skip the target position itself
+                
+                const existingBubble = this.gridBubbles[row][col];
+                if (existingBubble) {
+                    const dx = x - existingBubble.x;
+                    const dy = y - existingBubble.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Check if bubbles would overlap (with a small tolerance)
+                    if (distance < (BUBBLE_RADIUS * 2) * 0.95) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    hasAdjacentBubble(row, col) {
+        // Check if there are any bubbles adjacent to this position
+        const neighbors = this.getNeighborPositions(row, col);
         
         for (const [nr, nc] of neighbors) {
             if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
@@ -763,16 +966,8 @@ class Game {
             currentBubble.visited = true;
             matches.push(currentBubble);
             
-            // Get neighboring positions based on whether row is even or odd
-            const isEvenRow = r % 2 === 0;
-            const neighbors = [
-                [r - 1, c + (isEvenRow ? -1 : 0)], // Top left
-                [r - 1, c + (isEvenRow ? 0 : 1)],  // Top right
-                [r, c - 1],                         // Left
-                [r, c + 1],                         // Right
-                [r + 1, c + (isEvenRow ? -1 : 0)], // Bottom left
-                [r + 1, c + (isEvenRow ? 0 : 1)]   // Bottom right
-            ];
+            // Get neighboring positions using helper method
+            const neighbors = this.getNeighborPositions(r, c);
             
             // Visit all neighbors
             for (const [nr, nc] of neighbors) {
@@ -856,16 +1051,8 @@ class Game {
         // Mark as visited
         bubble.visited = true;
         
-        // Get neighboring positions based on whether row is even or odd
-        const isEvenRow = row % 2 === 0;
-        const neighbors = [
-            [row - 1, col + (isEvenRow ? -1 : 0)], // Top left
-            [row - 1, col + (isEvenRow ? 0 : 1)],  // Top right
-            [row, col - 1],                        // Left
-            [row, col + 1],                        // Right
-            [row + 1, col + (isEvenRow ? -1 : 0)], // Bottom left
-            [row + 1, col + (isEvenRow ? 0 : 1)]   // Bottom right
-        ];
+        // Get neighboring positions using helper method
+        const neighbors = this.getNeighborPositions(row, col);
         
         // Visit all neighbors
         for (const [nr, nc] of neighbors) {
@@ -1012,9 +1199,18 @@ class Game {
     }
 
     gameLoop() {
-        this.update();
-        this.draw();
-        // Always continue the game loop to keep drawing even when not started
+        // Limit to 60 FPS for consistent smooth gameplay
+        const now = performance.now();
+        if (!this.lastTime) this.lastTime = now;
+        const deltaTime = now - this.lastTime;
+        
+        if (deltaTime >= 16.67) { // ~60 FPS
+            this.update();
+            this.draw();
+            this.lastTime = now;
+        }
+        
+        // Always continue the game loop
         requestAnimationFrame(() => this.gameLoop());
     }
 }
