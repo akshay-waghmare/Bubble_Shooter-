@@ -91,7 +91,6 @@ class Shooter {
         this.angle = 0;
         this.currentColor = this.getRandomColor();
         this.nextColor = this.getRandomColor();
-        this.canShoot = true;
         this.reloadTime = 300; // ms
         this.lastShot = 0;
     }
@@ -132,7 +131,7 @@ class Shooter {
         ctx.stroke();
 
         // Draw aim line with wall bounces
-        if (this.angle !== 0 && this.canShoot) {
+        if (this.angle !== 0 && this.canShoot()) {
             this.drawAimLine(ctx, this.x, this.y, this.angle, 800);
         }
 
@@ -210,14 +209,15 @@ class Shooter {
         if (this.angle < -Math.PI / 2) this.angle = -Math.PI / 2;
     }
 
-    shoot() {
-        if (!this.canShoot) return null;
-        
+    canShoot() {
         const now = Date.now();
-        if (now - this.lastShot < this.reloadTime) return null;
+        return now - this.lastShot >= this.reloadTime;
+    }
+
+    shoot() {
+        if (!this.canShoot()) return null;
         
-        this.lastShot = now;
-        this.canShoot = false;
+        this.lastShot = Date.now();
         
         const bubble = new Bubble(this.x, this.y, this.currentColor);
         bubble.vx = Math.cos(this.angle) * SHOOTER_SPEED;
@@ -227,12 +227,11 @@ class Shooter {
         this.currentColor = this.nextColor;
         this.nextColor = this.getRandomColor();
         
-        // Ensure the canShoot flag is reset after the reload time
-        setTimeout(() => {
-            this.canShoot = true;
-        }, this.reloadTime);
-        
         return bubble;
+    }
+
+    update() {
+        // No longer needed, but keeping for consistency
     }
 }
 
@@ -498,6 +497,9 @@ class Game {
     update() {
         if (this.gameOver || this.gameWon) return;
         
+        // Update shooter
+        this.shooter.update();
+        
         // Update arcade mode timer
         if (this.gameMode === "arcade") {
             this.timeLeft -= 1/60; // Assuming 60 FPS
@@ -681,6 +683,29 @@ class Game {
                 }
             }
         }
+    }
+
+    hasAdjacentBubble(row, col) {
+        // Check if there are any bubbles adjacent to this position
+        const isEvenRow = row % 2 === 0;
+        const neighbors = [
+            [row - 1, col + (isEvenRow ? -1 : 0)], // Top left
+            [row - 1, col + (isEvenRow ? 0 : 1)],  // Top right
+            [row, col - 1],                         // Left
+            [row, col + 1],                         // Right
+            [row + 1, col + (isEvenRow ? -1 : 0)], // Bottom left
+            [row + 1, col + (isEvenRow ? 0 : 1)]   // Bottom right
+        ];
+        
+        for (const [nr, nc] of neighbors) {
+            if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
+                if (this.gridBubbles[nr][nc]) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     checkMatches(row, col) {
