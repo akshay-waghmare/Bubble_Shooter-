@@ -227,6 +227,7 @@ class Shooter {
         this.currentColor = this.nextColor;
         this.nextColor = this.getRandomColor();
         
+        // Ensure the canShoot flag is reset after the reload time
         setTimeout(() => {
             this.canShoot = true;
         }, this.reloadTime);
@@ -385,7 +386,8 @@ class Game {
         // Initial resize to ensure proper dimensions
         this.resizeCanvas();
         
-        this.canvas.addEventListener('mousemove', (e) => {
+        // Use document for mouse movement to ensure full canvas coverage
+        document.addEventListener('mousemove', (e) => {
             if (this.gameOver || this.gameWon) return;
             const rect = this.canvas.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
@@ -393,28 +395,36 @@ class Game {
             this.shooter.aimAt(this.mouseX, this.mouseY);
         });
 
-        this.canvas.addEventListener('click', (e) => {
+        document.addEventListener('click', (e) => {
             if (this.gameOver || this.gameWon) {
                 // Restart the game if it's over
                 this.restartGame();
                 return;
             }
 
-            const bubble = this.shooter.shoot();
-            if (bubble) {
-                this.playSound('shoot');
-                this.flyingBubbles.push(bubble);
-                if (this.gameMode === "strategy") {
-                    this.shotsLeft--;
-                    if (this.shotsLeft <= 0) {
-                        this.gameOver = true;
+            // Only handle clicks when the canvas is clicked
+            const rect = this.canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            
+            if (clickX >= 0 && clickX <= this.canvas.width && 
+                clickY >= 0 && clickY <= this.canvas.height) {
+                const bubble = this.shooter.shoot();
+                if (bubble) {
+                    this.playSound('shoot');
+                    this.flyingBubbles.push(bubble);
+                    if (this.gameMode === "strategy") {
+                        this.shotsLeft--;
+                        if (this.shotsLeft <= 0) {
+                            this.gameOver = true;
+                        }
                     }
                 }
             }
         });
 
         // Touch support for mobile
-        this.canvas.addEventListener('touchmove', (e) => {
+        document.addEventListener('touchmove', (e) => {
             if (this.gameOver || this.gameWon) return;
             e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
@@ -422,9 +432,9 @@ class Game {
             this.mouseX = touch.clientX - rect.left;
             this.mouseY = touch.clientY - rect.top;
             this.shooter.aimAt(this.mouseX, this.mouseY);
-        });
+        }, { passive: false });
 
-        this.canvas.addEventListener('touchstart', (e) => {
+        document.addEventListener('touchstart', (e) => {
             if (this.gameOver || this.gameWon) {
                 // Restart the game if it's over
                 this.restartGame();
@@ -432,18 +442,26 @@ class Game {
             }
 
             e.preventDefault();
-            const bubble = this.shooter.shoot();
-            if (bubble) {
-                this.playSound('shoot');
-                this.flyingBubbles.push(bubble);
-                if (this.gameMode === "strategy") {
-                    this.shotsLeft--;
-                    if (this.shotsLeft <= 0) {
-                        this.gameOver = true;
+            const rect = this.canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const touchX = touch.clientX - rect.left;
+            const touchY = touch.clientY - rect.top;
+            
+            if (touchX >= 0 && touchX <= this.canvas.width && 
+                touchY >= 0 && touchY <= this.canvas.height) {
+                const bubble = this.shooter.shoot();
+                if (bubble) {
+                    this.playSound('shoot');
+                    this.flyingBubbles.push(bubble);
+                    if (this.gameMode === "strategy") {
+                        this.shotsLeft--;
+                        if (this.shotsLeft <= 0) {
+                            this.gameOver = true;
+                        }
                     }
                 }
             }
-        });
+        }, { passive: false });
     }
 
     restartGame() {
