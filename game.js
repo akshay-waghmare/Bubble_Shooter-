@@ -1,5 +1,150 @@
 // Bubble Shooter Game Implementation
 
+// Debug logging system
+class DebugLogger {
+    constructor(enabled = false) {
+        this.enabled = enabled;
+        this.collisionLog = [];
+        this.frameCount = 0;
+        this.performanceMetrics = {
+            avgFrameTime: 0,
+            collisionChecks: 0,
+            gridSnaps: 0
+        };
+    }
+
+    log(category, message, data = null) {
+        if (!this.enabled) return;
+        const timestamp = performance.now();
+        const logEntry = {
+            timestamp,
+            frame: this.frameCount,
+            category,
+            message,
+            data
+        };
+        
+        console.log(`[${category.toUpperCase()}] Frame ${this.frameCount}: ${message}`, data || '');
+        
+        // Store specific logs for analysis
+        if (category === 'collision') {
+            this.collisionLog.push(logEntry);
+            if (this.collisionLog.length > 100) {
+                this.collisionLog.shift(); // Keep only last 100 collision events
+            }
+        }
+    }
+
+    updateMetrics(frameTime, collisionChecks, gridSnaps) {
+        this.performanceMetrics.avgFrameTime = (this.performanceMetrics.avgFrameTime * 0.9) + (frameTime * 0.1);
+        this.performanceMetrics.collisionChecks += collisionChecks;
+        this.performanceMetrics.gridSnaps += gridSnaps;
+    }
+
+    nextFrame() {
+        this.frameCount++;
+    }
+
+    getReport() {
+        return {
+            frame: this.frameCount,
+            ...this.performanceMetrics,
+            recentCollisions: this.collisionLog.slice(-10)
+        };
+    }
+}
+
+// Enhanced collision prediction system
+class CollisionPredictor {
+    constructor() {
+        this.predictionSteps = 10; // Number of steps to predict ahead
+        this.timeStep = 1/60; // Assuming 60 FPS
+    }
+
+    predictCollision(bubble, gridBubbles, canvasWidth, canvasHeight) {
+        const predictions = [];
+        let x = bubble.x;
+        let y = bubble.y;
+        let vx = bubble.vx;
+        let vy = bubble.vy;
+
+        for (let step = 0; step < this.predictionSteps; step++) {
+            // Predict next position
+            x += vx * this.timeStep;
+            y += vy * this.timeStep;
+
+            // Check wall bounces
+            if (x - bubble.radius <= 0 || x + bubble.radius >= canvasWidth) {
+                vx *= -0.95; // Energy loss on bounce
+                x = Math.max(bubble.radius, Math.min(canvasWidth - bubble.radius, x));
+            }
+
+            // Check if we hit the top
+            if (y - bubble.radius <= 0) {
+                predictions.push({
+                    step,
+                    type: 'top_wall',
+                    position: { x, y },
+                    time: step * this.timeStep
+                });
+                break;
+            }
+
+            // Check grid collisions
+            const collisionResult = this.checkGridCollision(x, y, bubble.radius, gridBubbles);
+            if (collisionResult) {
+                predictions.push({
+                    step,
+                    type: 'grid_collision',
+                    position: { x, y },
+                    collision: collisionResult,
+                    time: step * this.timeStep
+                });
+                break;
+            }
+        }
+
+        return predictions;
+    }
+
+    checkGridCollision(x, y, radius, gridBubbles) {
+        // Quick grid-based collision check
+        const GRID_ROW_HEIGHT = radius * Math.sqrt(3);
+        const GRID_COL_SPACING = radius * 2;
+        const GRID_TOP_MARGIN = radius * 2;
+
+        const approximateRow = Math.round((y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        const approximateCol = Math.round((x - radius) / GRID_COL_SPACING);
+
+        const rowsToCheck = [
+            Math.max(0, approximateRow - 1),
+            approximateRow,
+            Math.min(gridBubbles.length - 1, approximateRow + 1)
+        ];
+
+        for (const row of rowsToCheck) {
+            if (row < 0 || row >= gridBubbles.length) continue;
+            
+            const colStart = Math.max(0, approximateCol - 2);
+            const colEnd = Math.min(gridBubbles[row].length - 1, approximateCol + 2);
+            
+            for (let col = colStart; col <= colEnd; col++) {
+                const gridBubble = gridBubbles[row][col];
+                if (gridBubble) {
+                    const dx = x - gridBubble.x;
+                    const dy = y - gridBubble.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < (radius + gridBubble.radius) * 0.98) {
+                        return { bubble: gridBubble, distance, row, col };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+}
+
 // Game constants
 const BUBBLE_RADIUS = 20;
 const BUBBLE_COLORS = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88', '#FECA57', '#FF9FF3'];
@@ -7,8 +152,12 @@ const SHOOTER_SPEED = 35;
 const GRID_ROWS = 10;
 const GRID_COLS = 14;
 const GRID_TOP_MARGIN = BUBBLE_RADIUS * 2;
-const GRID_ROW_HEIGHT = BUBBLE_RADIUS * 1.8; // Increased spacing vertically
-const GRID_COL_SPACING = BUBBLE_RADIUS * 2.1; // Increased spacing horizontally
+
+// Perfect hexagonal grid constants using mathematical precision
+const GRID_COL_SPACING = BUBBLE_RADIUS * 2; // Exact bubble diameter for perfect horizontal spacing
+const GRID_ROW_HEIGHT = BUBBLE_RADIUS * Math.sqrt(3); // Perfect hexagonal row height (√3 * radius)
+const HEX_OFFSET = BUBBLE_RADIUS; // Exact offset for odd rows in hexagonal pattern
+
 const MISSED_SHOTS_LIMIT = 5;
 const POP_THRESHOLD = 3; // Number of same-colored bubbles needed to pop
 const POINTS_PER_BUBBLE = 10;
@@ -30,49 +179,177 @@ class Bubble {
         this.falling = false;  // Flag for falling animation
         this.fallingSpeed = 0;
         this.visited = false;  // For flood fill algorithm
+        
+        // Enhanced collision properties
+        this.lastCollisionTime = 0;
+        this.collisionCount = 0;
+        this.snapPredicted = false; // Flag for predicted snapping
+        
+        // Enhanced animation properties
+        this.scale = 1.0;
+        this.opacity = 1.0;
+        this.pulsePhase = Math.random() * Math.PI * 2; // Random pulse phase
+        this.creationTime = performance.now();
+        this.wobbleAmplitude = 0;
+        this.wobbleFrequency = 5;
+        this.glowIntensity = 0;
+        
+        // Trail effect for flying bubbles
+        this.trail = [];
+        this.maxTrailLength = 8;
     }
 
     draw(ctx) {
+        // Update trail for flying bubbles
+        if (!this.stuck && !this.removing && !this.falling) {
+            this.trail.push({ x: this.x, y: this.y, opacity: 1.0 });
+            if (this.trail.length > this.maxTrailLength) {
+                this.trail.shift();
+            }
+            
+            // Draw trail
+            for (let i = 0; i < this.trail.length; i++) {
+                const trailPoint = this.trail[i];
+                const trailOpacity = (i / this.trail.length) * 0.3;
+                const trailRadius = this.radius * (0.3 + (i / this.trail.length) * 0.7);
+                
+                ctx.beginPath();
+                ctx.arc(trailPoint.x, trailPoint.y, trailRadius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${trailOpacity})`;
+                ctx.fill();
+            }
+        }
+        
         if (this.removing) {
-            // Smooth pop animation with scale and fade
-            const animationProgress = (this.animationTimer || 0) / 20;
-            const scale = 1 + animationProgress * 0.5;
+            // Enhanced pop animation with particle effects
+            const animationProgress = (this.animationTimer || 0) / 30;
+            const scale = 1 + animationProgress * 1.2;
             const alpha = 1 - animationProgress;
             
+            // Main explosion effect
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius * scale, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
             ctx.fill();
+            
+            // Particle effects
+            const particleCount = 8;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (i / particleCount) * Math.PI * 2;
+                const distance = animationProgress * 40;
+                const particleX = this.x + Math.cos(angle) * distance;
+                const particleY = this.y + Math.sin(angle) * distance;
+                const particleSize = this.radius * 0.2 * (1 - animationProgress);
+                
+                ctx.beginPath();
+                ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 215, 0, ${alpha * 0.8})`;
+                ctx.fill();
+            }
             return;
         }
 
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        
-        // Create gradient for better visual appeal, especially for green bubbles
-        if (this.color === '#00FF88') {
-            // Special gradient for the bright green bubble
-            const gradient = ctx.createRadialGradient(
-                this.x - 5, this.y - 5, 0,
-                this.x, this.y, this.radius
-            );
-            gradient.addColorStop(0, '#88FFCC');
-            gradient.addColorStop(1, '#00FF88');
-            ctx.fillStyle = gradient;
-        } else {
-            ctx.fillStyle = this.color;
+        // Apply wobble effect for newly placed bubbles
+        const timeSinceCreation = performance.now() - this.creationTime;
+        if (timeSinceCreation < 500 && this.stuck) {
+            this.wobbleAmplitude = Math.max(0, 3 * (1 - timeSinceCreation / 500));
         }
         
+        // Calculate wobble offset
+        const wobbleX = Math.sin(performance.now() * 0.01 * this.wobbleFrequency) * this.wobbleAmplitude;
+        const wobbleY = Math.cos(performance.now() * 0.01 * this.wobbleFrequency) * this.wobbleAmplitude * 0.5;
+        
+        // Apply pulse effect
+        const pulseScale = 1 + Math.sin(this.pulsePhase + performance.now() * 0.003) * 0.05;
+        
+        ctx.save();
+        ctx.translate(this.x + wobbleX, this.y + wobbleY);
+        ctx.scale(pulseScale * this.scale, pulseScale * this.scale);
+
+        // Enhanced glow effect
+        if (this.glowIntensity > 0) {
+            const glowRadius = this.radius + this.glowIntensity * 10;
+            const glowGradient = ctx.createRadialGradient(0, 0, this.radius, 0, 0, glowRadius);
+            glowGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+            glowGradient.addColorStop(1, `rgba(255, 255, 255, ${this.glowIntensity * 0.3})`);
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
+            ctx.fillStyle = glowGradient;
+            ctx.fill();
+        }
+
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        
+        // Enhanced gradient system for all colors
+        const gradient = ctx.createRadialGradient(-5, -5, 0, 0, 0, this.radius);
+        const baseColor = this.color;
+        
+        // Create lighter and darker variants
+        const lightColor = this.lightenColor(baseColor, 0.3);
+        const darkColor = this.darkenColor(baseColor, 0.2);
+        
+        gradient.addColorStop(0, lightColor);
+        gradient.addColorStop(0.7, baseColor);
+        gradient.addColorStop(1, darkColor);
+        
+        ctx.fillStyle = gradient;
+        ctx.globalAlpha = this.opacity;
         ctx.fill();
-        ctx.strokeStyle = '#333';
+        
+        // Enhanced border with depth
+        ctx.strokeStyle = this.darkenColor(baseColor, 0.4);
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        // Add a highlight for better visual effect
+        // Multiple highlight layers for depth
         ctx.beginPath();
-        ctx.arc(this.x - 8, this.y - 8, this.radius * 0.3, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.arc(-6, -6, this.radius * 0.25, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.fill();
+        
+        ctx.beginPath();
+        ctx.arc(-3, -3, this.radius * 0.15, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+
+        // Enhanced visual feedback for predicted snap
+        if (this.snapPredicted && !this.stuck) {
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Add prediction glow
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 8, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+    }
+
+    // Helper methods for color manipulation
+    lightenColor(color, factor) {
+        const hex = color.replace('#', '');
+        const r = Math.min(255, Math.floor(parseInt(hex.substr(0, 2), 16) * (1 + factor)));
+        const g = Math.min(255, Math.floor(parseInt(hex.substr(2, 2), 16) * (1 + factor)));
+        const b = Math.min(255, Math.floor(parseInt(hex.substr(4, 2), 16) * (1 + factor)));
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    
+    darkenColor(color, factor) {
+        const hex = color.replace('#', '');
+        const r = Math.floor(parseInt(hex.substr(0, 2), 16) * (1 - factor));
+        const g = Math.floor(parseInt(hex.substr(2, 2), 16) * (1 - factor));
+        const b = Math.floor(parseInt(hex.substr(4, 2), 16) * (1 - factor));
+        return `rgb(${r}, ${g}, ${b})`;
     }
 
     update() {
@@ -83,12 +360,23 @@ class Bubble {
         if (this.falling) {
             this.vy += 0.8; // Increase falling speed for smoother gameplay
             this.y += this.vy;
+            
+            // Add rotation and scale effect while falling
+            this.pulsePhase += 0.2;
+            this.scale = Math.max(0.1, this.scale - 0.02);
+            this.opacity = Math.max(0, this.opacity - 0.03);
             return;
         }
 
         if (!this.stuck) {
             this.x += this.vx;
             this.y += this.vy;
+            
+            // Add dynamic glow effect for flying bubbles
+            this.glowIntensity = 0.5 + Math.sin(performance.now() * 0.01) * 0.3;
+        } else {
+            // Reduce glow for stuck bubbles
+            this.glowIntensity = Math.max(0, this.glowIntensity - 0.02);
         }
     }
 
@@ -97,8 +385,51 @@ class Bubble {
         const dy = this.y - other.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // More precise collision detection - adjusted for proper bubble placement
-        return distance < (this.radius + other.radius) * 0.95; // Slightly tighter collision for better placement
+        // Enhanced collision detection with improved precision
+        const collisionDistance = (this.radius + other.radius) * 0.98;
+        const isColliding = distance < collisionDistance;
+        
+        if (isColliding) {
+            this.lastCollisionTime = performance.now();
+            this.collisionCount++;
+        }
+        
+        return isColliding;
+    }
+
+    // Enhanced method for smooth collision response
+    handleCollisionWith(other, restitution = 0.8) {
+        const dx = this.x - other.x;
+        const dy = this.y - other.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance === 0) return; // Avoid division by zero
+        
+        // Normalize collision vector
+        const nx = dx / distance;
+        const ny = dy / distance;
+        
+        // Calculate relative velocity
+        const rvx = this.vx - (other.vx || 0);
+        const rvy = this.vy - (other.vy || 0);
+        
+        // Calculate relative velocity in collision normal direction
+        const speed = rvx * nx + rvy * ny;
+        
+        // Do not resolve if velocities are separating
+        if (speed > 0) return;
+        
+        // Apply restitution (bounciness)
+        const impulse = restitution * speed;
+        this.vx -= impulse * nx;
+        this.vy -= impulse * ny;
+        
+        // Separate overlapping bubbles
+        const overlap = (this.radius + other.radius) - distance;
+        if (overlap > 0) {
+            this.x += nx * overlap * 0.5;
+            this.y += ny * overlap * 0.5;
+        }
     }
 }
 
@@ -275,13 +606,14 @@ class Game {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         
-        // Set initial canvas dimensions based on container size
-        const container = canvas.parentElement;
-        const containerWidth = container.clientWidth - 40; // Account for padding
-        const containerHeight = window.innerHeight * 0.7; // Use 70% of viewport height
+        // Set initial canvas dimensions for portrait mobile
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const maxWidth = Math.min(viewportWidth - 20, 400);
+        const portraitHeight = Math.min(viewportHeight - 100, maxWidth * 1.6);
         
-        canvas.width = containerWidth;
-        canvas.height = Math.min(containerHeight, containerWidth * 0.75);
+        canvas.width = maxWidth;
+        canvas.height = portraitHeight;
         
         this.gridBubbles = []; // 2D array representing the grid of bubbles
         this.flyingBubbles = []; // Bubbles that are currently moving
@@ -313,6 +645,36 @@ class Game {
         };
         
         this.gameStarted = false; // Track if game has been started
+        this.showDebugGrid = false; // Debug mode to show hexagonal grid
+        
+        // Fix for collision detection timing issue
+        this.pendingNewRow = false; // Flag to defer addNewRow() until after flying bubble processing
+        
+        // Enhanced debug and collision systems
+        this.debugLogger = new DebugLogger(false); // Enable with 'D' key
+        this.collisionPredictor = new CollisionPredictor();
+        this.frameStartTime = 0;
+        this.collisionChecksThisFrame = 0;
+        this.gridSnapsThisFrame = 0;
+        this.showDebugInfo = false; // Toggle with 'I' key
+        
+        // Enhanced collision settings
+        this.collisionSettings = {
+            precisionFactor: 0.98, // Tighter collision detection
+            wallBounceRestitution: 0.95, // Energy retention on wall bounce
+            snapDistance: BUBBLE_RADIUS * 2.05, // Distance for proximity snapping
+            predictionSteps: 10, // Steps ahead for collision prediction
+            smoothingFactor: 0.1 // For velocity smoothing
+        };
+        
+        // Score buckets system
+        this.scoreBuckets = [
+            { x: 0, width: 0, score: 100, color: '#4ECDC4', label: '100' },
+            { x: 0, width: 0, score: 200, color: '#45B7D1', label: '200' },
+            { x: 0, width: 0, score: 300, color: '#FF6B6B', label: '300' }
+        ];
+        this.finishLineY = 0; // Will be set in resizeCanvas
+    
         this.setupEventListeners();
         this.initGame(); // Initialize the game grid and basic setup
         this.gameLoop(); // Start the rendering loop
@@ -347,6 +709,9 @@ class Game {
         this.gameOver = false;
         this.gameWon = false;
         
+        // Reset collision timing fix flag
+        this.pendingNewRow = false;
+        
         // Initialize grid
         for (let row = 0; row < GRID_ROWS; row++) {
             this.gridBubbles[row] = [];
@@ -374,40 +739,19 @@ class Game {
                     if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
                         continue;
                     }
-                    
-                    // Check for potential overlaps with existing bubbles
-                    let wouldOverlap = false;
-                    for (let checkRow = 0; checkRow < row; checkRow++) {
-                        for (let checkCol = 0; checkCol < GRID_COLS; checkCol++) {
-                            const existingBubble = this.gridBubbles[checkRow][checkCol];
-                            if (existingBubble) {
-                                const dx = x - existingBubble.x;
-                                const dy = y - existingBubble.y;
-                                const distance = Math.sqrt(dx * dx + dy * dy);
-                                if (distance < BUBBLE_RADIUS * 2 * 0.95) {
-                                    wouldOverlap = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (wouldOverlap) break;
+                    // Use wouldOverlapPrecise for robust overlap prevention
+                    if (this.wouldOverlapPrecise(x, y, row, col)) {
+                        continue;
                     }
-                    
-                    if (wouldOverlap) continue;
-                    
                     // Create color clusters for more strategic gameplay
                     let color;
                     if (row > 0 && col > 0 && this.gridBubbles[row-1][col] && Math.random() < 0.6) {
-                        // 60% chance to use same color as bubble above for clusters
                         color = this.gridBubbles[row-1][col].color;
                     } else if (col > 0 && this.gridBubbles[row][col-1] && Math.random() < 0.4) {
-                        // 40% chance to use same color as bubble to the left
                         color = this.gridBubbles[row][col-1].color;
                     } else {
-                        // Otherwise random color
                         color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                     }
-                    
                     const bubble = new Bubble(x, y, color, row, col);
                     bubble.stuck = true;
                     this.gridBubbles[row][col] = bubble;
@@ -425,14 +769,18 @@ class Game {
     }
 
     getColPosition(row, col) {
-        const evenRow = row % 2 === 0;
-        // Proper hexagonal grid positioning with precise spacing
+        // Perfect hexagonal grid positioning
+        const isOddRow = row % 2 === 1;
         const baseX = col * GRID_COL_SPACING + BUBBLE_RADIUS;
-        const offsetX = evenRow ? 0 : GRID_COL_SPACING / 2; // Half spacing offset for odd rows
+        
+        // For odd rows, offset by exactly half the column spacing for perfect hexagonal alignment
+        const offsetX = isOddRow ? HEX_OFFSET : 0;
+        
         return baseX + offsetX;
     }
 
     getRowPosition(row) {
+        // Perfect vertical spacing using √3 * radius for true hexagonal geometry
         return row * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
     }
 
@@ -481,6 +829,48 @@ class Game {
                         }
                     }
                 }
+            }
+        });
+
+        // Keyboard controls for debug features
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            
+            switch (key) {
+                case 'g':
+                    this.showDebugGrid = !this.showDebugGrid;
+                    this.debugLogger.log('debug', 'Toggled debug grid', { enabled: this.showDebugGrid });
+                    break;
+                    
+                case 'd':
+                    this.debugLogger.enabled = !this.debugLogger.enabled;
+                    console.log(`Debug logging ${this.debugLogger.enabled ? 'ENABLED' : 'DISABLED'}`);
+                    this.debugLogger.log('debug', 'Toggled debug logging', { enabled: this.debugLogger.enabled });
+                    break;
+                    
+                case 'i':
+                    this.showDebugInfo = !this.showDebugInfo;
+                    this.debugLogger.log('debug', 'Toggled debug info display', { enabled: this.showDebugInfo });
+                    break;
+                    
+                case 'r':
+                    if (this.debugLogger.enabled) {
+                        console.log('Performance Report:', this.debugLogger.getReport());
+                    }
+                    break;
+                    
+                case 'c':
+                    if (this.debugLogger.enabled) {
+                        this.debugLogger.collisionLog = [];
+                        console.log('Cleared collision log');
+                    }
+                    break;
+                    
+                case 'p':
+                    // Toggle collision prediction visualization
+                    this.showCollisionPrediction = !this.showCollisionPrediction;
+                    this.debugLogger.log('debug', 'Toggled collision prediction', { enabled: this.showCollisionPrediction });
+                    break;
             }
         });
 
@@ -539,25 +929,46 @@ class Game {
     }
 
     resizeCanvas() {
-        // Get the container dimensions
+        // Portrait mobile resolution setup
         const container = this.canvas.parentElement;
-        const containerWidth = container.clientWidth - 40; // Subtracting padding
-        const containerHeight = window.innerHeight * 0.7; // Use 70% of viewport height
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
         
-        // Set canvas size based on available space while maintaining aspect ratio
-        this.canvas.width = containerWidth;
-        this.canvas.height = Math.min(containerHeight, containerWidth * 0.75);
+        // Set canvas for portrait mobile (9:16 aspect ratio)
+        const maxWidth = Math.min(viewportWidth - 20, 400); // Max 400px width with 20px margin
+        const portraitHeight = Math.min(viewportHeight - 100, maxWidth * 1.6); // 16:10 ratio for better gameplay
+        
+        this.canvas.width = maxWidth;
+        this.canvas.height = portraitHeight;
         
         // Adjust bubble positioning based on canvas size
         const scaleFactor = this.canvas.width / (GRID_COLS * GRID_COL_SPACING + BUBBLE_RADIUS * 2);
         
-        // Reposition the shooter
+        // Set finish line position (above the shooter area)
+        this.finishLineY = this.canvas.height - 80;
+        
+        // Calculate score bucket dimensions and positions
+        const bucketHeight = 40;
+        const bucketWidth = this.canvas.width / 3;
+        
+        for (let i = 0; i < this.scoreBuckets.length; i++) {
+            this.scoreBuckets[i].x = i * bucketWidth;
+            this.scoreBuckets[i].width = bucketWidth;
+            this.scoreBuckets[i].y = this.canvas.height - bucketHeight;
+            this.scoreBuckets[i].height = bucketHeight;
+        }
+        
+        // Reposition the shooter (above the buckets)
         this.shooter.x = this.canvas.width / 2;
-        this.shooter.y = this.canvas.height - 50;
+        this.shooter.y = this.finishLineY - 20;
     }
 
     update() {
         if (this.gameOver || this.gameWon) return;
+        
+        this.frameStartTime = performance.now();
+        this.collisionChecksThisFrame = 0;
+        this.gridSnapsThisFrame = 0;
         
         // Only update shooter and game logic if game has started
         if (this.gameStarted) {
@@ -568,52 +979,109 @@ class Game {
                 this.timeLeft -= 1/60; // Assuming 60 FPS
                 if (this.timeLeft <= 0) {
                     this.gameOver = true;
+                    this.debugLogger.log('game', 'Game over - time expired');
                     return;
                 }
             }
         }
         
-        // Update flying bubbles
+        // Enhanced flying bubble update with improved collision detection
         for (let i = this.flyingBubbles.length - 1; i >= 0; i--) {
             const bubble = this.flyingBubbles[i];
+            const oldX = bubble.x;
+            const oldY = bubble.y;
+            
             bubble.update();
+            this.debugLogger.log('movement', `Flying bubble ${i}`, {
+                position: { x: bubble.x, y: bubble.y },
+                velocity: { vx: bubble.vx, vy: bubble.vy }
+            });
 
-            // Check collision with walls
-            if (bubble.x - bubble.radius <= 0 || bubble.x + bubble.radius >= this.canvas.width) {
-                bubble.vx *= -0.95; // Smoother bounce with less energy loss
-                bubble.x = Math.max(bubble.radius, Math.min(this.canvas.width - bubble.radius, bubble.x));
+            // Enhanced wall collision with improved physics
+            let wallBounced = false;
+            if (bubble.x - bubble.radius <= 0) {
+                bubble.vx = Math.abs(bubble.vx) * this.collisionSettings.wallBounceRestitution;
+                bubble.x = bubble.radius;
+                wallBounced = true;
+                this.debugLogger.log('collision', 'Wall bounce - left wall', { 
+                    position: { x: bubble.x, y: bubble.y },
+                    newVelocity: { vx: bubble.vx, vy: bubble.vy }
+                });
+            } else if (bubble.x + bubble.radius >= this.canvas.width) {
+                bubble.vx = -Math.abs(bubble.vx) * this.collisionSettings.wallBounceRestitution;
+                bubble.x = this.canvas.width - bubble.radius;
+                wallBounced = true;
+                this.debugLogger.log('collision', 'Wall bounce - right wall', { 
+                    position: { x: bubble.x, y: bubble.y },
+                    newVelocity: { vx: bubble.vx, vy: bubble.vy }
+                });
+            }
+            
+            if (wallBounced) {
                 this.playSound('bounce');
             }
 
             // Check collision with top wall
             if (bubble.y - bubble.radius <= 0) {
+                this.debugLogger.log('collision', 'Top wall collision - snapping to grid', {
+                    position: { x: bubble.x, y: bubble.y }
+                });
                 this.snapBubbleToGrid(bubble);
                 this.flyingBubbles.splice(i, 1);
                 continue;
             }
 
-            // Optimized collision detection with existing grid bubbles
+            // Enhanced collision prediction for better gameplay feel
+            if (this.showCollisionPrediction) {
+                const predictions = this.collisionPredictor.predictCollision(
+                    bubble, this.gridBubbles, this.canvas.width, this.canvas.height
+                );
+                
+                if (predictions.length > 0) {
+                    bubble.snapPredicted = true;
+                    this.debugLogger.log('prediction', 'Collision predicted', {
+                        predictions: predictions.slice(0, 3) // Log first 3 predictions
+                    });
+                }
+            }
+
+            // Optimized collision detection with spatial partitioning
             let collided = false;
+            this.collisionChecksThisFrame++;
             
-            // First check rows that are most likely to have collisions based on bubble's Y position
-            const approximateRow = Math.floor((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
-            const rowsToCheck = [
-                Math.max(0, approximateRow - 1),
-                approximateRow,
-                Math.min(GRID_ROWS - 1, approximateRow + 1)
-            ];
+            // Calculate grid region for more efficient collision checking
+            const approximateRow = Math.round((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+            const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
+            
+            // Expand search area based on bubble velocity for fast-moving bubbles
+            const velocityMagnitude = Math.sqrt(bubble.vx * bubble.vx + bubble.vy * bubble.vy);
+            const searchRadius = Math.max(1, Math.ceil(velocityMagnitude / BUBBLE_RADIUS));
+            
+            const rowsToCheck = [];
+            for (let r = Math.max(0, approximateRow - searchRadius); 
+                 r <= Math.min(GRID_ROWS - 1, approximateRow + searchRadius); r++) {
+                rowsToCheck.push(r);
+            }
             
             for (const row of rowsToCheck) {
                 if (row < 0 || row >= GRID_ROWS) continue;
                 
-                // Calculate approximate column range to check based on X position
-                const approximateCol = Math.floor((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
-                const colStart = Math.max(0, approximateCol - 1);
-                const colEnd = Math.min(GRID_COLS - 1, approximateCol + 2);
+                // Enhanced column range for hexagonal offset
+                const colStart = Math.max(0, approximateCol - searchRadius - 1);
+                const colEnd = Math.min(GRID_COLS - 1, approximateCol + searchRadius + 1);
                 
                 for (let col = colStart; col <= colEnd; col++) {
                     const gridBubble = this.gridBubbles[row][col];
                     if (gridBubble && bubble.isCollidingWith(gridBubble)) {
+                        this.debugLogger.log('collision', 'Grid bubble collision detected', {
+                            flyingBubble: { x: bubble.x, y: bubble.y, color: bubble.color },
+                            gridBubble: { x: gridBubble.x, y: gridBubble.y, color: gridBubble.color, row, col },
+                            distance: Math.sqrt((bubble.x - gridBubble.x) ** 2 + (bubble.y - gridBubble.y) ** 2)
+                        });
+                        
+                        // Enhanced collision response with smoother physics
+                        bubble.handleCollisionWith(gridBubble, 0.2);
+                        
                         this.snapBubbleToGrid(bubble);
                         this.flyingBubbles.splice(i, 1);
                         collided = true;
@@ -623,9 +1091,12 @@ class Game {
                 if (collided) break;
             }
             
-            // Additional safety check - if bubble is very close to any grid bubble, snap it
+            // Enhanced proximity-based snapping with better prediction
             if (!collided) {
-                for (let row = 0; row < GRID_ROWS; row++) {
+                const snapDistance = this.collisionSettings.snapDistance;
+                
+                // Check for nearby bubbles for smoother snapping experience
+                for (let row = 0; row < GRID_ROWS && !collided; row++) {
                     for (let col = 0; col < GRID_COLS; col++) {
                         const gridBubble = this.gridBubbles[row][col];
                         if (gridBubble) {
@@ -633,8 +1104,16 @@ class Game {
                             const dy = bubble.y - gridBubble.y;
                             const distance = Math.sqrt(dx * dx + dy * dy);
                             
-                            // If very close to any bubble, snap to grid
-                            if (distance < BUBBLE_RADIUS * 2.1) {
+                            // Enhanced proximity check with velocity consideration
+                            const velocityAdjustedSnapDistance = snapDistance + (velocityMagnitude * 0.1);
+                            
+                            if (distance < velocityAdjustedSnapDistance) {
+                                this.debugLogger.log('collision', 'Proximity snap triggered', {
+                                    distance,
+                                    snapDistance: velocityAdjustedSnapDistance,
+                                    velocity: velocityMagnitude
+                                });
+                                
                                 this.snapBubbleToGrid(bubble);
                                 this.flyingBubbles.splice(i, 1);
                                 collided = true;
@@ -642,19 +1121,57 @@ class Game {
                             }
                         }
                     }
-                    if (collided) break;
                 }
             }
         }
 
-        // Update falling bubbles
+        // Handle deferred new row addition after all flying bubble processing is complete
+        if (this.pendingNewRow) {
+            this.debugLogger.log('game', 'Processing deferred new row addition');
+            this.addNewRow();
+            this.missedShots = 0;
+            this.pendingNewRow = false;
+        }
+
+        // Update falling bubbles with enhanced physics and bucket collision
         for (let i = this.fallingBubbles.length - 1; i >= 0; i--) {
             const bubble = this.fallingBubbles[i];
+            const oldY = bubble.y;
             bubble.update();
+            
+            this.debugLogger.log('movement', `Falling bubble ${i}`, {
+                position: { x: bubble.x, y: bubble.y },
+                velocity: bubble.vy,
+                acceleration: 0.8
+            });
 
-            // Remove bubbles that fall off screen
-            if (bubble.y > this.canvas.height + bubble.radius) {
+            // Check for bucket collisions
+            let bucketHit = false;
+            for (const bucket of this.scoreBuckets) {
+                if (bubble.x >= bucket.x && 
+                    bubble.x <= bucket.x + bucket.width && 
+                    bubble.y + bubble.radius >= bucket.y) {
+                    
+                    // Award bucket points
+                    this.score += bucket.score;
+                    bucketHit = true;
+                    
+                    this.debugLogger.log('score', 'Bucket hit!', {
+                        bucket: bucket.label,
+                        points: bucket.score,
+                        newScore: this.score,
+                        bubblePosition: { x: bubble.x, y: bubble.y }
+                    });
+                    
+                    this.playSound('bucket');
+                    break;
+                }
+            }
+
+            // Remove bubbles that hit buckets or fall off screen
+            if (bucketHit || bubble.y > this.canvas.height + bubble.radius) {
                 this.fallingBubbles.splice(i, 1);
+                this.debugLogger.log('cleanup', bucketHit ? 'Bubble hit bucket' : 'Falling bubble removed from screen');
             }
         }
 
@@ -667,10 +1184,11 @@ class Game {
             // Remove after animation completes (smoother feedback)
             if (bubble.animationTimer > 20) {
                 this.removingBubbles.splice(i, 1);
+                this.debugLogger.log('cleanup', 'Removing bubble animation completed');
             }
         }
 
-        // Check if all bubbles are cleared
+        // Check win condition
         let bubbleCount = 0;
         for (let row = 0; row < GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
@@ -682,145 +1200,203 @@ class Game {
         
         if (bubbleCount === 0) {
             this.gameWon = true;
-            this.score *= CLEAR_FIELD_BONUS_MULTIPLIER; // Double score for clearing the field
+            this.score *= CLEAR_FIELD_BONUS_MULTIPLIER;
             this.saveHighScore(this.score);
+            this.debugLogger.log('game', 'Game won - all bubbles cleared', { finalScore: this.score });
         }
         
-        // Check if bubbles reached bottom
+        // Check lose condition
         for (let col = 0; col < GRID_COLS; col++) {
             if (this.gridBubbles[GRID_ROWS - 1][col]) {
                 this.gameOver = true;
                 this.saveHighScore(this.score);
+                this.debugLogger.log('game', 'Game over - bubbles reached bottom');
                 break;
             }
         }
+        
+        // Update performance metrics
+        const frameTime = performance.now() - this.frameStartTime;
+        this.debugLogger.updateMetrics(frameTime, this.collisionChecksThisFrame, this.gridSnapsThisFrame);
+        this.debugLogger.nextFrame();
     }
 
     snapBubbleToGrid(bubble) {
-        // Find the closest valid grid position that ensures connectivity to the top
-        let closestRow = -1;
-        let closestCol = -1;
-        let minDistance = Infinity;
+        this.gridSnapsThisFrame++;
+        this.debugLogger.log('snap', 'Attempting to snap bubble to grid', {
+            bubblePosition: { x: bubble.x, y: bubble.y },
+            bubbleColor: bubble.color
+        });
         
-        // First, prioritize positions that maintain connectivity to the top row
+        // Enhanced hexagonal grid snapping with precise positioning
+        let bestRow = -1;
+        let bestCol = -1;
+        let minDistance = Infinity;
+        let candidatePositions = [];
+        
+        // Find the best grid position using hexagonal distance calculation
         for (let row = 0; row < GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (!this.gridBubbles[row][col]) {
-                    const x = this.getColPosition(row, col);
-                    const y = this.getRowPosition(row);
+                    const gridX = this.getColPosition(row, col);
+                    const gridY = this.getRowPosition(row);
                     
-                    // Check if this position would overlap with existing bubbles
-                    if (this.wouldOverlap(x, y, row, col)) {
-                        continue; // Skip positions that would cause overlap
+                    // Skip positions that would cause overlaps
+                    if (this.wouldOverlapPrecise(gridX, gridY, row, col)) {
+                        continue;
                     }
                     
-                    const dx = bubble.x - x;
-                    const dy = bubble.y - y;
+                    // Calculate precise distance to this grid position
+                    const dx = bubble.x - gridX;
+                    const dy = bubble.y - gridY;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
-                    // Only consider positions that are:
-                    // 1. In the top row (always valid)
-                    // 2. Adjacent to bubbles that are connected to the top row
-                    let isTopRow = row === 0;
-                    let isConnectedToTop = isTopRow || this.isPositionConnectedToTop(row, col);
+                    // Check if this position maintains connectivity to top
+                    const isTopRow = row === 0;
+                    const isConnected = isTopRow || this.isPositionConnectedToTop(row, col);
                     
-                    if (isConnectedToTop) {
-                        // Prefer positions closer to the bubble
-                        if (distance < minDistance) {
-                            minDistance = distance;
-                            closestRow = row;
-                            closestCol = col;
+                    // Store candidate position
+                    candidatePositions.push({
+                        row, col, gridX, gridY, distance, isConnected
+                    });
+                    
+                    // Prioritize connected positions with closer distance
+                    if (isConnected && distance < minDistance) {
+                        minDistance = distance;
+                        bestRow = row;
+                        bestCol = col;
+                    }
+                }
+            }
+        }
+        
+        this.debugLogger.log('snap', 'Grid position analysis', {
+            candidatesFound: candidatePositions.length,
+            connectedCandidates: candidatePositions.filter(c => c.isConnected).length,
+            bestPosition: bestRow >= 0 ? { row: bestRow, col: bestCol, distance: minDistance } : null
+        });
+        
+        // Enhanced fallback logic for edge cases
+        if (bestRow === -1) {
+            this.debugLogger.log('snap', 'No connected position found, using fallback');
+            bestRow = this.findBestFallbackPosition(bubble);
+            if (bestRow !== -1) {
+                // Find first available column in the fallback row
+                for (let col = 0; col < GRID_COLS; col++) {
+                    if (!this.gridBubbles[bestRow][col]) {
+                        const gridX = this.getColPosition(bestRow, col);
+                        const gridY = this.getRowPosition(bestRow);
+                        if (!this.wouldOverlapPrecise(gridX, gridY, bestRow, col)) {
+                            bestCol = col;
+                            break;
                         }
                     }
                 }
             }
         }
         
-        // If no connected position found, force placement in top row or connected area
-        if (closestRow === -1) {
-            // Try to find any position in the top row first
-            for (let col = 0; col < GRID_COLS; col++) {
-                if (!this.gridBubbles[0][col]) {
-                    const x = this.getColPosition(0, col);
-                    const y = this.getRowPosition(0);
-                    
-                    if (!this.wouldOverlap(x, y, 0, col)) {
-                        closestRow = 0;
-                        closestCol = col;
-                        break;
-                    }
-                }
-            }
-            
-            // If still no position, find the highest available connected position
-            if (closestRow === -1) {
-                for (let row = 0; row < GRID_ROWS; row++) {
-                    for (let col = 0; col < GRID_COLS; col++) {
-                        if (!this.gridBubbles[row][col]) {
-                            const x = this.getColPosition(row, col);
-                            const y = this.getRowPosition(row);
-                            
-                            if (!this.wouldOverlap(x, y, row, col) && this.isPositionConnectedToTop(row, col)) {
-                                closestRow = row;
-                                closestCol = col;
-                                break;
-                            }
-                        }
-                    }
-                    if (closestRow !== -1) break;
-                }
-            }
-        }
-        
-        // Snap to closest valid position
-        if (closestRow >= 0 && closestCol >= 0) {
-            bubble.x = this.getColPosition(closestRow, closestCol);
-            bubble.y = this.getRowPosition(closestRow);
+        // Snap bubble to the determined position
+        if (bestRow >= 0 && bestCol >= 0) {
+            // Perfect positioning using grid calculations
+            bubble.x = this.getColPosition(bestRow, bestCol);
+            bubble.y = this.getRowPosition(bestRow);
             bubble.stuck = true;
-            bubble.row = closestRow;
-            bubble.col = closestCol;
+            bubble.row = bestRow;
+            bubble.col = bestCol;
             bubble.vx = 0;
             bubble.vy = 0;
-            this.gridBubbles[closestRow][closestCol] = bubble;
+            bubble.snapPredicted = false; // Reset prediction flag
+            this.gridBubbles[bestRow][bestCol] = bubble;
             
-            // Check for matches
-            const matches = this.checkMatches(closestRow, closestCol);
+            this.debugLogger.log('snap', 'Bubble successfully snapped to grid', {
+                finalPosition: { row: bestRow, col: bestCol, x: bubble.x, y: bubble.y },
+                color: bubble.color
+            });
+            
+            // Process matches and game logic
+            const matches = this.checkMatches(bestRow, bestCol);
+            this.debugLogger.log('match', 'Checking for matches', {
+                position: { row: bestRow, col: bestCol },
+                matchesFound: matches.length,
+                threshold: POP_THRESHOLD
+            });
+            
             if (matches.length >= POP_THRESHOLD) {
+                this.debugLogger.log('match', 'Match threshold reached - popping bubbles', {
+                    bubblesPopped: matches.length,
+                    colors: matches.map(b => b.color)
+                });
                 this.playSound('pop');
                 this.popBubbles(matches);
-                // Reset missed shots counter
                 this.missedShots = 0;
             } else {
                 this.missedShots++;
+                this.debugLogger.log('game', 'Shot missed - incrementing miss counter', {
+                    missedShots: this.missedShots,
+                    limit: MISSED_SHOTS_LIMIT
+                });
+                
                 if (this.missedShots >= MISSED_SHOTS_LIMIT) {
-                    this.addNewRow();
+                    this.debugLogger.log('game', 'Miss limit reached - deferring new row addition');
+                    this.pendingNewRow = true;
                     this.missedShots = 0;
                 }
             }
         } else {
-            // Emergency fallback - place in first available position in top rows
-            for (let row = 0; row < 3; row++) { // Only check top 3 rows for emergency placement
-                for (let col = 0; col < GRID_COLS; col++) {
-                    if (!this.gridBubbles[row][col]) {
-                        bubble.x = this.getColPosition(row, col);
-                        bubble.y = this.getRowPosition(row);
-                        bubble.stuck = true;
-                        bubble.row = row;
-                        bubble.col = col;
-                        bubble.vx = 0;
-                        bubble.vy = 0;
-                        this.gridBubbles[row][col] = bubble;
-                        this.missedShots++;
-                        
-                        if (this.missedShots >= MISSED_SHOTS_LIMIT) {
-                            this.addNewRow();
-                            this.missedShots = 0;
-                        }
-                        return;
+            this.debugLogger.log('snap', 'WARNING: Could not find valid grid position for bubble!', {
+                bubblePosition: { x: bubble.x, y: bubble.y },
+                candidatesChecked: candidatePositions.length
+            });
+        }
+    }
+
+    findBestFallbackPosition(bubble) {
+        // Find the best row for fallback placement (top rows preferred)
+        for (let row = 0; row < Math.min(GRID_ROWS, 3); row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (!this.gridBubbles[row][col]) {
+                    const gridX = this.getColPosition(row, col);
+                    const gridY = this.getRowPosition(row);
+                    if (!this.wouldOverlapPrecise(gridX, gridY, row, col)) {
+                        return row;
                     }
                 }
             }
         }
+        return -1;
+    }
+
+    wouldOverlapPrecise(x, y, targetRow, targetCol) {
+        // Enhanced overlap detection using precise hexagonal distances
+        const MIN_DISTANCE = BUBBLE_RADIUS * 2 * 0.98; // Slightly tighter for perfect placement
+        
+        // Check all nearby positions that could cause overlaps
+        const neighbors = this.getNeighborPositions(targetRow, targetCol);
+        
+        // Add the target position's immediate vicinity
+        const positionsToCheck = [
+            ...neighbors,
+            [targetRow, targetCol - 2], [targetRow, targetCol + 2], // Extended horizontal
+            [targetRow - 2, targetCol], [targetRow + 2, targetCol]   // Extended vertical
+        ];
+        
+        for (const [checkRow, checkCol] of positionsToCheck) {
+            if (checkRow >= 0 && checkRow < GRID_ROWS && 
+                checkCol >= 0 && checkCol < GRID_COLS && 
+                this.gridBubbles[checkRow][checkCol]) {
+                
+                const existingBubble = this.gridBubbles[checkRow][checkCol];
+                const dx = x - existingBubble.x;
+                const dy = y - existingBubble.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < MIN_DISTANCE) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 
     isPositionConnectedToTop(row, col) {
@@ -882,15 +1458,18 @@ class Game {
     }
 
     getNeighborPositions(row, col) {
-        // Get all 6 neighbor positions in hexagonal grid
-        const isEvenRow = row % 2 === 0;
+        // Perfect hexagonal neighbor calculation
+        // In a hexagonal grid, odd rows are offset to the right
+        const isOddRow = row % 2 === 1;
+        
+        // Calculate the 6 hexagonal neighbors with correct offset logic
         return [
-            [row - 1, col + (isEvenRow ? -1 : 0)], // Top left
-            [row - 1, col + (isEvenRow ? 0 : 1)],  // Top right
-            [row, col - 1],                         // Left
-            [row, col + 1],                         // Right
-            [row + 1, col + (isEvenRow ? -1 : 0)], // Bottom left
-            [row + 1, col + (isEvenRow ? 0 : 1)]   // Bottom right
+            [row - 1, col + (isOddRow ? 0 : -1)], // Top left
+            [row - 1, col + (isOddRow ? 1 : 0)],  // Top right
+            [row, col - 1],                        // Direct left
+            [row, col + 1],                        // Direct right
+            [row + 1, col + (isOddRow ? 0 : -1)], // Bottom left
+            [row + 1, col + (isOddRow ? 1 : 0)]   // Bottom right
         ];
     }
 
@@ -980,6 +1559,12 @@ class Game {
     }
 
     popBubbles(bubbles) {
+        this.debugLogger.log('pop', 'Popping bubble group', {
+            count: bubbles.length,
+            colors: [...new Set(bubbles.map(b => b.color))], // Unique colors
+            positions: bubbles.map(b => ({ row: b.row, col: b.col }))
+        });
+        
         // Remove bubbles from grid
         for (const bubble of bubbles) {
             this.gridBubbles[bubble.row][bubble.col] = null;
@@ -989,13 +1574,31 @@ class Game {
         }
         
         // Add points
-        this.score += bubbles.length * POINTS_PER_BUBBLE;
+        const pointsEarned = bubbles.length * POINTS_PER_BUBBLE;
+        this.score += pointsEarned;
+        this.debugLogger.log('score', 'Points earned from popping', {
+            bubblesPopped: bubbles.length,
+            pointsEarned,
+            newScore: this.score
+        });
         
         // Check for floating bubbles (avalanche effect)
         const floatingBubbles = this.findFloatingBubbles();
         if (floatingBubbles.length > 0) {
+            this.debugLogger.log('avalanche', 'Floating bubbles detected', {
+                count: floatingBubbles.length,
+                positions: floatingBubbles.map(b => ({ row: b.row, col: b.col, color: b.color }))
+            });
+            
             this.playSound('avalanche');
-            this.score += floatingBubbles.length * AVALANCHE_BONUS;
+            const avalanchePoints = floatingBubbles.length * AVALANCHE_BONUS;
+            this.score += avalanchePoints;
+            
+            this.debugLogger.log('score', 'Avalanche bonus points', {
+                bubblesDropped: floatingBubbles.length,
+                bonusPoints: avalanchePoints,
+                newScore: this.score
+            });
             
             for (const bubble of floatingBubbles) {
                 this.gridBubbles[bubble.row][bubble.col] = null;
@@ -1111,6 +1714,11 @@ class Game {
         this.ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
         this.ctx.fillRect(0, 0, this.canvas.width, GRID_ROW_HEIGHT * GRID_ROWS + GRID_TOP_MARGIN);
         
+        // Optional: Draw hexagonal grid visualization (press 'G' to toggle)
+        if (this.showDebugGrid) {
+            this.drawHexagonalGrid();
+        }
+        
         // Draw grid bubbles
         for (let row = 0; row < GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
@@ -1121,9 +1729,14 @@ class Game {
             }
         }
 
-        // Draw flying bubbles
+        // Draw flying bubbles with enhanced collision prediction
         for (const bubble of this.flyingBubbles) {
             bubble.draw(this.ctx);
+            
+            // Draw collision prediction if enabled
+            if (this.showCollisionPrediction) {
+                this.drawCollisionPrediction(bubble);
+            }
         }
         
         // Draw falling bubbles
@@ -1134,6 +1747,53 @@ class Game {
         // Draw removing bubbles (pop animation)
         for (const bubble of this.removingBubbles) {
             bubble.draw(this.ctx);
+        }
+
+        // Draw finish line
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([10, 5]);
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, this.finishLineY);
+        this.ctx.lineTo(this.canvas.width, this.finishLineY);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]); // Reset line dash
+        
+        // Draw finish line label
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('FINISH LINE', this.canvas.width / 2, this.finishLineY - 10);
+
+        // Draw score buckets
+        for (let i = 0; i < this.scoreBuckets.length; i++) {
+            const bucket = this.scoreBuckets[i];
+            
+            // Draw bucket background
+            this.ctx.fillStyle = bucket.color;
+            this.ctx.fillRect(bucket.x, bucket.y, bucket.width, bucket.height);
+            
+            // Draw bucket border
+            this.ctx.strokeStyle = '#333';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(bucket.x, bucket.y, bucket.width, bucket.height);
+            
+            // Draw bucket score label
+            this.ctx.font = 'bold 18px Arial';
+            this.ctx.fillStyle = 'white';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(
+                bucket.label, 
+                bucket.x + bucket.width / 2, 
+                bucket.y + bucket.height / 2 + 6
+            );
+            
+            // Draw bucket glow effect
+            const gradient = this.ctx.createLinearGradient(bucket.x, bucket.y, bucket.x, bucket.y + bucket.height);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(bucket.x, bucket.y, bucket.width, bucket.height / 2);
         }
 
         // Draw shooter
@@ -1167,6 +1827,18 @@ class Game {
             this.ctx.fillText(`Time: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`, this.canvas.width - 120, 30);
         }
         
+        // Enhanced debug information display
+        if (this.showDebugInfo) {
+            this.drawDebugInfo();
+        }
+        
+        // Debug controls help
+        if (this.debugLogger.enabled) {
+            this.ctx.font = '10px Arial';
+            this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+            this.ctx.fillText('DEBUG MODE: G=Grid, I=Info, P=Prediction, R=Report, C=Clear, D=Toggle', 10, this.canvas.height - 5);
+        }
+        
         // Draw game over or win message
         if (this.gameOver || this.gameWon) {
             this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1196,6 +1868,128 @@ class Game {
                 this.canvas.height / 2 + 50
             );
         }
+    }
+
+    drawDebugInfo() {
+        const report = this.debugLogger.getReport();
+        
+        // Debug info background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(this.canvas.width - 250, 50, 240, 200);
+        
+        // Debug info text
+        this.ctx.font = '12px Arial';
+        this.ctx.fillStyle = '#00FF00';
+        this.ctx.textAlign = 'left';
+        
+        const debugInfo = [
+            `Frame: ${report.frame}`,
+            `Avg Frame Time: ${report.avgFrameTime.toFixed(2)}ms`,
+            `Collision Checks: ${report.collisionChecks}`,
+            `Grid Snaps: ${report.gridSnaps}`,
+            `Flying Bubbles: ${this.flyingBubbles.length}`,
+            `Falling Bubbles: ${this.fallingBubbles.length}`,
+            `Removing Bubbles: ${this.removingBubbles.length}`,
+            `Recent Collisions: ${report.recentCollisions.length}`,
+            '',
+            'Collision Settings:',
+            `Precision: ${this.collisionSettings.precisionFactor}`,
+            `Wall Bounce: ${this.collisionSettings.wallBounceRestitution}`,
+            `Snap Distance: ${this.collisionSettings.snapDistance.toFixed(1)}`
+        ];
+        
+        debugInfo.forEach((line, index) => {
+            this.ctx.fillText(line, this.canvas.width - 240, 70 + index * 14);
+        });
+        
+        // Show recent collision details if any
+        if (report.recentCollisions.length > 0) {
+            this.ctx.fillStyle = '#FFFF00';
+            this.ctx.fillText('Last Collision:', this.canvas.width - 240, 70 + debugInfo.length * 14);
+            const lastCollision = report.recentCollisions[report.recentCollisions.length - 1];
+            this.ctx.fillText(`${lastCollision.category}: ${lastCollision.message}`, this.canvas.width - 240, 84 + debugInfo.length * 14);
+        }
+    }
+
+    drawCollisionPrediction(bubble) {
+        const predictions = this.collisionPredictor.predictCollision(
+            bubble, this.gridBubbles, this.canvas.width, this.canvas.height
+        );
+        
+        if (predictions.length > 0) {
+            const prediction = predictions[0]; // Show first prediction
+            
+            // Draw prediction line
+            this.ctx.setLineDash([2, 2]);
+            this.ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.moveTo(bubble.x, bubble.y);
+            this.ctx.lineTo(prediction.position.x, prediction.position.y);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            
+            // Draw prediction point
+            this.ctx.beginPath();
+            this.ctx.arc(prediction.position.x, prediction.position.y, 5, 0, Math.PI * 2);
+            this.ctx.fillStyle = prediction.type === 'grid_collision' ? 'rgba(255, 0, 0, 0.7)' : 'rgba(255, 255, 0, 0.7)';
+            this.ctx.fill();
+            
+            // Draw prediction text
+            this.ctx.font = '10px Arial';
+            this.ctx.fillStyle = 'yellow';
+            this.ctx.fillText(
+                `${prediction.type} (${prediction.time.toFixed(2)}s)`,
+                prediction.position.x + 10,
+                prediction.position.y - 10
+            );
+        }
+    }
+
+    drawHexagonalGrid() {
+        // Draw the perfect hexagonal grid for debugging and verification
+        this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)'; // Semi-transparent green
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([2, 2]); // Dashed lines
+        
+        // Draw grid positions and connections
+        for (let row = 0; row < GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const x = this.getColPosition(row, col);
+                const y = this.getRowPosition(row);
+                
+                // Draw position markers
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+                this.ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                this.ctx.fill();
+                
+                // Draw hexagonal connections to neighbors
+                const neighbors = this.getNeighborPositions(row, col);
+                for (const [nRow, nCol] of neighbors) {
+                    if (nRow >= 0 && nRow < GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
+                        const nx = this.getColPosition(nRow, nCol);
+                        const ny = this.getRowPosition(nRow);
+                        
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(x, y);
+                        this.ctx.lineTo(nx, ny);
+                        this.ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        this.ctx.setLineDash([]); // Reset line dash
+        
+        // Display grid info
+        this.ctx.font = '12px Arial';
+        this.ctx.fillStyle = 'rgba(0, 255, 0, 0.8)';
+        this.ctx.fillText('DEBUG: Perfect Hexagonal Grid', 10, this.canvas.height - 80);
+        this.ctx.fillText(`Row Height: ${GRID_ROW_HEIGHT.toFixed(2)} (√3 × ${BUBBLE_RADIUS})`, 10, this.canvas.height - 65);
+        this.ctx.fillText(`Col Spacing: ${GRID_COL_SPACING} (2 × ${BUBBLE_RADIUS})`, 10, this.canvas.height - 50);
+        this.ctx.fillText(`Hex Offset: ${HEX_OFFSET} (${BUBBLE_RADIUS})`, 10, this.canvas.height - 35);
+               this.ctx.fillText('Press G to toggle grid', 10, this.canvas.height - 20);
     }
 
     gameLoop() {
