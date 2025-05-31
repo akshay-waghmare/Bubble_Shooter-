@@ -1664,45 +1664,136 @@ class Game {
     }
 
     addNewRow() {
-        // Shift all existing rows down
+        this.debugLogger.log('game', 'Adding new row - starting shift operation');
+        
+        // Shift all existing rows down and update their positions
         for (let row = GRID_ROWS - 1; row > 0; row--) {
             for (let col = 0; col < GRID_COLS; col++) {
                 this.gridBubbles[row][col] = this.gridBubbles[row - 1][col];
                 if (this.gridBubbles[row][col]) {
+                    // Update both grid coordinates and actual position
                     this.gridBubbles[row][col].row = row;
+                    this.gridBubbles[row][col].col = col;
+                    
+                    // Recalculate precise position using grid positioning methods
+                    this.gridBubbles[row][col].x = this.getColPosition(row, col);
                     this.gridBubbles[row][col].y = this.getRowPosition(row);
+                    
+                    this.debugLogger.log('shift', `Moved bubble from row ${row-1} to row ${row}`, {
+                        col: col,
+                        newPosition: { x: this.gridBubbles[row][col].x, y: this.gridBubbles[row][col].y }
+                    });
                 }
             }
         }
         
-        // Add new row at the top
+        // Clear the top row
+        for (let col = 0; col < GRID_COLS; col++) {
+            this.gridBubbles[0][col] = null;
+        }
+        
+        // Add new row at the top with proper collision checking
         const settings = this.difficultySettings[this.difficulty];
         const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
         
-        for (let col = 0; col < GRID_COLS; col++) {
-            if (Math.random() < 0.9) { // 90% chance to add a bubble
+        // Calculate maximum bubbles that can fit in the grid based on canvas width
+        const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
+        const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
+        
+        for (let col = 0; col < effectiveGridCols; col++) {
+            if (Math.random() < 0.85) { // 85% chance to add a bubble
                 const x = this.getColPosition(0, col);
                 const y = this.getRowPosition(0);
-                const color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
+                
+                // Ensure we don't place bubbles too close to the edge
+                if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
+                    continue;
+                }
+                
+                // Use enhanced overlap checking to prevent conflicts
+                if (this.wouldOverlapPrecise(x, y, 0, col)) {
+                    this.debugLogger.log('warning', 'Overlap detected when adding new row bubble', {
+                        position: { row: 0, col: col, x: x, y: y }
+                    });
+                    continue;
+                }
+                
+                // Create color clusters for more strategic gameplay
+                let color;
+                if (col > 0 && this.gridBubbles[0][col-1] && Math.random() < 0.4) {
+                    color = this.gridBubbles[0][col-1].color;
+                } else {
+                    color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
+                }
+                
                 const bubble = new Bubble(x, y, color, 0, col);
                 bubble.stuck = true;
                 this.gridBubbles[0][col] = bubble;
                 this.totalBubbles++;
-            } else {
-                this.gridBubbles[0][col] = null;
+                
+                this.debugLogger.log('add', 'New bubble added to top row', {
+                    position: { row: 0, col: col, x: x, y: y },
+                    color: color
+                });
             }
         }
+        
+        // Verify grid integrity after the operation
+        this.verifyGridIntegrity();
         
         // Check if game is over (bubbles reached bottom)
         for (let col = 0; col < GRID_COLS; col++) {
             if (this.gridBubbles[GRID_ROWS - 1][col]) {
                 this.gameOver = true;
                 this.saveHighScore(this.score);
+                this.debugLogger.log('game', 'Game over - bubbles reached bottom after new row added');
                 break;
             }
         }
         
         this.playSound('newRow');
+        this.debugLogger.log('game', 'New row addition completed successfully');
+    }
+
+    // Add a method to verify grid integrity (helps catch positioning issues)
+    verifyGridIntegrity() {
+        if (!this.debugLogger.enabled) return; // Only run in debug mode
+        
+        let issues = 0;
+        for (let row = 0; row < GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    const expectedX = this.getColPosition(row, col);
+                    const expectedY = this.getRowPosition(row);
+                    
+                    // Check if bubble position matches expected grid position
+                    const positionError = Math.sqrt(
+                        Math.pow(bubble.x - expectedX, 2) + 
+                        Math.pow(bubble.y - expectedY, 2)
+                    );
+                    
+                    if (positionError > 1) { // Allow 1 pixel tolerance
+                        this.debugLogger.log('warning', 'Grid integrity issue detected', {
+                            bubble: { row: bubble.row, col: bubble.col, x: bubble.x, y: bubble.y },
+                            expected: { row: row, col: col, x: expectedX, y: expectedY },
+                            error: positionError
+                        });
+                        
+                        // Auto-correct the position
+                        bubble.x = expectedX;
+                        bubble.y = expectedY;
+                        bubble.row = row;
+                        bubble.col = col;
+                        issues++;
+                    }
+                }
+            }
+        }
+        
+        if (issues > 0) {
+            this.debugLogger.log('warning', `Fixed ${issues} grid integrity issues`);
+        }
     }
 
     draw() {
