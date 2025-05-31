@@ -466,9 +466,11 @@ class Bubble {
             });
             
             // Handle wall bounces for flying bubbles
-            if (this.x - this.radius <= 0 || this.x + this.radius >= (Game.prototype.canvas?.width || 800)) {
+            // Get canvas width from the game instance or use a default
+            const canvasWidth = window.gameInstance?.canvas?.width || 800;
+            if (this.x - this.radius <= 0 || this.x + this.radius >= canvasWidth) {
                 this.vx *= -0.95; // Energy loss on bounce
-                this.x = Math.max(this.radius, Math.min((Game.prototype.canvas?.width || 800) - this.radius, this.x));
+                this.x = Math.max(this.radius, Math.min(canvasWidth - this.radius, this.x));
                 console.log('BUBBLE UPDATE - Wall bounce, new vx:', this.vx);
             }
         }
@@ -1627,6 +1629,10 @@ window.addEventListener('load', () => {
         game.gameMode = selectedGameMode;
         game.difficulty = selectedDifficulty;
         game.soundEnabled = soundEnabled;
+        
+        // Set global reference for bubble wall collision detection
+        window.gameInstance = game;
+        
         game.start(); // Start the game with the chosen settings
     });
 
