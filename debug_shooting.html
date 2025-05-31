@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shooting Debug Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+    <h1>Shooting Direction Debug</h1>
+    <p>Check the console for angle and velocity calculations</p>
+    
+    <div style="margin: 20px 0;">
+        <h3>Expected Results:</h3>
+        <ul>
+            <li>Upper Left: Should have negative vx (left) and negative vy (up)</li>
+            <li>Upper Right: Should have positive vx (right) and negative vy (up)</li>
+            <li>Left: Should have negative vx (left) and small vy</li>
+            <li>Right: Should have positive vx (right) and small vy</li>
+        </ul>
+    </div>
+    
+    <script src="game.js"></script>
+    <script src="debug_shooting.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Shooter - Shooting Direction Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        #output {
+            background: #0f0f23;
+            padding: 10px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+        .instructions {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Shooting Direction Debug Test</h1>
+    
+    <div class="instructions">
+        <h3>Test Instructions:</h3>
+        <ol>
+            <li>Click "Start Test Game" below</li>
+            <li>Move your mouse around the canvas to aim</li>
+            <li>Click to shoot bubbles</li>
+            <li>Watch the debug output below to see angle calculations</li>
+            <li>Observe if bubbles actually move in the aimed direction</li>
+        </ol>
+    </div>
+    
+    <button onclick="startTestGame()" style="padding: 10px 20px; font-size: 16px; background: #4ECDC4; color: #1a1a2e; border: none; border-radius: 5px; cursor: pointer;">Start Test Game</button>
+    
+    <canvas id="testCanvas" width="600" height="400" style="display: none;"></canvas>
+    
+    <h3>Debug Output:</h3>
+    <div id="output"></div>
+    
+    <script>
+        // Capture console.log output
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            output.innerHTML += args.join(' ') + '<br>';
+            output.scrollTop = output.scrollHeight;
+        };
+        
+        let testGame = null;
+        
+        function startTestGame() {
+            const canvas = document.getElementById('testCanvas');
+            canvas.style.display = 'block';
+            
+            console.log('=== STARTING TEST GAME ===');
+            
+            try {
+                testGame = new Game(canvas);
+                testGame.gameMode = 'classic';
+                testGame.difficulty = 'novice';
+                testGame.soundEnabled = false;
+                testGame.start();
+                
+                console.log('✅ Test game started successfully');
+                console.log('Shooter position:', testGame.shooter ? `(${testGame.shooter.x}, ${testGame.shooter.y})` : 'null');
+                
+                // Add visual indicator for aim direction
+                const originalDraw = testGame.draw;
+                testGame.draw = function() {
+                    originalDraw.call(this);
+                    
+                    // Draw debug info on canvas
+                    if (this.shooter) {
+                        this.ctx.font = '14px Arial';
+                        this.ctx.fillStyle = 'yellow';
+                        this.ctx.fillText(`Angle: ${(this.shooter.angle * 180 / Math.PI).toFixed(1)}°`, 10, 30);
+                        this.ctx.fillText(`Mouse: (${this.mouseX}, ${this.mouseY})`, 10, 50);
+                        
+                        // Draw velocity vector for last shot bubble
+                        if (this.flyingBubbles.length > 0) {
+                            const bubble = this.flyingBubbles[this.flyingBubbles.length - 1];
+                            this.ctx.fillText(`Last Shot vx: ${bubble.vx?.toFixed(1)}, vy: ${bubble.vy?.toFixed(1)}`, 10, 70);
+                        }
+                    }
+                };
+                
+            } catch (error) {
+                console.log('❌ Error starting test game:', error);
+            }
+        }
+    </script>
+    
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Shooting Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #222; color: white; }
+        canvas { border: 2px solid #4ECDC4; background: #111; }
+        #info { margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Simple Shooting Direction Test</h1>
+    <canvas id="canvas" width="600" height="400"></canvas>
+    <div id="info">Move mouse and click to shoot</div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const info = document.getElementById('info');
+        
+        // Simple shooter
+        const shooter = {
+            x: canvas.width / 2,
+            y: canvas.height - 50,
+            angle: 0
+        };
+        
+        // Simple bubbles array
+        const bubbles = [];
+        
+        let mouseX = 0, mouseY = 0;
+        
+        // Mouse tracking
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            
+            // Calculate angle
+            const deltaX = mouseX - shooter.x;
+            const deltaY = mouseY - shooter.y;
+            shooter.angle = Math.atan2(deltaY, deltaX);
+            
+            info.innerHTML = `Mouse: (${mouseX.toFixed(0)}, ${mouseY.toFixed(0)}) | 
+                             Angle: ${(shooter.angle * 180 / Math.PI).toFixed(1)}° | 
+                             Expected vx: ${(Math.cos(shooter.angle) * 10).toFixed(1)} | 
+                             Expected vy: ${(Math.sin(shooter.angle) * 10).toFixed(1)}`;
+        });
+        
+        // Shooting
+        canvas.addEventListener('click', () => {
+            const vx = Math.cos(shooter.angle) * 10;
+            const vy = Math.sin(shooter.angle) * 10;
+            
+            bubbles.push({
+                x: shooter.x,
+                y: shooter.y,
+                vx: vx,
+                vy: vy,
+                color: '#FF6B6B'
+            });
+            
+            console.log('Shot bubble with velocity:', { vx, vy });
+        });
+        
+        // Animation loop
+        function animate() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Update bubbles
+            for (let i = bubbles.length - 1; i >= 0; i--) {
+                const bubble = bubbles[i];
+                bubble.x += bubble.vx;
+                bubble.y += bubble.vy;
+                
+                // Remove if off screen
+                if (bubble.x < -20 || bubble.x > canvas.width + 20 || 
+                    bubble.y < -20 || bubble.y > canvas.height + 20) {
+                    bubbles.splice(i, 1);
+                    continue;
+                }
+                
+                // Draw bubble
+                ctx.beginPath();
+                ctx.arc(bubble.x, bubble.y, 15, 0, Math.PI * 2);
+                ctx.fillStyle = bubble.color;
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.stroke();
+            }
+            
+            // Draw shooter
+            ctx.beginPath();
+            ctx.arc(shooter.x, shooter.y, 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#4ECDC4';
+            ctx.fill();
+            
+            // Draw aim line
+            const aimLength = 100;
+            const aimX = shooter.x + Math.cos(shooter.angle) * aimLength;
+            const aimY = shooter.y + Math.sin(shooter.angle) * aimLength;
+            
+            ctx.beginPath();
+            ctx.moveTo(shooter.x, shooter.y);
+            ctx.lineTo(aimX, aimY);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
