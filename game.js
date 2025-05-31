@@ -1126,6 +1126,12 @@ class Game {
                 const bubble = this.shooter.shoot();
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
+                    
+                    // Decrement shots for strategy mode
+                    if (this.gameMode === "strategy") {
+                        this.shotsLeft--;
+                        console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
+                    }
                 }
             }
         });
@@ -1153,6 +1159,12 @@ class Game {
                 const bubble = this.shooter.shoot();
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
+                    
+                    // Decrement shots for strategy mode
+                    if (this.gameMode === "strategy") {
+                        this.shotsLeft--;
+                        console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
+                    }
                 }
             }
         });
@@ -1220,17 +1232,51 @@ class Game {
         let bestPosition = null;
         let minDistance = Infinity;
         
-        // Check nearby grid positions
-        for (let row = 0; row < GRID_ROWS; row++) {
+        // Calculate dynamic maximum row based on danger zone
+        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
+        const dangerZoneY = shooterY - 80;
+        // Allow bubbles to get very close to danger zone (only 5px buffer instead of full radius)
+        const maxAllowedY = dangerZoneY - 5; // Much closer to danger zone
+        
+        // Calculate maximum row that fits before danger zone
+        const maxRow = Math.floor((maxAllowedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        const effectiveMaxRows = Math.max(GRID_ROWS, maxRow); // Use at least original GRID_ROWS
+        
+        console.log('DYNAMIC GRID EXTENSION:', {
+            dangerZoneY,
+            maxAllowedY,
+            maxRow,
+            effectiveMaxRows,
+            originalGridRows: GRID_ROWS,
+            calculatedRowY: maxRow * GRID_ROW_HEIGHT + GRID_TOP_MARGIN
+        });
+        
+        // Extend gridBubbles array if needed
+        while (this.gridBubbles.length <= effectiveMaxRows) {
+            const newRow = new Array(GRID_COLS).fill(null);
+            this.gridBubbles.push(newRow);
+        }
+        
+        // Check nearby grid positions including extended range
+        for (let row = 0; row <= effectiveMaxRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
+                // Ensure row exists in gridBubbles array
+                if (!this.gridBubbles[row]) {
+                    this.gridBubbles[row] = new Array(GRID_COLS).fill(null);
+                }
+                
                 if (this.gridBubbles[row][col] === null) {
                     const gridX = this.getColPosition(row, col);
                     const gridY = this.getRowPosition(row);
-                    const distance = Math.sqrt((x - gridX) ** 2 + (y - gridY) ** 2);
                     
-                    if (distance < minDistance && distance < BUBBLE_RADIUS * 2.5) {
-                        minDistance = distance;
-                        bestPosition = { x: gridX, y: gridY, row, col };
+                    // Only consider positions that don't exceed danger zone
+                    if (gridY <= maxAllowedY) {
+                        const distance = Math.sqrt((x - gridX) ** 2 + (y - gridY) ** 2);
+                        
+                        if (distance < minDistance && distance < BUBBLE_RADIUS * 2.5) {
+                            minDistance = distance;
+                            bestPosition = { x: gridX, y: gridY, row, col };
+                        }
                     }
                 }
             }
@@ -1304,7 +1350,7 @@ class Game {
             const newRow = row + dr;
             const newCol = col + dc;
             
-            if (newRow >= 0 && newRow < GRID_ROWS && 
+            if (newRow >= 0 && newRow < this.gridBubbles.length && 
                 newCol >= 0 && newCol < GRID_COLS) {
                 neighbors.push({ row: newRow, col: newCol });
             }
@@ -1320,7 +1366,7 @@ class Game {
         
         // Start from top row
         for (let col = 0; col < GRID_COLS; col++) {
-            if (this.gridBubbles[0][col]) {
+            if (this.gridBubbles[0] && this.gridBubbles[0][col]) {
                 const key = `0,${col}`;
                 connected.add(key);
                 queue.push({ row: 0, col });
@@ -1344,11 +1390,12 @@ class Game {
             }
         }
         
-        // Remove floating bubbles
-        for (let row = 0; row < GRID_ROWS; row++) {
+        // Remove floating bubbles from extended grid
+        const effectiveRows = this.gridBubbles.length;
+        for (let row = 0; row < effectiveRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 const key = `${row},${col}`;
-                if (this.gridBubbles[row][col] && !connected.has(key)) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col] && !connected.has(key)) {
                     const floatingBubble = this.gridBubbles[row][col];
                     floatingBubble.falling = true;
                     floatingBubble.enablePhysics(this.engine);
@@ -1361,10 +1408,11 @@ class Game {
     }
 
     wouldOverlapPrecise(x, y, excludeRow = -1, excludeCol = -1) {
-        for (let row = 0; row < GRID_ROWS; row++) {
+        const effectiveRows = this.gridBubbles.length;
+        for (let row = 0; row < effectiveRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (row === excludeRow && col === excludeCol) continue;
-                if (this.gridBubbles[row][col]) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
                     const bubble = this.gridBubbles[row][col];
                     const distance = Math.sqrt((x - bubble.x) ** 2 + (y - bubble.y) ** 2);
                     if (distance < BUBBLE_RADIUS * 1.8) {
@@ -1379,6 +1427,12 @@ class Game {
     update() {
         if (this.initializing) return;
         
+        // Update game timer for arcade mode
+        if (this.gameMode === "arcade" && this.timeLeft > 0 && !this.gameOver) {
+            this.timeLeft -= 16.67 / 1000; // Approximate frame time in seconds
+            if (this.timeLeft < 0) this.timeLeft = 0;
+        }
+        
         // Update Matter.js physics
         Engine.update(this.engine);
         
@@ -1387,12 +1441,13 @@ class Game {
             const bubble = this.flyingBubbles[i];
             bubble.update();
             
-            // Check for collisions with grid bubbles
+            // Check for collisions with grid bubbles using extended grid
             let collided = false;
-            for (let row = 0; row < GRID_ROWS && !collided; row++) {
+            const effectiveRows = this.gridBubbles.length;
+            for (let row = 0; row < effectiveRows && !collided; row++) {
                 for (let col = 0; col < GRID_COLS && !collided; col++) {
-                    const gridBubble = this.gridBubbles[row][col];
-                    if (gridBubble) {
+                    if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
+                        const gridBubble = this.gridBubbles[row][col];
                         const distance = Math.sqrt(
                             (bubble.x - gridBubble.x) ** 2 + 
                             (bubble.y - gridBubble.y) ** 2
@@ -1447,32 +1502,116 @@ class Game {
     }
 
     checkGameState() {
-        // Check if all bubbles cleared (win)
+        // Don't check game state if already over
+        if (this.gameOver) return;
+        
+        // Check if all bubbles cleared (win condition)
+        const effectiveRows = this.gridBubbles.length;
         const remainingBubbles = this.gridBubbles.flat().filter(b => b !== null).length;
         if (remainingBubbles === 0) {
             this.gameWon = true;
             this.gameOver = true;
+            this.playSound('win');
             this.saveHighScore(this.score);
+            console.log('Game won! All bubbles cleared.');
+            return;
         }
         
-        // Check if bubbles reached bottom (lose)
-        for (let row = GRID_ROWS - 1; row >= GRID_ROWS - 3; row--) {
+        // Check if bubbles reached bottom danger zone (lose condition)
+        // Calculate danger zone to provide more playable area - use shooter-relative positioning
+        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
+        const dangerZoneY = shooterY - 80; // 80px above shooter for good gameplay balance
+        const maxPossibleRowY = dangerZoneY + BUBBLE_RADIUS; // Allow bubbles to reach near danger zone
+        
+        // Find the lowest bubble position for debugging
+        let lowestBubbleY = 0;
+        let lowestBubbleBottomY = 0;
+        let bubbleCount = 0;
+        
+        for (let row = 0; row < effectiveRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
-                if (this.gridBubbles[row][col]) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
                     const bubble = this.gridBubbles[row][col];
-                    if (bubble.y > this.canvas.height - 150) {
+                    bubbleCount++;
+                    lowestBubbleY = Math.max(lowestBubbleY, bubble.y);
+                    lowestBubbleBottomY = Math.max(lowestBubbleBottomY, bubble.y + BUBBLE_RADIUS);
+                    
+                    // Check if bubble's bottom edge (center + radius) reaches danger zone
+                    if (bubble.y + BUBBLE_RADIUS > dangerZoneY) {
                         this.gameOver = true;
+                        this.gameWon = false;
+                        this.playSound('lose');
                         this.saveHighScore(this.score);
+                        console.log('Game over! Bubble bottom edge reached danger zone at y=' + (bubble.y + BUBBLE_RADIUS) + ', threshold=' + dangerZoneY + ' (bubble center: ' + bubble.y + ')');
                         return;
                     }
                 }
             }
         }
         
-        // Check missed shots limit
+        console.log('DANGER ZONE CHECK:', {
+            canvasHeight: this.canvas.height,
+            shooterY: shooterY,
+            maxPossibleRowY: maxPossibleRowY,
+            dangerZoneY: dangerZoneY,
+            lowestBubbleY: lowestBubbleY,
+            lowestBubbleBottomY: lowestBubbleBottomY,
+            bubbleCount: bubbleCount,
+            distanceFromDanger: dangerZoneY - lowestBubbleBottomY,
+            effectiveGridRows: effectiveRows,
+            gridRowsUsed: effectiveRows > 0 ? Math.ceil((lowestBubbleY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT) : 0
+        });
+        
+        // Check missed shots limit (lose condition)
         if (this.missedShots >= 5) {
             this.gameOver = true;
+            this.gameWon = false;
+            this.playSound('lose');
             this.saveHighScore(this.score);
+            console.log('Game over! Too many missed shots.');
+            return;
+        }
+        
+        // Mode-specific win/lose conditions
+        if (this.gameMode === "strategy") {
+            // Strategy mode: limited shots
+            if (this.shotsLeft <= 0 && this.flyingBubbles.length === 0) {
+                this.gameOver = true;
+                this.gameWon = false;
+                this.playSound('lose');
+                this.saveHighScore(this.score);
+                console.log('Game over! No shots remaining in strategy mode.');
+                return;
+            }
+        } else if (this.gameMode === "arcade") {
+            // Arcade mode: time limit
+            if (this.timeLeft <= 0) {
+                this.gameOver = true;
+                this.gameWon = false;
+                this.playSound('lose');
+                this.saveHighScore(this.score);
+                console.log('Game over! Time expired in arcade mode.');
+                return;
+            }
+        }
+        
+        // Check if grid is completely full (lose condition)
+        let gridFull = true;
+        for (let row = 0; row < GRID_ROWS && gridFull; row++) {
+            for (let col = 0; col < GRID_COLS && gridFull; col++) {
+                if (this.gridBubbles[row][col] === null) {
+                    gridFull = false;
+                }
+            }
+        }
+        
+        if (gridFull) {
+            this.gameOver = true;
+            this.gameWon = false;
+            this.playSound('lose');
+            this.saveHighScore(this.score);
+            console.log('Game over! Grid is completely full.');
+            return;
         }
     }
 
@@ -1481,11 +1620,12 @@ class Game {
         this.ctx.fillStyle = '#1a1a2e';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Draw grid bubbles
-        for (let row = 0; row < GRID_ROWS; row++) {
+        // Draw grid bubbles using extended grid
+        const effectiveRows = this.gridBubbles.length;
+        for (let row = 0; row < effectiveRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
-                const bubble = this.gridBubbles[row][col];
-                if (bubble) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
+                    const bubble = this.gridBubbles[row][col];
                     bubble.draw(this.ctx);
                 }
             }
@@ -1506,6 +1646,9 @@ class Game {
             bubble.draw(this.ctx);
         }
         
+        // Draw danger zone line
+        this.drawDangerZone();
+        
         // Draw shooter
         if (this.shooter) {
             this.shooter.draw(this.ctx);
@@ -1513,6 +1656,105 @@ class Game {
         
         // Draw UI
         this.drawUI();
+    }
+
+    drawDangerZone() {
+        // Calculate danger zone position (same logic as in checkGameState)
+        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
+        const dangerZoneY = shooterY - 80; // 80px above shooter for good gameplay balance
+        
+        // Find current lowest bubble position using extended grid
+        let lowestBubbleY = 0;
+        const effectiveRows = this.gridBubbles.length;
+        for (let row = 0; row < effectiveRows; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
+                    const bubble = this.gridBubbles[row][col];
+                    lowestBubbleY = Math.max(lowestBubbleY, bubble.y);
+                }
+            }
+        }
+        
+        // Calculate how close bubbles are to danger zone (0-1, where 1 is at danger zone)
+        const dangerProgress = Math.max(0, Math.min(1, lowestBubbleY / dangerZoneY));
+        
+        // Change line color based on proximity to danger
+        let lineColor, lineOpacity;
+        if (dangerProgress > 0.9) {
+            lineColor = '#FF0000'; // Red - critical
+            lineOpacity = 0.8;
+        } else if (dangerProgress > 0.7) {
+            lineColor = '#FF6600'; // Orange - warning
+            lineOpacity = 0.6;
+        } else if (dangerProgress > 0.5) {
+            lineColor = '#FFCC00'; // Yellow - caution
+            lineOpacity = 0.4;
+        } else {
+            lineColor = '#00FF00'; // Green - safe
+            lineOpacity = 0.3;
+        }
+        
+        // Draw the danger zone line
+        this.ctx.save();
+        this.ctx.strokeStyle = lineColor;
+        this.ctx.globalAlpha = lineOpacity;
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([10, 5]); // Dashed line
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, dangerZoneY);
+        this.ctx.lineTo(this.canvas.width, dangerZoneY);
+        this.ctx.stroke();
+        
+        // Add text label
+        this.ctx.setLineDash([]); // Reset line dash
+        this.ctx.fillStyle = lineColor;
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText('DANGER ZONE', this.canvas.width - 10, dangerZoneY - 5);
+        
+        this.ctx.restore();
+    }
+
+    drawDangerLevelIndicator() {
+        // Calculate danger level (same as in drawDangerZone)
+        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
+        const dangerZoneY = shooterY - 80; // 80px above shooter for good gameplay balance
+        
+        let lowestBubbleY = 0;
+        const effectiveRows = this.gridBubbles.length;
+        for (let row = 0; row < effectiveRows; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
+                    const bubble = this.gridBubbles[row][col];
+                    lowestBubbleY = Math.max(lowestBubbleY, bubble.y);
+                }
+            }
+        }
+        
+        const dangerProgress = Math.max(0, Math.min(1, lowestBubbleY / dangerZoneY));
+        
+        // Only show indicator when bubbles are present and approaching danger
+        if (lowestBubbleY > 0 && dangerProgress > 0.3) {
+            let statusText, statusColor;
+            if (dangerProgress > 0.9) {
+                statusText = 'CRITICAL!';
+                statusColor = '#FF0000';
+            } else if (dangerProgress > 0.7) {
+                statusText = 'WARNING!';
+                statusColor = '#FF6600';
+            } else if (dangerProgress > 0.5) {
+                statusText = 'CAUTION';
+                statusColor = '#FFCC00';
+            } else {
+                statusText = 'SAFE';
+                statusColor = '#00FF88';
+            }
+            
+            this.ctx.font = 'bold 14px Arial';
+            this.ctx.fillStyle = statusColor;
+            this.ctx.fillText(`Danger Level: ${statusText}`, 10, 150);
+        }
     }
 
     drawUI() {
@@ -1523,6 +1765,23 @@ class Game {
         
         // Missed shots
         this.ctx.fillText(`Missed: ${this.missedShots}/5`, 10, 60);
+        
+        // Mode-specific information
+        if (this.gameMode === "strategy") {
+            this.ctx.fillText(`Shots Left: ${this.shotsLeft}`, 10, 90);
+        } else if (this.gameMode === "arcade") {
+            const minutes = Math.floor(this.timeLeft / 60);
+            const seconds = Math.floor(this.timeLeft % 60);
+            this.ctx.fillText(`Time: ${minutes}:${seconds.toString().padStart(2, '0')}`, 10, 90);
+        }
+        
+        // Game mode indicator
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.fillStyle = '#4ECDC4';
+        this.ctx.fillText(`Mode: ${this.gameMode.charAt(0).toUpperCase() + this.gameMode.slice(1)}`, 10, 120);
+        
+        // Danger level indicator
+        this.drawDangerLevelIndicator();
         
         // Game over screen
         if (this.gameOver) {
@@ -1546,6 +1805,15 @@ class Game {
                 this.canvas.height / 2 + 20
             );
             
+            // Add restart instruction
+            this.ctx.font = 'bold 18px Arial';
+            this.ctx.fillStyle = '#FECA57';
+            this.ctx.fillText(
+                'Press R to Restart or ESC for Menu',
+                this.canvas.width / 2,
+                this.canvas.height / 2 + 60
+            );
+            
             this.ctx.textAlign = 'left';
         }
     }
@@ -1560,6 +1828,41 @@ class Game {
         // Placeholder for sound effects
         if (!this.soundEnabled) return;
         // Could implement actual sound playing here
+    }
+
+    // Method to restart the game with current settings
+    restart() {
+        console.log('=== RESTARTING GAME ===');
+        
+        // Reset game state flags
+        this.gameOver = false;
+        this.gameWon = false;
+        this.gameStarted = false;
+        
+        // Clear all bubble arrays
+        this.flyingBubbles.forEach(bubble => bubble.disablePhysics(this.engine));
+        this.fallingBubbles.forEach(bubble => bubble.disablePhysics(this.engine));
+        this.removingBubbles = [];
+        this.flyingBubbles = [];
+        this.fallingBubbles = [];
+        
+        // Reset game variables
+        this.score = 0;
+        this.missedShots = 0;
+        this.pendingNewRow = false;
+        
+        // Reset mode-specific variables
+        if (this.gameMode === "strategy") {
+            this.shotsLeft = 30;
+        } else if (this.gameMode === "arcade") {
+            this.timeLeft = 120;
+        }
+        
+        // Reinitialize the game
+        this.initGame();
+        this.start();
+        
+        console.log('Game restarted successfully');
     }
 
     // Game constants
@@ -1702,6 +2005,30 @@ window.addEventListener('load', () => {
         if (game) {
             game.shooter.x = canvas.width / 2;
             game.shooter.y = canvas.height - 50;
+        }
+    });
+
+    // Add keyboard event listeners for restart functionality
+    window.addEventListener('keydown', (e) => {
+        if (!game) return;
+        
+        // Only handle restart/menu keys when game is over
+        if (game.gameOver) {
+            if (e.key === 'r' || e.key === 'R') {
+                // Restart game with same settings
+                e.preventDefault();
+                
+                game.restart();
+                console.log('Game restarted by user');
+            } else if (e.key === 'Escape') {
+                // Return to menu
+                e.preventDefault();
+                
+                gameScreen.style.display = 'none';
+                gameMenu.style.display = 'block';
+                game = null;
+                console.log('Returned to menu by user');
+            }
         }
     });
 });
