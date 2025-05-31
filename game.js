@@ -197,6 +197,16 @@ class Bubble {
         // Trail effect for flying bubbles
         this.trail = [];
         this.maxTrailLength = 8;
+        
+        // DEBUG: Log every bubble creation with stack trace
+        console.log('BUBBLE CREATED:', {
+            position: { x: this.x, y: this.y },
+            color: this.color,
+            gridPos: { row: this.row, col: this.col },
+            stuck: this.stuck,
+            velocity: { vx: this.vx, vy: this.vy },
+            stackTrace: new Error().stack
+        });
     }
 
     draw(ctx) {
@@ -435,6 +445,7 @@ class Bubble {
 
 class Shooter {
     constructor(x, y) {
+        console.log('SHOOTER CREATED:', { x, y });
         this.x = x;
         this.y = y;
         this.angle = 0;
@@ -442,6 +453,7 @@ class Shooter {
         this.nextColor = this.getRandomColor();
         this.reloadTime = 300; // ms
         this.lastShot = 0;
+        console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor });
     }
 
     getRandomColor() {
@@ -583,11 +595,20 @@ class Shooter {
     shoot() {
         if (!this.canShoot()) return null;
         
+        console.log('SHOOTER SHOOTING - creating new bubble');
+        
         this.lastShot = Date.now();
         
         const bubble = new Bubble(this.x, this.y, this.currentColor);
         bubble.vx = Math.cos(this.angle) * SHOOTER_SPEED;
         bubble.vy = Math.sin(this.angle) * SHOOTER_SPEED;
+        
+        console.log('Shot bubble created:', { 
+            x: bubble.x, y: bubble.y, 
+            vx: bubble.vx, vy: bubble.vy, 
+            color: bubble.color,
+            stuck: bubble.stuck
+        });
         
         // Update colors
         this.currentColor = this.nextColor;
@@ -603,6 +624,8 @@ class Shooter {
 
 class Game {
     constructor(canvas) {
+        console.log('=== GAME CONSTRUCTOR START ===');
+        
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         
@@ -615,11 +638,18 @@ class Game {
         canvas.width = maxWidth;
         canvas.height = portraitHeight;
         
+        console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height });
+        
         this.gridBubbles = []; // 2D array representing the grid of bubbles
         this.flyingBubbles = []; // Bubbles that are currently moving
         this.removingBubbles = []; // Bubbles that are being removed
         this.fallingBubbles = []; // Bubbles that are falling
-        this.shooter = new Shooter(canvas.width / 2, canvas.height - 50);
+        
+        console.log('Bubble arrays initialized');
+        
+        // Initialize shooter as null - will be created in resizeCanvas
+        this.shooter = null;
+        
         this.mouseX = 0;
         this.mouseY = 0;
         this.score = 0;
@@ -646,6 +676,16 @@ class Game {
         
         this.gameStarted = false; // Track if game has been started
         this.showDebugGrid = false; // Debug mode to show hexagonal grid
+        
+        // CRITICAL: Add flag to prevent game loop from processing during initialization
+        this.initializing = true;
+        
+        // CRITICAL: Add flag to prevent duplicate event listeners
+        this.eventListenersAttached = false;
+        
+        // CRITICAL: Add timestamp to prevent immediate shooting after game start
+        this.gameStartTime = 0;
+        this.shootingDelay = 500; // 500ms delay after game start before allowing shooting
         
         // Fix for collision detection timing issue
         this.pendingNewRow = false; // Flag to defer addNewRow() until after flying bubble processing
@@ -675,14 +715,33 @@ class Game {
         ];
         this.finishLineY = 0; // Will be set in resizeCanvas
     
-        this.setupEventListeners();
+        console.log('=== CALLING setupEventListeners ===');
+        this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
+        
+        console.log('=== CALLING initGame ===');
         this.initGame(); // Initialize the game grid and basic setup
+        
+        // CRITICAL: Mark initialization as complete
+        this.initializing = false;
+        console.log('=== INITIALIZATION COMPLETE ===');
+        
+        console.log('=== STARTING gameLoop ===');
         this.gameLoop(); // Start the rendering loop
+        
+        console.log('=== GAME CONSTRUCTOR END ===');
+        console.log('Final bubble counts:', {
+            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
     }
     
     start() {
         this.resizeCanvas(); // Ensure proper sizing before starting
         this.gameStarted = true; // Mark game as started
+        this.gameStartTime = Date.now(); // Record when game started
+        console.log('Game started at:', this.gameStartTime);
         // Game loop is already running from constructor
     }
 
@@ -700,6 +759,8 @@ class Game {
     }
 
     initGame() {
+        console.log('=== INIT GAME START ===');
+        
         this.gridBubbles = [];
         this.flyingBubbles = [];
         this.removingBubbles = [];
@@ -708,6 +769,12 @@ class Game {
         this.missedShots = 0;
         this.gameOver = false;
         this.gameWon = false;
+        
+        console.log('Arrays cleared, bubble counts:', {
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
         
         // Reset collision timing fix flag
         this.pendingNewRow = false;
@@ -720,14 +787,21 @@ class Game {
             }
         }
         
+        console.log('Grid initialized');
+        
         // Create initial bubble grid based on difficulty
         const settings = this.difficultySettings[this.difficulty];
         const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
+        
+        console.log('Creating initial bubbles with settings:', settings);
         
         // Calculate maximum bubbles that can fit in the grid based on canvas width
         const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
         const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
         
+        console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols });
+        
+        let bubblesCreated = 0;
         for (let row = 0; row < settings.rowsToStart; row++) {
             for (let col = 0; col < effectiveGridCols; col++) {
                 // Skip some bubbles randomly for aesthetic reasons and to create more interesting patterns
@@ -737,12 +811,15 @@ class Game {
                     
                     // Ensure we don't place bubbles too close to the edge or overlapping
                     if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
+                        console.log('Skipping bubble due to edge constraint:', { row, col, x });
                         continue;
                     }
                     // Use wouldOverlapPrecise for robust overlap prevention
                     if (this.wouldOverlapPrecise(x, y, row, col)) {
+                        console.log('Skipping bubble due to overlap:', { row, col, x, y });
                         continue;
                     }
+                    
                     // Create color clusters for more strategic gameplay
                     let color;
                     if (row > 0 && col > 0 && this.gridBubbles[row-1][col] && Math.random() < 0.6) {
@@ -752,13 +829,21 @@ class Game {
                     } else {
                         color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                     }
+                    
+                    console.log('Creating grid bubble:', { row, col, x, y, color });
                     const bubble = new Bubble(x, y, color, row, col);
+                    // CRITICAL FIX: Set stuck=true IMMEDIATELY after creation, before any other operations
                     bubble.stuck = true;
+                    bubble.vx = 0; // Ensure no velocity
+                    bubble.vy = 0; // Ensure no velocity
                     this.gridBubbles[row][col] = bubble;
                     this.totalBubbles++;
+                    bubblesCreated++;
                 }
             }
         }
+        
+        console.log('Grid bubbles created:', bubblesCreated);
 
         // Set up game mode specifics
         if (this.gameMode === "strategy") {
@@ -766,6 +851,14 @@ class Game {
         } else if (this.gameMode === "arcade") {
             this.timeLeft = 120; // 2 minutes for arcade mode
         }
+        
+        console.log('=== INIT GAME END ===');
+        console.log('Final bubble counts after initGame:', {
+            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
     }
 
     getColPosition(row, col) {
@@ -793,133 +886,164 @@ class Game {
         // Initial resize to ensure proper dimensions
         this.resizeCanvas();
         
-        // Use document for mouse movement to ensure full canvas coverage
-        document.addEventListener('mousemove', (e) => {
-            if (!this.gameStarted || this.gameOver || this.gameWon) return;
-            const rect = this.canvas.getBoundingClientRect();
-            this.mouseX = e.clientX - rect.left;
-            this.mouseY = e.clientY - rect.top;
-            this.shooter.aimAt(this.mouseX, this.mouseY);
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!this.gameStarted) return;
+        // CRITICAL: Only attach these listeners once and with proper checks
+        if (!this.eventListenersAttached) {
+            this.eventListenersAttached = true;
             
-            if (this.gameOver || this.gameWon) {
-                // Restart the game if it's over
-                this.restartGame();
-                return;
-            }
+            // Use document for mouse movement to ensure full canvas coverage
+            document.addEventListener('mousemove', (e) => {
+                if (!this.gameStarted || this.gameOver || this.gameWon || !this.shooter || this.initializing) return;
+                const rect = this.canvas.getBoundingClientRect();
+                this.mouseX = e.clientX - rect.left;
+                this.mouseY = e.clientY - rect.top;
+                this.shooter.aimAt(this.mouseX, this.mouseY);
+            });
 
-            // Only handle clicks when the canvas is clicked
-            const rect = this.canvas.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            const clickY = e.clientY - rect.top;
-            
-            if (clickX >= 0 && clickX <= this.canvas.width && 
-                clickY >= 0 && clickY <= this.canvas.height) {
-                const bubble = this.shooter.shoot();
-                if (bubble) {
-                    this.playSound('shoot');
-                    this.flyingBubbles.push(bubble);
-                    if (this.gameMode === "strategy") {
-                        this.shotsLeft--;
-                        if (this.shotsLeft <= 0) {
-                            this.gameOver = true;
+            document.addEventListener('click', (e) => {
+                if (!this.gameStarted || !this.shooter || this.initializing) return;
+                
+                // CRITICAL: Check if enough time has passed since game start to prevent accidental shooting
+                const timeSinceStart = Date.now() - this.gameStartTime;
+                if (timeSinceStart < this.shootingDelay) {
+                    console.log('Shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
+                    return;
+                }
+                
+                if (this.gameOver || this.gameWon) {
+                    // Restart the game if it's over
+                    this.restartGame();
+                    return;
+                }
+
+                // Only handle clicks when the canvas is clicked
+                const rect = this.canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                
+                // CRITICAL: Add bounds checking and prevent shooting during initialization
+                if (clickX >= 0 && clickX <= this.canvas.width && 
+                    clickY >= 0 && clickY <= this.canvas.height &&
+                    !this.initializing) {
+                    
+                    console.log('User clicked to shoot at:', { clickX, clickY, timeSinceStart });
+                    const bubble = this.shooter.shoot();
+                    if (bubble) {
+                        console.log('Bubble shot created by user click');
+                        this.playSound('shoot');
+                        this.flyingBubbles.push(bubble);
+                        if (this.gameMode === "strategy") {
+                            this.shotsLeft--;
+                            if (this.shotsLeft <= 0) {
+                                this.gameOver = true;
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
 
-        // Keyboard controls for debug features
-        document.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            
-            switch (key) {
-                case 'g':
-                    this.showDebugGrid = !this.showDebugGrid;
-                    this.debugLogger.log('debug', 'Toggled debug grid', { enabled: this.showDebugGrid });
-                    break;
-                    
-                case 'd':
-                    this.debugLogger.enabled = !this.debugLogger.enabled;
-                    console.log(`Debug logging ${this.debugLogger.enabled ? 'ENABLED' : 'DISABLED'}`);
-                    this.debugLogger.log('debug', 'Toggled debug logging', { enabled: this.debugLogger.enabled });
-                    break;
-                    
-                case 'i':
-                    this.showDebugInfo = !this.showDebugInfo;
-                    this.debugLogger.log('debug', 'Toggled debug info display', { enabled: this.showDebugInfo });
-                    break;
-                    
-                case 'r':
-                    if (this.debugLogger.enabled) {
-                        console.log('Performance Report:', this.debugLogger.getReport());
-                    }
-                    break;
-                    
-                case 'c':
-                    if (this.debugLogger.enabled) {
-                        this.debugLogger.collisionLog = [];
-                        console.log('Cleared collision log');
-                    }
-                    break;
-                    
-                case 'p':
-                    // Toggle collision prediction visualization
-                    this.showCollisionPrediction = !this.showCollisionPrediction;
-                    this.debugLogger.log('debug', 'Toggled collision prediction', { enabled: this.showCollisionPrediction });
-                    break;
-            }
-        });
+            // Keyboard controls for debug features
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                
+                switch (key) {
+                    case 'g':
+                        this.showDebugGrid = !this.showDebugGrid;
+                        this.debugLogger.log('debug', 'Toggled debug grid', { enabled: this.showDebugGrid });
+                        break;
+                        
+                    case 'd':
+                        this.debugLogger.enabled = !this.debugLogger.enabled;
+                        console.log(`Debug logging ${this.debugLogger.enabled ? 'ENABLED' : 'DISABLED'}`);
+                        this.debugLogger.log('debug', 'Toggled debug logging', { enabled: this.debugLogger.enabled });
+                        break;
+                        
+                    case 'i':
+                        this.showDebugInfo = !this.showDebugInfo;
+                        this.debugLogger.log('debug', 'Toggled debug info display', { enabled: this.showDebugInfo });
+                        break;
+                        
+                    case 'r':
+                        if (this.debugLogger.enabled) {
+                            console.log('Performance Report:', this.debugLogger.getReport());
+                        }
+                        break;
+                        
+                    case 'c':
+                        if (this.debugLogger.enabled) {
+                            this.debugLogger.collisionLog = [];
+                            console.log('Cleared collision log');
+                        }
+                        break;
+                        
+                    case 'p':
+                        // Toggle collision prediction visualization
+                        this.showCollisionPrediction = !this.showCollisionPrediction;
+                        this.debugLogger.log('debug', 'Toggled collision prediction', { enabled: this.showCollisionPrediction });
+                        break;
+                }
+            });
 
-        // Touch support for mobile
-        document.addEventListener('touchmove', (e) => {
-            if (!this.gameStarted || this.gameOver || this.gameWon) return;
-            e.preventDefault();
-            const rect = this.canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            this.mouseX = touch.clientX - rect.left;
-            this.mouseY = touch.clientY - rect.top;
-            this.shooter.aimAt(this.mouseX, this.mouseY);
-        }, { passive: false });
+            // Touch support for mobile
+            document.addEventListener('touchmove', (e) => {
+                if (!this.gameStarted || this.gameOver || this.gameWon || !this.shooter || this.initializing) return;
+                e.preventDefault();
+                const rect = this.canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                this.mouseX = touch.clientX - rect.left;
+                this.mouseY = touch.clientY - rect.top;
+                this.shooter.aimAt(this.mouseX, this.mouseY);
+            }, { passive: false });
 
-        document.addEventListener('touchstart', (e) => {
-            if (!this.gameStarted) return;
-            
-            if (this.gameOver || this.gameWon) {
-                // Restart the game if it's over
-                this.restartGame();
-                return;
-            }
+            document.addEventListener('touchstart', (e) => {
+                if (!this.gameStarted || !this.shooter || this.initializing) return;
+                
+                // CRITICAL: Check if enough time has passed since game start to prevent accidental shooting
+                const timeSinceStart = Date.now() - this.gameStartTime;
+                if (timeSinceStart < this.shootingDelay) {
+                    console.log('Touch shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
+                    return;
+                }
+                
+                if (this.gameOver || this.gameWon) {
+                    // Restart the game if it's over
+                    this.restartGame();
+                    return;
+                }
 
-            e.preventDefault();
-            const rect = this.canvas.getBoundingClientRect();
-            const touch = e.touches[0];
-            const touchX = touch.clientX - rect.left;
-            const touchY = touch.clientY - rect.top;
-            
-            if (touchX >= 0 && touchX <= this.canvas.width && 
-                touchY >= 0 && touchY <= this.canvas.height) {
-                const bubble = this.shooter.shoot();
-                if (bubble) {
-                    this.playSound('shoot');
-                    this.flyingBubbles.push(bubble);
-                    if (this.gameMode === "strategy") {
-                        this.shotsLeft--;
-                        if (this.shotsLeft <= 0) {
-                            this.gameOver = true;
+                e.preventDefault();
+                const rect = this.canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                const touchX = touch.clientX - rect.left;
+                const touchY = touch.clientY - rect.top;
+                
+                // CRITICAL: Add bounds checking and prevent shooting during initialization
+                if (touchX >= 0 && touchX <= this.canvas.width && 
+                    touchY >= 0 && touchY <= this.canvas.height &&
+                    !this.initializing) {
+                    
+                    console.log('User touched to shoot at:', { touchX, touchY, timeSinceStart });
+                    const bubble = this.shooter.shoot();
+                    if (bubble) {
+                        console.log('Bubble shot created by user touch');
+                        this.playSound('shoot');
+                        this.flyingBubbles.push(bubble);
+                        if (this.gameMode === "strategy") {
+                            this.shotsLeft--;
+                            if (this.shotsLeft <= 0) {
+                                this.gameOver = true;
+                            }
                         }
                     }
                 }
-            }
-        }, { passive: false });
+            }, { passive: false });
+        }
     }
 
     restartGame() {
         this.initGame();
         this.gameStarted = true; // Ensure game is marked as started
+        this.gameStartTime = Date.now(); // Reset the start time for shooting delay
+        console.log('Game restarted at:', this.gameStartTime);
         // The game loop should already be running, no need to start it again
     }
 
@@ -929,6 +1053,8 @@ class Game {
     }
 
     resizeCanvas() {
+        console.log('=== RESIZE CANVAS START ===');
+        
         // Portrait mobile resolution setup
         const container = this.canvas.parentElement;
         const viewportWidth = window.innerWidth;
@@ -941,11 +1067,14 @@ class Game {
         this.canvas.width = maxWidth;
         this.canvas.height = portraitHeight;
         
+        console.log('Canvas resized to:', { width: this.canvas.width, height: this.canvas.height });
+        
         // Adjust bubble positioning based on canvas size
         const scaleFactor = this.canvas.width / (GRID_COLS * GRID_COL_SPACING + BUBBLE_RADIUS * 2);
         
         // Set finish line position (above the shooter area)
         this.finishLineY = this.canvas.height - 80;
+        console.log('Finish line Y set to:', this.finishLineY);
         
         // Calculate score bucket dimensions and positions
         const bucketHeight = 40;
@@ -958,20 +1087,40 @@ class Game {
             this.scoreBuckets[i].height = bucketHeight;
         }
         
-        // Reposition the shooter (above the buckets)
-        this.shooter.x = this.canvas.width / 2;
-        this.shooter.y = this.finishLineY - 20;
+        // Create or reposition the shooter (above the buckets)
+        if (this.shooter) {
+            console.log('Repositioning existing shooter');
+            this.shooter.x = this.canvas.width / 2;
+            this.shooter.y = this.finishLineY - 20;
+        } else {
+            console.log('Creating new shooter at:', { x: this.canvas.width / 2, y: this.finishLineY - 20 });
+            this.shooter = new Shooter(this.canvas.width / 2, this.finishLineY - 20);
+        }
+        
+        console.log('=== RESIZE CANVAS END ===');
     }
 
     update() {
+        // CRITICAL: Don't process anything during initialization
+        if (this.initializing) {
+            return;
+        }
+        
         if (this.gameOver || this.gameWon) return;
         
         this.frameStartTime = performance.now();
         this.collisionChecksThisFrame = 0;
         this.gridSnapsThisFrame = 0;
         
-        // Only update shooter and game logic if game has started
-        if (this.gameStarted) {
+        // Debug: Log flying bubbles count each frame
+        if (this.flyingBubbles.length > 0) {
+            console.log('Flying bubbles in update:', this.flyingBubbles.length, this.flyingBubbles.map(b => ({
+                x: b.x, y: b.y, vx: b.vx, vy: b.vy, stuck: b.stuck
+            })));
+        }
+        
+        // Only update shooter and game logic if game has started and shooter exists
+        if (this.gameStarted && this.shooter) {
             this.shooter.update();
             
             // Update arcade mode timer
@@ -1727,7 +1876,10 @@ class Game {
                 }
                 
                 const bubble = new Bubble(x, y, color, 0, col);
+                // CRITICAL FIX: Set stuck=true IMMEDIATELY after creation
                 bubble.stuck = true;
+                bubble.vx = 0; // Ensure no velocity
+                bubble.vy = 0; // Ensure no velocity
                 this.gridBubbles[0][col] = bubble;
                 this.totalBubbles++;
                 
@@ -1774,6 +1926,7 @@ class Game {
                     );
                     
                     if (positionError > 1) { // Allow 1 pixel tolerance
+
                         this.debugLogger.log('warning', 'Grid integrity issue detected', {
                             bubble: { row: bubble.row, col: bubble.col, x: bubble.x, y: bubble.y },
                             expected: { row: row, col: col, x: expectedX, y: expectedY },
@@ -1797,6 +1950,8 @@ class Game {
     }
 
     draw() {
+        // CRITICAL: Still draw during initialization, but don't process bubble movement
+        
         // Clear canvas
         this.ctx.fillStyle = '#1a1a2e';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -1820,13 +1975,16 @@ class Game {
             }
         }
 
-        // Draw flying bubbles with enhanced collision prediction
-        for (const bubble of this.flyingBubbles) {
-            bubble.draw(this.ctx);
-            
-            // Draw collision prediction if enabled
-            if (this.showCollisionPrediction) {
-                this.drawCollisionPrediction(bubble);
+        // Only draw flying bubbles if not initializing
+        if (!this.initializing) {
+            // Draw flying bubbles with enhanced collision prediction
+            for (const bubble of this.flyingBubbles) {
+                bubble.draw(this.ctx);
+                
+                // Draw collision prediction if enabled
+                if (this.showCollisionPrediction) {
+                    this.drawCollisionPrediction(bubble);
+                }
             }
         }
         
@@ -1840,21 +1998,23 @@ class Game {
             bubble.draw(this.ctx);
         }
 
-        // Draw finish line
-        this.ctx.strokeStyle = '#FFD700';
-        this.ctx.lineWidth = 3;
-        this.ctx.setLineDash([10, 5]);
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, this.finishLineY);
-        this.ctx.lineTo(this.canvas.width, this.finishLineY);
-        this.ctx.stroke();
-        this.ctx.setLineDash([]); // Reset line dash
-        
-        // Draw finish line label
-        this.ctx.font = 'bold 16px Arial';
-        this.ctx.fillStyle = '#FFD700';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('FINISH LINE', this.canvas.width / 2, this.finishLineY - 10);
+        // Draw finish line only if finishLineY is properly set
+        if (this.finishLineY > 0) {
+            this.ctx.strokeStyle = '#FFD700';
+            this.ctx.lineWidth = 3;
+            this.ctx.setLineDash([10, 5]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, this.finishLineY);
+            this.ctx.lineTo(this.canvas.width, this.finishLineY);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]); // Reset line dash
+            
+            // Draw finish line label
+            this.ctx.font = 'bold 16px Arial';
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('FINISH LINE', this.canvas.width / 2, this.finishLineY - 10);
+        }
 
         // Draw score buckets
         for (let i = 0; i < this.scoreBuckets.length; i++) {
@@ -1887,13 +2047,21 @@ class Game {
             this.ctx.fillRect(bucket.x, bucket.y, bucket.width, bucket.height / 2);
         }
 
-        // Draw shooter
-        if (!this.gameOver && !this.gameWon && this.gameStarted) {
+        // Only draw shooter if it exists, game is started, and position is valid
+        if (this.shooter && this.gameStarted && !this.gameOver && !this.gameWon && this.finishLineY > 0) {
             this.shooter.draw(this.ctx);
         }
 
         // Draw UI
         this.drawUI();
+        
+        // Show initialization status
+        if (this.initializing) {
+            this.ctx.font = 'bold 20px Arial';
+            this.ctx.fillStyle = 'yellow';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Initializing...', this.canvas.width / 2, this.canvas.height / 2);
+        }
     }
 
     drawUI() {
