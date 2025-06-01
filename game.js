@@ -787,11 +787,11 @@ class Game {
         this.highScores = this.loadHighScores();
         this.lastTime = 0; // For smooth frame rate control
         this.difficultySettings = {
-            novice: { rowsToStart: 3, colors: 3, addRowFrequency: 10 },
-            easy: { rowsToStart: 4, colors: 4, addRowFrequency: 8 },
-            medium: { rowsToStart: 5, colors: 5, addRowFrequency: 6 },
-            hard: { rowsToStart: 6, colors: 6, addRowFrequency: 4 },
-            master: { rowsToStart: 7, colors: 6, addRowFrequency: 3 }
+            novice: { rowsToStart: 2, colors: 3, addRowFrequency: 8, timeBasedDescent: 15000 }, // 15 seconds
+            easy: { rowsToStart: 2, colors: 4, addRowFrequency: 6, timeBasedDescent: 12000 }, // 12 seconds
+            medium: { rowsToStart: 3, colors: 5, addRowFrequency: 5, timeBasedDescent: 10000 }, // 10 seconds
+            hard: { rowsToStart: 3, colors: 6, addRowFrequency: 4, timeBasedDescent: 8000 }, // 8 seconds
+            master: { rowsToStart: 3, colors: 6, addRowFrequency: 3, timeBasedDescent: 6000 } // 6 seconds
         };
         
         this.gameStarted = false; // Track if game has been started
@@ -809,6 +809,12 @@ class Game {
         
         // Fix for collision detection timing issue
         this.pendingNewRow = false; // Flag to defer addNewRow() until after flying bubble processing
+        
+        // Infinite Stack System
+        this.infiniteStack = []; // Pre-generated rows waiting to descend
+        this.shotCount = 0; // Track shots fired for descent triggers
+        this.lastDescentTime = 0; // Track time since last descent
+        this.loseLineRow = 0; // Row index that defines the lose line (calculated dynamically)
         
         // Enhanced debug and collision systems
         this.debugLogger = new DebugLogger(false); // Enable with 'D' key
@@ -899,6 +905,11 @@ class Game {
         // Reset collision timing fix flag
         this.pendingNewRow = false;
         
+        // Reset infinite stack system
+        this.shotCount = 0;
+        this.lastDescentTime = Date.now();
+        this.infiniteStack = [];
+        
         // Initialize grid
         for (let row = 0; row < GRID_ROWS; row++) {
             this.gridBubbles[row] = [];
@@ -908,6 +919,12 @@ class Game {
         }
         
         console.log('Grid initialized');
+        
+        // Initialize infinite stack with pre-generated rows
+        this.generateInfiniteStack();
+        
+        // Calculate lose line (dynamically based on canvas height and shooter position)
+        this.calculateLoseLine();
         
         // Create initial bubble grid based on difficulty
         const settings = this.difficultySettings[this.difficulty];
@@ -979,6 +996,181 @@ class Game {
             fallingBubbles: this.fallingBubbles.length,
             removingBubbles: this.removingBubbles.length
         });
+    }
+
+    generateInfiniteStack() {
+        // Generate a stack of pre-generated rows to ensure constant pressure
+        console.log('Generating infinite stack...');
+        
+        const settings = this.difficultySettings[this.difficulty];
+        const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
+        const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
+        const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
+        
+        // Generate 20 rows ahead for the infinite stack
+        for (let stackRow = 0; stackRow < 20; stackRow++) {
+            const rowData = new Array(effectiveGridCols).fill(null);
+            
+            for (let col = 0; col < effectiveGridCols; col++) {
+                // Create bubbles with some randomness but ensure clusters for strategy
+                if (Math.random() < 0.8) { // 80% chance of bubble placement
+                    let color;
+                    
+                    // Create color clusters for strategic gameplay
+                    if (col > 0 && rowData[col-1] && Math.random() < 0.5) {
+                        color = rowData[col-1];
+                    } else if (stackRow > 0 && this.infiniteStack[stackRow-1] && this.infiniteStack[stackRow-1][col] && Math.random() < 0.4) {
+                        color = this.infiniteStack[stackRow-1][col];
+                    } else {
+                        color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
+                    }
+                    
+                    rowData[col] = color;
+                }
+            }
+            
+            this.infiniteStack.push(rowData);
+        }
+        
+        console.log('Infinite stack generated with', this.infiniteStack.length, 'rows');
+    }
+
+    calculateLoseLine() {
+        // Calculate the lose line based on canvas dimensions and shooter position
+        const shooterY = this.canvas.height - 50; // Estimated shooter position
+        const safeZone = 100; // Minimum safe zone above shooter
+        const loseLineY = shooterY - safeZone;
+        
+        // Convert Y position to row index
+        this.loseLineRow = Math.floor((loseLineY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        
+        // Ensure lose line is reasonable (at least 8 rows from top)
+        this.loseLineRow = Math.max(8, this.loseLineRow);
+        
+        console.log('Lose line calculated:', {
+            loseLineY,
+            loseLineRow: this.loseLineRow,
+            shooterY,
+            safeZone
+        });
+    }
+
+    addNewRow() {
+        // This is the core mechanic: shift all bubbles down and add a new row from infinite stack
+        console.log('=== ADDING NEW ROW ===');
+        
+        if (this.infiniteStack.length === 0) {
+            console.warn('Infinite stack is empty! Regenerating...');
+            this.generateInfiniteStack();
+        }
+        
+        // Get the next row from infinite stack
+        const newRowData = this.infiniteStack.shift();
+        
+        // Extend grid if needed to accommodate the descent
+        const maxNeededRows = this.loseLineRow + 3; // Allow some buffer beyond lose line
+        while (this.gridBubbles.length < maxNeededRows) {
+            this.gridBubbles.push(new Array(GRID_COLS).fill(null));
+        }
+        
+        // Shift all existing bubbles down by one row
+        for (let row = this.gridBubbles.length - 1; row >= 1; row--) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (this.gridBubbles[row - 1][col]) {
+                    const bubble = this.gridBubbles[row - 1][col];
+                    
+                    // Update bubble's position and grid coordinates
+                    bubble.row = row;
+                    bubble.col = col;
+                    bubble.x = this.getColPosition(row, col);
+                    bubble.y = this.getRowPosition(row);
+                    
+                    // Move bubble to new position
+                    this.gridBubbles[row][col] = bubble;
+                    this.gridBubbles[row - 1][col] = null;
+                }
+            }
+        }
+        
+        // Add new row at the top (row 0)
+        const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
+        const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
+        
+        for (let col = 0; col < effectiveGridCols; col++) {
+            if (newRowData[col]) {
+                const x = this.getColPosition(0, col);
+                const y = this.getRowPosition(0);
+                
+                const bubble = new Bubble(x, y, newRowData[col], 0, col);
+                bubble.stuck = true;
+                bubble.vx = 0;
+                bubble.vy = 0;
+                
+                this.gridBubbles[0][col] = bubble;
+                this.totalBubbles++;
+            }
+        }
+        
+        // Replenish infinite stack
+        if (this.infiniteStack.length < 10) {
+            this.generateInfiniteStack();
+        }
+        
+        // Reset missed shots counter as player gets fresh challenge
+        this.missedShots = 0;
+        
+        console.log('New row added. Grid now has', this.gridBubbles.length, 'rows');
+        console.log('Bubbles in grid:', this.gridBubbles.flat().filter(b => b !== null).length);
+        
+        // Check for immediate lose condition after descent
+        this.checkLoseCondition();
+    }
+
+    checkLoseCondition() {
+        // Check if any bubble has reached or crossed the lose line
+        for (let row = this.loseLineRow; row < this.gridBubbles.length; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
+                    console.log('LOSE CONDITION MET: Bubble found at row', row, 'which is at/below lose line row', this.loseLineRow);
+                    this.gameOver = true;
+                    this.gameWon = false;
+                    this.playSound('lose');
+                    this.saveHighScore(this.score);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    checkDescentTriggers() {
+        // Check if it's time for a new row to descend based on shot count or time
+        const settings = this.difficultySettings[this.difficulty];
+        const now = Date.now();
+        
+        let shouldDescend = false;
+        let reason = '';
+        
+        // Check shot-based trigger
+        if (this.shotCount >= settings.addRowFrequency) {
+            shouldDescend = true;
+            reason = `shot count (${this.shotCount}/${settings.addRowFrequency})`;
+            this.shotCount = 0; // Reset shot count
+        }
+        
+        // Check time-based trigger
+        const timeSinceLastDescent = now - this.lastDescentTime;
+        if (timeSinceLastDescent >= settings.timeBasedDescent) {
+            shouldDescend = true;
+            reason = `time elapsed (${(timeSinceLastDescent/1000).toFixed(1)}s/${settings.timeBasedDescent/1000}s)`;
+            this.lastDescentTime = now;
+        }
+        
+        if (shouldDescend) {
+            console.log(`Triggering descent due to: ${reason}`);
+            // Use the pending flag to avoid calling addNewRow during bubble processing
+            this.pendingNewRow = true;
+        }
     }
 
     getColPosition(row, col) {
@@ -1127,11 +1319,17 @@ class Game {
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
                     
+                    // Increment shot count for descent tracking
+                    this.shotCount++;
+                    
                     // Decrement shots for strategy mode
                     if (this.gameMode === "strategy") {
                         this.shotsLeft--;
                         console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
                     }
+                    
+                    // Check if it's time for a new row to descend
+                    this.checkDescentTriggers();
                 }
             }
         });
@@ -1160,11 +1358,17 @@ class Game {
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
                     
+                    // Increment shot count for descent tracking
+                    this.shotCount++;
+                    
                     // Decrement shots for strategy mode
                     if (this.gameMode === "strategy") {
                         this.shotsLeft--;
                         console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
                     }
+                    
+                    // Check if it's time for a new row to descend
+                    this.checkDescentTriggers();
                 }
             }
         });
@@ -1497,6 +1701,12 @@ class Game {
             }
         }
         
+        // Process pending new row descent (only when no flying bubbles)
+        if (this.pendingNewRow && this.flyingBubbles.length === 0) {
+            this.addNewRow();
+            this.pendingNewRow = false;
+        }
+        
         // Check win/lose conditions
         this.checkGameState();
     }
@@ -1517,50 +1727,11 @@ class Game {
             return;
         }
         
-        // Check if bubbles reached bottom danger zone (lose condition)
-        // Calculate danger zone to provide more playable area - use shooter-relative positioning
-        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
-        const dangerZoneY = shooterY - 80; // 80px above shooter for good gameplay balance
-        const maxPossibleRowY = dangerZoneY + BUBBLE_RADIUS; // Allow bubbles to reach near danger zone
-        
-        // Find the lowest bubble position for debugging
-        let lowestBubbleY = 0;
-        let lowestBubbleBottomY = 0;
-        let bubbleCount = 0;
-        
-        for (let row = 0; row < effectiveRows; row++) {
-            for (let col = 0; col < GRID_COLS; col++) {
-                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
-                    const bubble = this.gridBubbles[row][col];
-                    bubbleCount++;
-                    lowestBubbleY = Math.max(lowestBubbleY, bubble.y);
-                    lowestBubbleBottomY = Math.max(lowestBubbleBottomY, bubble.y + BUBBLE_RADIUS);
-                    
-                    // Check if bubble's bottom edge (center + radius) reaches danger zone
-                    if (bubble.y + BUBBLE_RADIUS > dangerZoneY) {
-                        this.gameOver = true;
-                        this.gameWon = false;
-                        this.playSound('lose');
-                        this.saveHighScore(this.score);
-                        console.log('Game over! Bubble bottom edge reached danger zone at y=' + (bubble.y + BUBBLE_RADIUS) + ', threshold=' + dangerZoneY + ' (bubble center: ' + bubble.y + ')');
-                        return;
-                    }
-                }
-            }
+        // Check if bubbles reached the lose line (lose condition)
+        // Use the dedicated lose line logic instead of old danger zone calculation
+        if (this.checkLoseCondition()) {
+            return; // Game over already handled in checkLoseCondition
         }
-        
-        console.log('DANGER ZONE CHECK:', {
-            canvasHeight: this.canvas.height,
-            shooterY: shooterY,
-            maxPossibleRowY: maxPossibleRowY,
-            dangerZoneY: dangerZoneY,
-            lowestBubbleY: lowestBubbleY,
-            lowestBubbleBottomY: lowestBubbleBottomY,
-            bubbleCount: bubbleCount,
-            distanceFromDanger: dangerZoneY - lowestBubbleBottomY,
-            effectiveGridRows: effectiveRows,
-            gridRowsUsed: effectiveRows > 0 ? Math.ceil((lowestBubbleY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT) : 0
-        });
         
         // Check missed shots limit (lose condition)
         if (this.missedShots >= 5) {
@@ -1659,83 +1830,82 @@ class Game {
     }
 
     drawDangerZone() {
-        // Calculate danger zone position (same logic as in checkGameState)
-        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
-        const dangerZoneY = shooterY - 80; // 80px above shooter for good gameplay balance
+        // Draw the lose line based on the calculated lose line row
+        const loseLineY = this.getRowPosition(this.loseLineRow);
         
         // Find current lowest bubble position using extended grid
-        let lowestBubbleY = 0;
+        let lowestBubbleRow = 0;
         const effectiveRows = this.gridBubbles.length;
         for (let row = 0; row < effectiveRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
-                    const bubble = this.gridBubbles[row][col];
-                    lowestBubbleY = Math.max(lowestBubbleY, bubble.y);
+                    lowestBubbleRow = Math.max(lowestBubbleRow, row);
                 }
             }
         }
         
-        // Calculate how close bubbles are to danger zone (0-1, where 1 is at danger zone)
-        const dangerProgress = Math.max(0, Math.min(1, lowestBubbleY / dangerZoneY));
+        // Calculate how close bubbles are to lose line (0-1, where 1 is at lose line)
+        const dangerProgress = Math.max(0, Math.min(1, lowestBubbleRow / this.loseLineRow));
         
-        // Change line color based on proximity to danger
+        // Change line color based on proximity to lose line
         let lineColor, lineOpacity;
         if (dangerProgress > 0.9) {
             lineColor = '#FF0000'; // Red - critical
-            lineOpacity = 0.8;
+            lineOpacity = 0.9;
         } else if (dangerProgress > 0.7) {
             lineColor = '#FF6600'; // Orange - warning
-            lineOpacity = 0.6;
+            lineOpacity = 0.7;
         } else if (dangerProgress > 0.5) {
             lineColor = '#FFCC00'; // Yellow - caution
-            lineOpacity = 0.4;
+            lineOpacity = 0.5;
         } else {
             lineColor = '#00FF00'; // Green - safe
-            lineOpacity = 0.3;
+            lineOpacity = 0.4;
         }
         
-        // Draw the danger zone line
+        // Draw the lose line
         this.ctx.save();
         this.ctx.strokeStyle = lineColor;
         this.ctx.globalAlpha = lineOpacity;
-        this.ctx.lineWidth = 3;
-        this.ctx.setLineDash([10, 5]); // Dashed line
+        this.ctx.lineWidth = 4;
+        this.ctx.setLineDash([8, 4]); // Dashed line
         
         this.ctx.beginPath();
-        this.ctx.moveTo(0, dangerZoneY);
-        this.ctx.lineTo(this.canvas.width, dangerZoneY);
+        this.ctx.moveTo(0, loseLineY);
+        this.ctx.lineTo(this.canvas.width, loseLineY);
         this.ctx.stroke();
         
         // Add text label
         this.ctx.setLineDash([]); // Reset line dash
         this.ctx.fillStyle = lineColor;
-        this.ctx.font = 'bold 12px Arial';
+        this.ctx.font = 'bold 14px Arial';
         this.ctx.textAlign = 'right';
-        this.ctx.fillText('DANGER ZONE', this.canvas.width - 10, dangerZoneY - 5);
+        this.ctx.fillText('LOSE LINE', this.canvas.width - 10, loseLineY - 8);
+        
+        // Show row indicator
+        this.ctx.textAlign = 'left';
+        this.ctx.font = '12px Arial';
+        this.ctx.fillText(`Row ${this.loseLineRow}`, 10, loseLineY - 8);
         
         this.ctx.restore();
     }
 
     drawDangerLevelIndicator() {
-        // Calculate danger level (same as in drawDangerZone)
-        const shooterY = this.shooter ? this.shooter.y : this.canvas.height - 50;
-        const dangerZoneY = shooterY - 80; // 80px above shooter for good gameplay balance
-        
-        let lowestBubbleY = 0;
+        // Calculate danger level using lose line logic
+        let lowestBubbleRow = 0;
         const effectiveRows = this.gridBubbles.length;
         for (let row = 0; row < effectiveRows; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
-                    const bubble = this.gridBubbles[row][col];
-                    lowestBubbleY = Math.max(lowestBubbleY, bubble.y);
+                    lowestBubbleRow = Math.max(lowestBubbleRow, row);
                 }
             }
         }
         
-        const dangerProgress = Math.max(0, Math.min(1, lowestBubbleY / dangerZoneY));
+        const dangerProgress = Math.max(0, Math.min(1, lowestBubbleRow / this.loseLineRow));
         
-        // Only show indicator when bubbles are present and approaching danger
-        if (lowestBubbleY > 0 && dangerProgress > 0.3) {
+        // Only show indicator when bubbles are present and approaching lose line
+        if (lowestBubbleRow > 0 && dangerProgress > 0.3) {
             let statusText, statusColor;
             if (dangerProgress > 0.9) {
                 statusText = 'CRITICAL!';
@@ -1754,6 +1924,11 @@ class Game {
             this.ctx.font = 'bold 14px Arial';
             this.ctx.fillStyle = statusColor;
             this.ctx.fillText(`Danger Level: ${statusText}`, 10, 150);
+            
+            // Show distance to lose line
+            const rowsToLoseLine = this.loseLineRow - lowestBubbleRow;
+            this.ctx.font = '12px Arial';
+            this.ctx.fillText(`${rowsToLoseLine} rows to lose line`, 10, 170);
         }
     }
 
@@ -1779,6 +1954,21 @@ class Game {
         this.ctx.font = 'bold 16px Arial';
         this.ctx.fillStyle = '#4ECDC4';
         this.ctx.fillText(`Mode: ${this.gameMode.charAt(0).toUpperCase() + this.gameMode.slice(1)}`, 10, 120);
+        
+        // Descent information
+        const settings = this.difficultySettings[this.difficulty];
+        this.ctx.font = '12px Arial';
+        this.ctx.fillStyle = '#CCCCCC';
+        
+        // Show shots until next descent
+        const shotsUntilDescent = settings.addRowFrequency - this.shotCount;
+        this.ctx.fillText(`Next descent: ${shotsUntilDescent} shots`, 10, 140);
+        
+        // Show time until next descent
+        const timeSinceLastDescent = Date.now() - this.lastDescentTime;
+        const timeUntilDescent = Math.max(0, settings.timeBasedDescent - timeSinceLastDescent);
+        const secondsUntilDescent = Math.ceil(timeUntilDescent / 1000);
+        this.ctx.fillText(`or ${secondsUntilDescent}s`, 10, 155);
         
         // Danger level indicator
         this.drawDangerLevelIndicator();
@@ -1850,6 +2040,11 @@ class Game {
         this.score = 0;
         this.missedShots = 0;
         this.pendingNewRow = false;
+        
+        // Reset infinite stack system
+        this.shotCount = 0;
+        this.lastDescentTime = Date.now();
+        this.infiniteStack = [];
         
         // Reset mode-specific variables
         if (this.gameMode === "strategy") {
