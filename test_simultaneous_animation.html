@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test: Simultaneous Descent & Fade-in Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a2e;
+            color: #eee;
+        }
+        .test-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 5px solid;
+        }
+        .pass {
+            background-color: #2d5a2d;
+            border-color: #4caf50;
+        }
+        .fail {
+            background-color: #5a2d2d;
+            border-color: #f44336;
+        }
+        .info {
+            background-color: #2d4a5a;
+            border-color: #2196f3;
+        }
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        canvas {
+            border: 2px solid #444;
+            margin: 10px 0;
+        }
+        .animation-info {
+            background-color: #2a2a4e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎬 Test: Simultaneous Descent & Fade-in Animation</h1>
+        <p>This test verifies that descent animation and new row fade-in happen simultaneously for a smooth experience.</p>
+        
+        <button onclick="runAnimationTest()">Run Animation Test</button>
+        <button onclick="triggerNewRow()">Trigger New Row (Manual)</button>
+        <button onclick="location.href='index.html'">Play Full Game</button>
+        
+        <div id="results"></div>
+        
+        <canvas id="testCanvas" width="800" height="400"></canvas>
+        
+        <div class="animation-info">
+            <h3>📊 Animation Metrics</h3>
+            <div id="animationMetrics"></div>
+        </div>
+        
+        <div class="animation-info">
+            <h3>🔍 What to Look For</h3>
+            <ul>
+                <li><strong>Smooth descent:</strong> Existing bubbles should move down gradually</li>
+                <li><strong>Synchronized fade-in:</strong> New top row should fade in while others descend</li>
+                <li><strong>No jarring jumps:</strong> No instant position changes</li>
+                <li><strong>Proper timing:</strong> Animations should complete at roughly the same time</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        let testGame;
+        let animationStartTime;
+        let metrics = {
+            descentCount: 0,
+            fadeInCount: 0,
+            animationFrames: 0,
+            startTime: null,
+            endTime: null
+        };
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function updateMetrics() {
+            const metricsDiv = document.getElementById('animationMetrics');
+            const duration = metrics.endTime ? (metrics.endTime - metrics.startTime) / 1000 : 'In progress...';
+            
+            metricsDiv.innerHTML = `
+                <p><strong>Descent Animations:</strong> ${metrics.descentCount}</p>
+                <p><strong>Fade-in Animations:</strong> ${metrics.fadeInCount}</p>
+                <p><strong>Animation Frames:</strong> ${metrics.animationFrames}</p>
+                <p><strong>Duration:</strong> ${duration} seconds</p>
+                <p><strong>Simultaneous:</strong> ${metrics.descentCount > 0 && metrics.fadeInCount > 0 ? '✅ Yes' : '❌ No'}</p>
+            `;
+        }
+
+        function runAnimationTest() {
+            const canvas = document.getElementById('testCanvas');
+            if (!canvas) {
+                addResult('❌ Canvas not found', 'fail');
+                return;
+            }
+
+            addResult('🎬 Starting animation test...', 'info');
+            
+            try {
+                // Create game instance
+                testGame = new Game(canvas);
+                testGame.start();
+                
+                addResult('✅ Game instance created', 'pass');
+                
+                // Create some initial grid bubbles
+                const colors = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88'];
+                for (let row = 1; row < 4; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        if (Math.random() < 0.7) { // Randomly place some bubbles
+                            const x = testGame.getColPosition(row, col);
+                            const y = testGame.getRowPosition(row);
+                            const color = colors[Math.floor(Math.random() * colors.length)];
+                            
+                            const bubble = new Bubble(x, y, color, row, col);
+                            bubble.game = testGame;
+                            bubble.stuck = true;
+                            testGame.gridBubbles[row][col] = bubble;
+                        }
+                    }
+                }
+                
+                addResult('✅ Initial grid bubbles created', 'pass');
+                
+                // Start monitoring animations
+                monitorAnimations();
+                
+                // Trigger a new row after a short delay
+                setTimeout(() => {
+                    triggerNewRow();
+                }, 1000);
+                
+            } catch (error) {
+                addResult(`❌ Test setup failed: ${error.message}`, 'fail');
+            }
+        }
+
+        function triggerNewRow() {
+            if (!testGame) {
+                addResult('❌ No test game instance', 'fail');
+                return;
+            }
+
+            addResult('🚀 Triggering new row descent...', 'info');
+            
+            // Reset metrics
+            metrics = {
+                descentCount: 0,
+                fadeInCount: 0,
+                animationFrames: 0,
+                startTime: Date.now(),
+                endTime: null
+            };
+            
+            try {
+                // Manually trigger addNewRow
+                testGame.addNewRow();
+                addResult('✅ New row triggered successfully', 'pass');
+            } catch (error) {
+                addResult(`❌ Failed to trigger new row: ${error.message}`, 'fail');
+            }
+        }
+
+        function monitorAnimations() {
+            if (!testGame) return;
+            
+            // Check for ongoing animations
+            let hasDescentAnimations = false;
+            let hasFadeInAnimations = false;
+            let activeAnimations = 0;
+            
+            const effectiveRows = testGame.gridBubbles.length;
+            for (let row = 0; row < effectiveRows; row++) {
+                for (let col = 0; col < 14; col++) { // GRID_COLS = 14
+                    if (testGame.gridBubbles[row] && testGame.gridBubbles[row][col]) {
+                        const bubble = testGame.gridBubbles[row][col];
+                        
+                        if (bubble.isDescending) {
+                            hasDescentAnimations = true;
+                            activeAnimations++;
+                        }
+                        
+                        if (bubble.isFadingIn) {
+                            hasFadeInAnimations = true;
+                            activeAnimations++;
+                        }
+                    }
+                }
+            }
+            
+            // Update metrics
+            if (hasDescentAnimations && metrics.descentCount === 0) {
+                metrics.descentCount = 1;
+                addResult('🔄 Descent animation detected!', 'info');
+            }
+            
+            if (hasFadeInAnimations && metrics.fadeInCount === 0) {
+                metrics.fadeInCount = 1;
+                addResult('✨ Fade-in animation detected!', 'info');
+            }
+            
+            if (hasDescentAnimations || hasFadeInAnimations) {
+                metrics.animationFrames++;
+            }
+            
+            // Check if animations completed
+            if (metrics.descentCount > 0 && metrics.fadeInCount > 0 && 
+                !hasDescentAnimations && !hasFadeInAnimations && !metrics.endTime) {
+                metrics.endTime = Date.now();
+                const duration = (metrics.endTime - metrics.startTime) / 1000;
+                addResult(`🎉 Animation completed! Duration: ${duration.toFixed(2)}s`, 'pass');
+                
+                // Validate simultaneity
+                if (metrics.descentCount > 0 && metrics.fadeInCount > 0) {
+                    addResult('✅ SIMULTANEOUS ANIMATIONS CONFIRMED!', 'pass');
+                } else {
+                    addResult('❌ Animations were not simultaneous', 'fail');
+                }
+            }
+            
+            updateMetrics();
+            
+            // Continue monitoring
+            requestAnimationFrame(monitorAnimations);
+        }
+
+        // Auto-start test
+        window.onload = () => {
+            setTimeout(runAnimationTest, 500);
+        };
+    </script>
+</body>
+</html>

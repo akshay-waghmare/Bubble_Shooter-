@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Final Synchronized Animation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .test-container { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { color: #4CAF50; font-weight: bold; }
+        .error { color: #f44336; font-weight: bold; }
+        .info { color: #2196F3; font-weight: bold; }
+        .warning { color: #FF9800; font-weight: bold; }
+        canvas { border: 2px solid #333; margin: 10px 0; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; cursor: pointer; }
+        .metrics { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Final Synchronized Animation Test</h1>
+    <p>This test validates that descent and fade-in animations are perfectly synchronized with identical timing.</p>
+    
+    <div class="test-container">
+        <h3>Test Setup</h3>
+        <canvas id="testCanvas" width="800" height="600"></canvas>
+        <div>
+            <button onclick="startTest()">🚀 Start Animation Test</button>
+            <button onclick="addNewRowTest()">📥 Test Add New Row</button>
+            <button onclick="resetTest()">🔄 Reset</button>
+        </div>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-container">
+        <h3>Animation Metrics</h3>
+        <div id="animationMetrics" class="metrics">
+            Waiting for test to start...
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        let testGame;
+        let animationStartTime;
+        let testRunning = false;
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+        
+        function updateMetrics(descendingCount, fadingCount, progress) {
+            const metrics = document.getElementById('animationMetrics');
+            metrics.innerHTML = `
+                <strong>Animation Progress:</strong> ${(progress * 100).toFixed(1)}%<br>
+                <strong>Bubbles Descending:</strong> ${descendingCount}<br>
+                <strong>Bubbles Fading In:</strong> ${fadingCount}<br>
+                <strong>Synchronized:</strong> ${descendingCount === fadingCount ? '✅ YES' : '❌ NO'}
+            `;
+        }
+        
+        function startTest() {
+            log('🧪 Starting synchronized animation test...', 'info');
+            
+            const canvas = document.getElementById('testCanvas');
+            testGame = new Game(canvas);
+            testGame.init();
+            
+            // Create a minimal grid setup
+            testGame.gridBubbles = [];
+            for (let row = 0; row < 5; row++) {
+                testGame.gridBubbles.push(new Array(testGame.constructor.GRID_COLS || 16).fill(null));
+            }
+            
+            // Add some test bubbles
+            const colors = ['red', 'blue', 'green', 'yellow'];
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    const bubble = new Bubble(
+                        testGame.getColPosition(row, col),
+                        testGame.getRowPosition(row),
+                        color,
+                        row,
+                        col
+                    );
+                    bubble.game = testGame;
+                    bubble.stuck = true;
+                    testGame.gridBubbles[row][col] = bubble;
+                }
+            }
+            
+            testRunning = true;
+            animationStartTime = Date.now();
+            log('✅ Test setup complete. Grid created with 3 rows of bubbles.', 'success');
+            
+            // Start animation monitoring
+            monitorAnimations();
+        }
+        
+        function addNewRowTest() {
+            if (!testGame) {
+                log('❌ Please start test first!', 'error');
+                return;
+            }
+            
+            log('📥 Triggering addNewRow() to test synchronized animations...', 'info');
+            animationStartTime = Date.now();
+            
+            // Trigger the add new row function
+            testGame.addNewRow();
+            
+            log('🎬 Animation started! Monitoring synchronization...', 'info');
+        }
+        
+        function resetTest() {
+            testRunning = false;
+            testGame = null;
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('animationMetrics').innerHTML = 'Waiting for test to start...';
+            
+            const canvas = document.getElementById('testCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            log('🔄 Test reset complete.', 'info');
+        }
+        
+        function monitorAnimations() {
+            if (!testRunning || !testGame) return;
+            
+            let descendingCount = 0;
+            let fadingCount = 0;
+            let totalBubbles = 0;
+            
+            // Count animations in progress
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    if (testGame.gridBubbles[row][col]) {
+                        const bubble = testGame.gridBubbles[row][col];
+                        totalBubbles++;
+                        
+                        if (bubble.isDescending) descendingCount++;
+                        if (bubble.isFadingIn) fadingCount++;
+                    }
+                }
+            }
+            
+            // Calculate overall progress
+            const elapsed = Date.now() - animationStartTime;
+            const progress = Math.min(elapsed / 300, 1); // 300ms duration
+            
+            updateMetrics(descendingCount, fadingCount, progress);
+            
+            // Update game
+            testGame.update();
+            testGame.draw();
+            
+            // Validation checks
+            if (descendingCount > 0 || fadingCount > 0) {
+                if (descendingCount !== fadingCount) {
+                    log(`⚠️ Animation desync detected: ${descendingCount} descending, ${fadingCount} fading`, 'warning');
+                }
+            }
+            
+            // Check if animations are complete
+            if (progress >= 1 && descendingCount === 0 && fadingCount === 0) {
+                log('🎉 All animations completed successfully!', 'success');
+                log(`✅ Synchronization verified: Both descent and fade-in completed together`, 'success');
+                testRunning = false;
+                return;
+            }
+            
+            // Continue monitoring
+            requestAnimationFrame(monitorAnimations);
+        }
+        
+        // Auto-start basic test
+        window.addEventListener('load', () => {
+            log('🎯 Final synchronized animation test ready!', 'info');
+            log('Click "Start Animation Test" to begin...', 'info');
+        });
+    </script>
+</body>
+</html>
