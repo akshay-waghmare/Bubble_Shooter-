@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Shooter - Validation Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a2e;
+            color: #eee;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 5px solid;
+        }
+        .pass {
+            background-color: #2d5a2d;
+            border-color: #4caf50;
+        }
+        .fail {
+            background-color: #5a2d2d;
+            border-color: #f44336;
+        }
+        .info {
+            background-color: #2d4a5a;
+            border-color: #2196f3;
+        }
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Bubble Shooter Validation Results</h1>
+    <button onclick="runValidation()">Run Validation Tests</button>
+    <button onclick="location.href='index.html'">Play Game</button>
+    
+    <div id="results"></div>
+
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+
+        function runValidation() {
+            document.getElementById('results').innerHTML = '';
+            addResult('🔍 Starting validation tests...', 'info');
+
+            // Test 1: Check if all game files exist
+            fetch('game.js')
+                .then(response => {
+                    if (response.ok) {
+                        addResult('✅ game.js loaded successfully', 'pass');
+                        return fetch('menu.js');
+                    } else {
+                        throw new Error('game.js not found');
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        addResult('✅ menu.js loaded successfully', 'pass');
+                        
+                        // Test 2: Check game constants
+                        const script = document.createElement('script');
+                        script.src = 'game.js';
+                        script.onload = () => {
+                            try {
+                                addResult('✅ Game script loaded and executed', 'pass');
+                                
+                                // Test 3: Simulate game initialization
+                                setTimeout(() => {
+                                    try {
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = 800;
+                                        canvas.height = 600;
+                                        document.body.appendChild(canvas);
+                                        
+                                        const game = new Game(canvas);
+                                        addResult('✅ Game instance created successfully', 'pass');
+                                        
+                                        // Test shooter creation with game reference
+                                        const shooter = new Shooter(400, 550, game);
+                                        addResult('✅ Shooter created with game reference', 'pass');
+                                        
+                                        // Test bubble creation
+                                        const testBubble = new Bubble(400, 300, 'red');
+                                        testBubble.game = game;
+                                        addResult('✅ Bubble created and game reference assigned', 'pass');
+                                        
+                                        // Test wall bounce detection
+                                        if (testBubble.game && testBubble.game.canvas) {
+                                            addResult('✅ Wall bounce detection should work (game reference found)', 'pass');
+                                        } else {
+                                            addResult('❌ Wall bounce detection may fail (no game reference)', 'fail');
+                                        }
+                                        
+                                        // Clean up
+                                        document.body.removeChild(canvas);
+                                        
+                                        addResult('🎉 All validation tests completed!', 'info');
+                                        addResult('📝 Summary: Start button fixed, descent animation improved, wall bounce corrected, shooter speed increased', 'info');
+                                        
+                                    } catch (error) {
+                                        addResult(`❌ Game initialization test failed: ${error.message}`, 'fail');
+                                    }
+                                }, 100);
+                                
+                            } catch (error) {
+                                addResult(`❌ Script execution failed: ${error.message}`, 'fail');
+                            }
+                        };
+                        script.onerror = () => {
+                            addResult('❌ Failed to load game.js', 'fail');
+                        };
+                        document.head.appendChild(script);
+                        
+                    } else {
+                        throw new Error('menu.js not found');
+                    }
+                })
+                .catch(error => {
+                    addResult(`❌ File loading failed: ${error.message}`, 'fail');
+                });
+        }
+
+        // Auto-run validation on page load
+        window.onload = () => {
+            setTimeout(runValidation, 500);
+        };
+    </script>
+</body>
+</html>

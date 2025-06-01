@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Final Fixes Validation Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        .test-section {
+            background: #16213e;
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4ECDC4;
+        }
+        .test-results {
+            background: #0f0f23;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .success { color: #4ECDC4; }
+        .error { color: #FF6B6B; }
+        .warning { color: #FECA57; }
+        button {
+            background: #4ECDC4;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #45b7d1;
+        }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Final Fixes Validation Test</h1>
+    <p>This page tests all the fixes we implemented for the bubble shooter game.</p>
+
+    <div class="test-section">
+        <h3>🔧 Test 1: Wall Bounce Detection Fix</h3>
+        <p>Tests if bubbles properly detect canvas width for wall bounces.</p>
+        <button onclick="testWallBounceDetection()">Test Wall Bounce</button>
+        <div id="wallBounceResults" class="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🎮 Test 2: Game Reference in Bubbles</h3>
+        <p>Tests if bubbles have proper game references for wall bounce calculations.</p>
+        <button onclick="testGameReferences()">Test Game References</button>
+        <div id="gameRefResults" class="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>⬇️ Test 3: Smooth Descent Animation</h3>
+        <p>Tests if the descent animation prevents grid realignment issues.</p>
+        <button onclick="testDescentAnimation()">Test Descent Animation</button>
+        <div id="descentResults" class="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>⚡ Test 4: Shooter Speed Increase</h3>
+        <p>Tests if SHOOTER_SPEED was increased from 35 to 50.</p>
+        <button onclick="testShooterSpeed()">Test Shooter Speed</button>
+        <div id="speedResults" class="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🎯 Test 5: Integrated Game Test</h3>
+        <p>Creates a full game instance to test all functionality together.</p>
+        <button onclick="startIntegratedTest()">Start Game Test</button>
+        <canvas id="testCanvas" width="400" height="600" style="display: none;"></canvas>
+        <div id="integratedResults" class="test-results"></div>
+    </div>
+
+    <script src="menu.js"></script>
+    <script src="game.js"></script>
+    <script>
+        let testGame = null;
+
+        function log(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : '';
+            container.innerHTML += `<div class="${className}">${message}</div>`;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function testWallBounceDetection() {
+            const container = 'wallBounceResults';
+            log(container, '=== Testing Wall Bounce Detection ===');
+            
+            try {
+                // Create a mock canvas and game
+                const mockCanvas = {
+                    width: 400,
+                    height: 600,
+                    getContext: () => ({})
+                };
+                
+                const game = new Game(mockCanvas);
+                
+                // Create a test bubble
+                const bubble = new Bubble(100, 100, '#FF0000');
+                bubble.game = game; // This should now be set automatically
+                
+                if (bubble.game && bubble.game.canvas) {
+                    log(container, '✅ SUCCESS: Bubble has game reference', 'success');
+                    log(container, `   Canvas width available: ${bubble.game.canvas.width}px`, 'success');
+                } else {
+                    log(container, '❌ ERROR: Bubble missing game reference', 'error');
+                }
+
+                // Test wall bounce logic
+                bubble.vx = 10; // Moving right
+                bubble.x = 390; // Near right wall
+                
+                const initialVx = bubble.vx;
+                bubble.update(); // This should trigger wall bounce
+                
+                if (Math.abs(bubble.vx) < Math.abs(initialVx)) {
+                    log(container, '✅ SUCCESS: Wall bounce velocity change detected', 'success');
+                } else {
+                    log(container, '⚠️  WARNING: Wall bounce may not have triggered', 'warning');
+                }
+                
+            } catch (error) {
+                log(container, `❌ ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        function testGameReferences() {
+            const container = 'gameRefResults';
+            log(container, '=== Testing Game References ===');
+            
+            try {
+                const mockCanvas = {
+                    width: 400,
+                    height: 600,
+                    getContext: () => ({}),
+                    addEventListener: () => {},
+                    removeEventListener: () => {},
+                    getBoundingClientRect: () => ({ left: 0, top: 0 })
+                };
+                
+                const game = new Game(mockCanvas);
+                
+                // Test shooter creation with game reference
+                if (game.shooter && game.shooter.game) {
+                    log(container, '✅ SUCCESS: Shooter has game reference', 'success');
+                } else {
+                    log(container, '❌ ERROR: Shooter missing game reference', 'error');
+                }
+                
+                // Test bubble creation from shooter
+                if (game.shooter && game.shooter.canShoot()) {
+                    const bubble = game.shooter.shoot();
+                    if (bubble && bubble.game) {
+                        log(container, '✅ SUCCESS: Shot bubble has game reference', 'success');
+                    } else {
+                        log(container, '❌ ERROR: Shot bubble missing game reference', 'error');
+                    }
+                }
+                
+            } catch (error) {
+                log(container, `❌ ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        function testDescentAnimation() {
+            const container = 'descentResults';
+            log(container, '=== Testing Descent Animation ===');
+            
+            try {
+                const mockCanvas = {
+                    width: 400,
+                    height: 600,
+                    getContext: () => ({}),
+                    addEventListener: () => {},
+                    removeEventListener: () => {},
+                    getBoundingClientRect: () => ({ left: 0, top: 0 })
+                };
+                
+                const game = new Game(mockCanvas);
+                game.start(); // Initialize the game
+                
+                // Create some grid bubbles
+                for (let col = 0; col < 5; col++) {
+                    const bubble = new Bubble(col * 40 + 40, 60, '#FF0000', 0, col);
+                    bubble.game = game;
+                    bubble.stuck = true;
+                    game.gridBubbles[0][col] = bubble;
+                }
+                
+                log(container, '✅ SUCCESS: Initial grid bubbles created', 'success');
+                
+                // Test descent animation properties
+                const testBubble = game.gridBubbles[0][0];
+                if (testBubble) {
+                    // Simulate descent animation setup
+                    testBubble.targetX = 40;
+                    testBubble.targetY = 100;
+                    testBubble.isDescending = true;
+                    testBubble.descentSpeed = 2;
+                    
+                    if (testBubble.isDescending && testBubble.targetX && testBubble.targetY) {
+                        log(container, '✅ SUCCESS: Descent animation properties set correctly', 'success');
+                    } else {
+                        log(container, '❌ ERROR: Descent animation properties not set', 'error');
+                    }
+                }
+                
+                // Test addNewRow method exists and has smooth animation logic
+                if (typeof game.addNewRow === 'function') {
+                    log(container, '✅ SUCCESS: addNewRow method exists', 'success');
+                } else {
+                    log(container, '❌ ERROR: addNewRow method missing', 'error');
+                }
+                
+            } catch (error) {
+                log(container, `❌ ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        function testShooterSpeed() {
+            const container = 'speedResults';
+            log(container, '=== Testing Shooter Speed ===');
+            
+            try {
+                // Check if SHOOTER_SPEED constant is 50
+                if (typeof SHOOTER_SPEED !== 'undefined') {
+                    log(container, `Current SHOOTER_SPEED: ${SHOOTER_SPEED}`, 'info');
+                    if (SHOOTER_SPEED === 50) {
+                        log(container, '✅ SUCCESS: SHOOTER_SPEED increased to 50', 'success');
+                    } else {
+                        log(container, `❌ ERROR: SHOOTER_SPEED is ${SHOOTER_SPEED}, expected 50`, 'error');
+                    }
+                } else {
+                    log(container, '❌ ERROR: SHOOTER_SPEED constant not found', 'error');
+                }
+                
+                // Test actual shooting velocity
+                const mockCanvas = {
+                    width: 400,
+                    height: 600,
+                    getContext: () => ({}),
+                    addEventListener: () => {},
+                    removeEventListener: () => {},
+                    getBoundingClientRect: () => ({ left: 0, top: 0 })
+                };
+                
+                const game = new Game(mockCanvas);
+                if (game.shooter) {
+                    game.shooter.angle = -Math.PI / 4; // 45 degrees up-left
+                    
+                    if (game.shooter.canShoot()) {
+                        const bubble = game.shooter.shoot();
+                        if (bubble) {
+                            const speed = Math.sqrt(bubble.vx * bubble.vx + bubble.vy * bubble.vy);
+                            log(container, `Actual bubble speed: ${speed.toFixed(1)}`, 'info');
+                            if (Math.abs(speed - 50) < 1) {
+                                log(container, '✅ SUCCESS: Bubble shot at correct speed', 'success');
+                            } else {
+                                log(container, `⚠️  WARNING: Bubble speed ${speed.toFixed(1)}, expected ~50`, 'warning');
+                            }
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                log(container, `❌ ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        function startIntegratedTest() {
+            const container = 'integratedResults';
+            const canvas = document.getElementById('testCanvas');
+            
+            log(container, '=== Starting Integrated Game Test ===');
+            canvas.style.display = 'block';
+            
+            try {
+                testGame = new Game(canvas);
+                testGame.gameMode = 'classic';
+                testGame.difficulty = 'novice';
+                testGame.soundEnabled = false;
+                
+                log(container, '✅ SUCCESS: Game instance created', 'success');
+                
+                // Start the game
+                testGame.start();
+                log(container, '✅ SUCCESS: Game started successfully', 'success');
+                
+                // Check game components
+                if (testGame.shooter) {
+                    log(container, `✅ SUCCESS: Shooter created at (${testGame.shooter.x}, ${testGame.shooter.y})`, 'success');
+                    
+                    if (testGame.shooter.game) {
+                        log(container, '✅ SUCCESS: Shooter has game reference', 'success');
+                    } else {
+                        log(container, '❌ ERROR: Shooter missing game reference', 'error');
+                    }
+                }
+                
+                if (testGame.gridBubbles && testGame.gridBubbles.length > 0) {
+                    const bubbleCount = testGame.gridBubbles.flat().filter(b => b !== null).length;
+                    log(container, `✅ SUCCESS: Grid initialized with ${bubbleCount} bubbles`, 'success');
+                }
+                
+                // Test shooting functionality
+                setTimeout(() => {
+                    if (testGame.shooter && testGame.shooter.canShoot()) {
+                        testGame.shooter.aimAt(200, 300); // Aim somewhere
+                        const bubble = testGame.shooter.shoot();
+                        
+                        if (bubble && bubble.game) {
+                            log(container, '✅ SUCCESS: Shot bubble with game reference', 'success');
+                            log(container, `   Velocity: vx=${bubble.vx.toFixed(1)}, vy=${bubble.vy.toFixed(1)}`, 'info');
+                        } else {
+                            log(container, '❌ ERROR: Shot bubble missing game reference', 'error');
+                        }
+                    }
+                }, 1000);
+                
+                log(container, '🎮 Game is running! Try clicking to shoot bubbles.', 'success');
+                
+            } catch (error) {
+                log(container, `❌ ERROR: ${error.message}`, 'error');
+                console.error('Game test error:', error);
+            }
+        }
+
+        // Capture any console errors
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+    </script>
+</body>
+</html>

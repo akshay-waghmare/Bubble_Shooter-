@@ -466,12 +466,23 @@ class Bubble {
             });
             
             // Handle wall bounces for flying bubbles
-            // Get canvas width from the game instance or use a default
-            const canvasWidth = window.gameInstance?.canvas?.width || 800;
+            // Get canvas width from the stored game reference or use a default
+            let canvasWidth = 800; // Default fallback
+            if (this.game && this.game.canvas) {
+                canvasWidth = this.game.canvas.width;
+            } else if (window.gameInstance?.canvas?.width) {
+                canvasWidth = window.gameInstance.canvas.width;
+            }
+            
             if (this.x - this.radius <= 0 || this.x + this.radius >= canvasWidth) {
                 this.vx *= -0.95; // Energy loss on bounce
                 this.x = Math.max(this.radius, Math.min(canvasWidth - this.radius, this.x));
-                console.log('BUBBLE UPDATE - Wall bounce, new vx:', this.vx);
+                console.log('BUBBLE UPDATE - Wall bounce detected!', {
+                    canvasWidth,
+                    bubbleX: this.x,
+                    newVx: this.vx,
+                    bounceType: this.x - this.radius <= 0 ? 'left' : 'right'
+                });
             }
         }
         
@@ -533,7 +544,7 @@ class Bubble {
 }
 
 class Shooter {
-    constructor(x, y) {
+    constructor(x, y, game) {
         console.log('SHOOTER CREATED:', { x, y });
         this.x = x;
         this.y = y;
@@ -543,6 +554,7 @@ class Shooter {
         this.reloadTime = 300; // ms
         this.lastShot = 0;
         this.engine = null; // Will be set by Game class
+        this.game = game; // Store game reference for bubble creation
         console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor });
     }
 
@@ -702,6 +714,9 @@ class Shooter {
         bubble.stuck = false;
         bubble.falling = false;
         bubble.isPhysicsEnabled = false;
+        
+        // CRITICAL: Set game reference for wall bounce detection
+        bubble.game = this.game;
         
         // Set initial velocity for manual physics
         const vx = Math.cos(this.angle) * SHOOTER_SPEED;
@@ -969,6 +984,8 @@ class Game {
                     
                     console.log('Creating grid bubble:', { row, col, x, y, color });
                     const bubble = new Bubble(x, y, color, row, col);
+                    // CRITICAL: Set game reference for wall bounce detection
+                    bubble.game = this;
                     // CRITICAL FIX: Set stuck=true IMMEDIATELY after creation, before any other operations
                     bubble.stuck = true;
                     bubble.vx = 0; // Ensure no velocity
@@ -1099,21 +1116,31 @@ class Game {
             this.gridBubbles.push(new Array(GRID_COLS).fill(null));
         }
         
-        // Shift all existing bubbles down by one row
+        // Shift all existing bubbles down by one row with smooth animation
         for (let row = this.gridBubbles.length - 1; row >= 1; row--) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row - 1][col]) {
                     const bubble = this.gridBubbles[row - 1][col];
                     
-                    // Update bubble's position and grid coordinates
-                    bubble.row = row;
-                    bubble.col = col;
-                    bubble.x = this.getColPosition(row, col);
-                    bubble.y = this.getRowPosition(row);
+                    // Calculate target position for smooth animation
+                    const targetX = this.getColPosition(row, col);
+                    const targetY = this.getRowPosition(row);
                     
-                    // Move bubble to new position
+                    // Set up smooth descent animation instead of instant repositioning
+                    bubble.targetRow = row;
+                    bubble.targetCol = col;
+                    bubble.targetX = targetX;
+                    bubble.targetY = targetY;
+                    bubble.isDescending = true;
+                    bubble.descentSpeed = 2; // Pixels per frame for smooth animation
+                    
+                    // Move bubble to new grid position but keep visual position for animation
                     this.gridBubbles[row][col] = bubble;
                     this.gridBubbles[row - 1][col] = null;
+                    
+                    // Don't update visual position immediately - let animation handle it
+                    bubble.row = row;
+                    bubble.col = col;
                 }
             }
         }
@@ -1142,6 +1169,8 @@ class Game {
             
             // Create bubble and ensure it's properly configured
             const bubble = new Bubble(x, y, color, 0, col);
+            // CRITICAL: Set game reference for wall bounce detection
+            bubble.game = this;
             bubble.stuck = true;
             bubble.vx = 0;
             bubble.vy = 0;
@@ -1431,7 +1460,7 @@ class Game {
         
         // Create shooter if not exists
         if (!this.shooter) {
-            this.shooter = new Shooter(this.canvas.width / 2, this.canvas.height - 50);
+            this.shooter = new Shooter(this.canvas.width / 2, this.canvas.height - 50, this);
             this.shooter.engine = this.engine; // Pass engine reference
             console.log('Shooter created at:', { x: this.shooter.x, y: this.shooter.y });
         }
@@ -1740,6 +1769,37 @@ class Game {
             
             if (bubble.animationTimer > 30) {
                 this.removingBubbles.splice(i, 1);
+            }
+        }
+        
+        // Update descending bubbles with smooth animation
+        const effectiveRows = this.gridBubbles.length;
+        for (let row = 0; row < effectiveRows; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
+                    const bubble = this.gridBubbles[row][col];
+                    
+                    if (bubble.isDescending) {
+                        // Smooth animation towards target position
+                        const dx = bubble.targetX - bubble.x;
+                        const dy = bubble.targetY - bubble.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance > 1) {
+                            // Move towards target
+                            bubble.x += (dx / distance) * bubble.descentSpeed;
+                            bubble.y += (dy / distance) * bubble.descentSpeed;
+                        } else {
+                            // Snap to final position and stop animation
+                            bubble.x = bubble.targetX;
+                            bubble.y = bubble.targetY;
+                            bubble.isDescending = false;
+                            bubble.targetX = undefined;
+                            bubble.targetY = undefined;
+                            bubble.descentSpeed = undefined;
+                        }
+                    }
+                }
             }
         }
         
