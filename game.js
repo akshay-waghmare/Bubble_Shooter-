@@ -151,7 +151,7 @@ class CollisionPredictor {
 // Game constants
 const BUBBLE_RADIUS = 20;
 const BUBBLE_COLORS = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88', '#FECA57', '#FF9FF3'];
-const SHOOTER_SPEED = 35;
+const SHOOTER_SPEED = 50; // Increased from 35 to 50 for faster bubble shooting
 const GRID_ROWS = 10;
 const GRID_COLS = 14;
 const GRID_TOP_MARGIN = BUBBLE_RADIUS * 2;
