@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missing Bubble Fix Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        .error { color: #dc3545; }
+        .code {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        #gameCanvas {
+            border: 2px solid #ddd;
+            margin: 20px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Missing Bubble Fix Verification</h1>
+    <p>This page tests the fix for the missing bubble issue in the infinite stack mechanic.</p>
+    
+    <div class="test-section">
+        <h2>📋 Test Setup</h2>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div>
+            <button onclick="runTest()">🚀 Run Fix Test</button>
+            <button onclick="resizeCanvas(1200)">📏 Set Wide Canvas (1200px)</button>
+            <button onclick="resizeCanvas(400)">📏 Set Narrow Canvas (400px)</button>
+            <button onclick="clearResults()">🧹 Clear Results</button>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        let game;
+        let testResults = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push({ timestamp, message, type });
+            updateResults();
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => 
+                `<div class="${result.type}"><strong>${result.timestamp}</strong>: ${result.message}</div>`
+            ).join('');
+        }
+        
+        function clearResults() {
+            testResults = [];
+            updateResults();
+        }
+        
+        function resizeCanvas(width) {
+            const canvas = document.getElementById('gameCanvas');
+            canvas.width = width;
+            log(`Canvas resized to ${width}px`, 'info');
+            
+            if (game) {
+                // Trigger a resizeCanvas call to update game's internal state
+                game.resizeCanvas();
+                log(`Game's resizeCanvas() called to update internal state`, 'info');
+            }
+        }
+        
+        async function runTest() {
+            log('🧪 Starting Missing Bubble Fix Test', 'info');
+            
+            try {
+                // Initialize game
+                if (!game) {
+                    game = new Game();
+                    log('✅ Game initialized', 'success');
+                }
+                
+                // Test 1: Normal operation baseline
+                log('📋 Test 1: Normal Operation Baseline', 'info');
+                resizeCanvas(800);
+                
+                // Clear and regenerate infinite stack
+                game.infiniteStack = [];
+                game.generateInfiniteStack();
+                
+                const baselineRow = game.infiniteStack[0];
+                log(`Baseline: effectiveGridCols=${baselineRow.effectiveGridCols}, bubbles=${baselineRow.bubbles.length}`, 'info');
+                
+                // Test 2: Canvas width change scenario (the bug trigger)
+                log('📋 Test 2: Canvas Width Change Scenario', 'warning');
+                
+                // Generate with wide canvas
+                resizeCanvas(1200);
+                game.infiniteStack = [];
+                game.generateInfiniteStack();
+                
+                const wideRow = game.infiniteStack[0];
+                log(`Generated with wide canvas: effectiveGridCols=${wideRow.effectiveGridCols}, bubbles=${wideRow.bubbles.length}, canvasWidth=${wideRow.canvasWidth}px`, 'info');
+                
+                // Change canvas to narrow BEFORE processing the row
+                resizeCanvas(300);
+                
+                // Calculate what current effectiveGridCols would be
+                const canvas = document.getElementById('gameCanvas');
+                const maxBubblesPerRow = Math.floor((canvas.width - 30) / 30); // Using game constants
+                const currentEffectiveGridCols = Math.min(16, maxBubblesPerRow);
+                
+                log(`Canvas changed to ${canvas.width}px - current effectiveGridCols would be: ${currentEffectiveGridCols}`, 'warning');
+                log(`This creates a MISMATCH: generated=${wideRow.effectiveGridCols}, current=${currentEffectiveGridCols}`, wideRow.effectiveGridCols !== currentEffectiveGridCols ? 'error' : 'success');
+                
+                // Test the fix by calling addNewRow
+                log('🔧 Testing the fix: calling addNewRow()...', 'info');
+                
+                // Setup minimal game state for addNewRow
+                game.gridBubbles = [new Array(16).fill(null)];
+                game.totalBubbles = 0;
+                game.loseLineRow = 10;
+                
+                // Capture console output to see our fix messages
+                const originalLog = console.log;
+                const capturedLogs = [];
+                console.log = (...args) => {
+                    capturedLogs.push(args.join(' '));
+                    originalLog(...args);
+                };
+                
+                // Call addNewRow - this should use our fixed logic
+                game.addNewRow();
+                
+                // Restore console
+                console.log = originalLog;
+                
+                // Check if our fix worked
+                const detectedMismatch = capturedLogs.some(log => log.includes('🚨 Canvas width changed!'));
+                const usedStoredMetadata = capturedLogs.some(log => log.includes('from stored metadata'));
+                
+                log(`Fix detection - Canvas width change detected: ${detectedMismatch}`, detectedMismatch ? 'success' : 'error');
+                log(`Fix application - Used stored metadata: ${usedStoredMetadata}`, usedStoredMetadata ? 'success' : 'error');
+                
+                // Verify all bubbles were placed
+                let bubblesPlaced = 0;
+                for (let col = 0; col < wideRow.effectiveGridCols; col++) {
+                    if (game.gridBubbles[0][col]) {
+                        bubblesPlaced++;
+                    }
+                }
+                
+                const allBubblesPlaced = bubblesPlaced === wideRow.effectiveGridCols;
+                log(`Bubbles placed: ${bubblesPlaced}/${wideRow.effectiveGridCols} - All placed correctly: ${allBubblesPlaced}`, allBubblesPlaced ? 'success' : 'error');
+                
+                // Test 3: Verify no missing bubbles
+                log('📋 Test 3: Missing Bubble Verification', 'info');
+                
+                if (detectedMismatch && allBubblesPlaced) {
+                    log('🎉 SUCCESS: Missing bubble bug has been FIXED!', 'success');
+                    log('The fix correctly stores effectiveGridCols metadata and uses it consistently', 'success');
+                } else {
+                    log('❌ FAILURE: Fix did not work as expected', 'error');
+                    if (!detectedMismatch) log('- Canvas width change was not detected', 'error');
+                    if (!allBubblesPlaced) log('- Not all bubbles were placed correctly', 'error');
+                }
+                
+                // Display captured logs for debugging
+                log('📝 Captured addNewRow() logs:', 'info');
+                capturedLogs.forEach(logLine => {
+                    log(`  ${logLine}`, 'info');
+                });
+                
+            } catch (error) {
+                log(`❌ Test failed with error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        // Auto-run test when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('🌐 Page loaded - Ready to test', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

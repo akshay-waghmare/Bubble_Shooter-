@@ -33,20 +33,20 @@ function testInfiniteStackImplementation() {
             const settings = this.difficultySettings[this.difficulty];
             const colors = ['#FF6B6B', '#4ECDC4', '#1E3A8A'].slice(0, settings.colors);
             
-            // Generate 20 rows ahead
+            // Generate 20 rows ahead - ALL COMPLETELY FILLED
             for (let stackRow = 0; stackRow < 20; stackRow++) {
                 const rowData = new Array(12).fill(null);
                 
+                // CRITICAL: Fill ALL columns (no gaps)
                 for (let col = 0; col < 12; col++) {
-                    if (Math.random() < 0.8) {
-                        rowData[col] = colors[Math.floor(Math.random() * colors.length)];
-                    }
+                    // Always place a bubble (100% fill rate for descending rows)
+                    rowData[col] = colors[Math.floor(Math.random() * colors.length)];
                 }
                 
                 this.infiniteStack.push(rowData);
             }
             
-            console.log(`✓ Generated ${this.infiniteStack.length} rows in infinite stack`);
+            console.log(`✓ Generated ${this.infiniteStack.length} rows in infinite stack (ALL completely filled)`);
         },
         
         calculateLoseLine: function() {
@@ -96,12 +96,24 @@ function testInfiniteStackImplementation() {
             }
             
             const newRowData = this.infiniteStack.shift();
-            console.log(`✓ Added new row from infinite stack. ${this.infiniteStack.length} rows remaining.`);
+            
+            // Count bubbles in the new row to verify it's completely filled
+            const bubblesInRow = newRowData.filter(color => color !== null).length;
+            const totalColumns = newRowData.length;
+            
+            console.log(`✓ Added new row from infinite stack: ${bubblesInRow}/${totalColumns} bubbles (${bubblesInRow === totalColumns ? 'COMPLETELY FILLED' : 'PARTIALLY FILLED'})`);
+            console.log(`  Remaining infinite stack rows: ${this.infiniteStack.length}`);
             
             // Replenish if needed
             if (this.infiniteStack.length < 10) {
                 this.generateInfiniteStack();
             }
+            
+            return {
+                bubblesAdded: bubblesInRow,
+                totalColumns: totalColumns,
+                completelyFilled: bubblesInRow === totalColumns
+            };
         }
     };
     
@@ -111,13 +123,23 @@ function testInfiniteStackImplementation() {
     testGame.calculateLoseLine();
     
     // Test shot counting and descent triggers
-    console.log('\n3. Testing Shot Counting...');
+    console.log('\n3. Testing Shot Counting and Row Addition...');
+    let totalRowsAdded = 0;
+    let allRowsCompletelyFilled = true;
+    
     for (let shot = 1; shot <= 10; shot++) {
         testGame.shotCount++;
         console.log(`Shot ${shot}: shotCount=${testGame.shotCount}`);
         
         if (testGame.checkDescentTriggers()) {
-            testGame.addNewRow();
+            const rowResult = testGame.addNewRow();
+            if (rowResult) {
+                totalRowsAdded++;
+                if (!rowResult.completelyFilled) {
+                    allRowsCompletelyFilled = false;
+                    console.log(`⚠️ Row ${totalRowsAdded} was not completely filled!`);
+                }
+            }
         }
     }
     
@@ -125,16 +147,26 @@ function testInfiniteStackImplementation() {
     console.log('\n4. Testing Time-based Descent...');
     testGame.lastDescentTime = Date.now() - 16000; // 16 seconds ago (past the 15 second threshold)
     if (testGame.checkDescentTriggers()) {
-        testGame.addNewRow();
+        const rowResult = testGame.addNewRow();
+        if (rowResult) {
+            totalRowsAdded++;
+            if (!rowResult.completelyFilled) {
+                allRowsCompletelyFilled = false;
+                console.log(`⚠️ Time-based row was not completely filled!`);
+            }
+        }
     }
     
     console.log('\n✅ Infinite Stack Implementation Test Complete!');
+    console.log(`📊 Total rows added: ${totalRowsAdded}`);
+    console.log(`📊 All rows completely filled: ${allRowsCompletelyFilled ? '✅ YES' : '❌ NO'}`);
     
     return {
         infiniteStackGenerated: testGame.infiniteStack.length > 0,
         loseLineCalculated: testGame.loseLineRow > 0,
-        descentTriggersWork: true,
-        addNewRowWorks: true
+        descentTriggersWork: totalRowsAdded > 0,
+        addNewRowWorks: totalRowsAdded > 0,
+        allRowsCompletelyFilled: allRowsCompletelyFilled
     };
 }
 
@@ -146,6 +178,7 @@ console.log('Infinite Stack Generated:', testResults.infiniteStackGenerated ? '�
 console.log('Lose Line Calculated:', testResults.loseLineCalculated ? '✅' : '❌');
 console.log('Descent Triggers Work:', testResults.descentTriggersWork ? '✅' : '❌');
 console.log('Add New Row Works:', testResults.addNewRowWorks ? '✅' : '❌');
+console.log('All Rows Completely Filled:', testResults.allRowsCompletelyFilled ? '✅' : '❌');
 
 console.log('\n=== KEY FEATURES IMPLEMENTED ===');
 console.log('1. ✅ Infinite Stack: Pre-generated rows ready to descend');
@@ -155,10 +188,12 @@ console.log('4. ✅ Pressure System: Constant threat of descending bubbles');
 console.log('5. ✅ Dynamic Grid: Grid extends as needed to accommodate descent');
 console.log('6. ✅ UI Feedback: Players see countdown to next descent');
 console.log('7. ✅ Difficulty Scaling: Different descent frequencies per difficulty');
+console.log('8. ✅ COMPLETELY FILLED ROWS: New descending rows always fill all columns');
 
 console.log('\n=== USAGE IN GAME ===');
 console.log('- Start with 2-3 rows (not 7+ like before)');
 console.log('- New rows descend every 8 shots OR 15 seconds (novice)');
+console.log('- 🔥 NEW ROWS ARE ALWAYS COMPLETELY FILLED (maximum pressure)');
 console.log('- Clear lose line shown to player');
 console.log('- Game ends when any bubble reaches lose line row');
 console.log('- Missed shots reset when new row descends (gives fresh chance)');

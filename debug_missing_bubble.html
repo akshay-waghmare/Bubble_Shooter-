@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug: Missing Bubble Investigation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a2e;
+            color: white;
+        }
+        .debug-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .debug-section {
+            background-color: #2a2a4e;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4ECDC4;
+        }
+        .error { border-left-color: #FF6B6B; }
+        .warning { border-left-color: #FECA57; }
+        pre {
+            background-color: #0f0f1e;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .bubble-row {
+            display: flex;
+            gap: 2px;
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .bubble {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: white;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+        }
+        .missing-bubble {
+            width: 20px;
+            height: 20px;
+            border: 2px dashed #FF6B6B;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #FF6B6B;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>🔍 Debug: Missing Bubble Investigation</h1>
+        <p>This test will identify why one bubble might be missing from the completely filled rows.</p>
+        
+        <div id="debugResults"></div>
+    </div>
+
+    <script>
+        // Constants matching the game
+        const BUBBLE_COLORS = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88', '#FECA57', '#FF9FF3'];
+        const BUBBLE_RADIUS = 20;
+        const GRID_COL_SPACING = BUBBLE_RADIUS * 2; // 40
+        const GRID_COLS = 14;
+        
+        // Test different canvas widths to see effectiveGridCols calculation
+        const testCanvasWidths = [300, 350, 400, 450, 500];
+        
+        function calculateEffectiveGridCols(canvasWidth) {
+            const maxBubblesPerRow = Math.floor((canvasWidth - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
+            const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
+            
+            return {
+                canvasWidth,
+                availableWidth: canvasWidth - BUBBLE_RADIUS * 2,
+                maxBubblesPerRow,
+                effectiveGridCols,
+                usedWidth: effectiveGridCols * GRID_COL_SPACING,
+                leftoverWidth: (canvasWidth - BUBBLE_RADIUS * 2) - (effectiveGridCols * GRID_COL_SPACING)
+            };
+        }
+        
+        function simulateInfiniteStackGeneration(canvasWidth, difficulty = 'novice') {
+            const difficultySettings = {
+                novice: { colors: 3 },
+                easy: { colors: 4 },
+                medium: { colors: 5 }
+            };
+            
+            const settings = difficultySettings[difficulty];
+            const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
+            const calc = calculateEffectiveGridCols(canvasWidth);
+            const effectiveGridCols = calc.effectiveGridCols;
+            
+            // Simulate row generation
+            const rowData = new Array(effectiveGridCols).fill(null);
+            
+            for (let col = 0; col < effectiveGridCols; col++) {
+                const color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
+                rowData[col] = color;
+            }
+            
+            return {
+                calculation: calc,
+                rowData: rowData,
+                bubblesGenerated: rowData.filter(c => c !== null).length,
+                expectedBubbles: effectiveGridCols,
+                allFilled: rowData.every(c => c !== null)
+            };
+        }
+        
+        function simulateAddNewRow(infiniteStackRow, canvasWidth) {
+            const calc = calculateEffectiveGridCols(canvasWidth);
+            const effectiveGridCols = calc.effectiveGridCols;
+            
+            const finalRow = [];
+            let missingBubbles = [];
+            
+            for (let col = 0; col < effectiveGridCols; col++) {
+                let color = infiniteStackRow[col];
+                
+                if (!color) {
+                    // This should not happen with our implementation, but let's track it
+                    const fallbackColor = BUBBLE_COLORS[0]; // Use first color as fallback
+                    color = fallbackColor;
+                    missingBubbles.push({
+                        col: col,
+                        reason: 'Missing from infinite stack',
+                        fallbackUsed: fallbackColor
+                    });
+                }
+                
+                finalRow.push(color);
+            }
+            
+            return {
+                calculation: calc,
+                infiniteStackLength: infiniteStackRow.length,
+                finalRowLength: finalRow.length,
+                finalRow: finalRow,
+                bubblesPlaced: finalRow.length,
+                expectedBubbles: effectiveGridCols,
+                missingBubbles: missingBubbles,
+                allFilled: finalRow.length === effectiveGridCols && finalRow.every(c => c !== null)
+            };
+        }
+        
+        function runDebugTests() {
+            const resultsDiv = document.getElementById('debugResults');
+            let html = '';
+            
+            // Test 1: effectiveGridCols calculation across different canvas widths
+            html += '<div class="debug-section">';
+            html += '<h2>📐 Test 1: effectiveGridCols Calculation</h2>';
+            html += '<table>';
+            html += '<tr><th>Canvas Width</th><th>Available Width</th><th>Max Bubbles</th><th>Effective Cols</th><th>Used Width</th><th>Leftover</th></tr>';
+            
+            testCanvasWidths.forEach(width => {
+                const calc = calculateEffectiveGridCols(width);
+                html += `<tr>
+                    <td>${calc.canvasWidth}px</td>
+                    <td>${calc.availableWidth}px</td>
+                    <td>${calc.maxBubblesPerRow}</td>
+                    <td>${calc.effectiveGridCols}</td>
+                    <td>${calc.usedWidth}px</td>
+                    <td>${calc.leftoverWidth}px</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            html += '</div>';
+            
+            // Test 2: Infinite stack generation vs addNewRow consistency
+            html += '<div class="debug-section">';
+            html += '<h2>🔄 Test 2: Generation vs Addition Consistency</h2>';
+            
+            const testWidth = 400; // Common canvas width
+            
+            for (let test = 1; test <= 5; test++) {
+                html += `<h3>Test Case ${test} (Canvas: ${testWidth}px)</h3>`;
+                
+                // Step 1: Generate infinite stack row
+                const stackResult = simulateInfiniteStackGeneration(testWidth);
+                
+                // Step 2: Simulate addNewRow processing
+                const addRowResult = simulateAddNewRow(stackResult.rowData, testWidth);
+                
+                // Compare results
+                const consistent = (
+                    stackResult.calculation.effectiveGridCols === addRowResult.calculation.effectiveGridCols &&
+                    stackResult.bubblesGenerated === addRowResult.bubblesPlaced &&
+                    stackResult.allFilled === addRowResult.allFilled
+                );
+                
+                html += `<div class="${consistent ? 'debug-section' : 'debug-section error'}">`;
+                html += '<table>';
+                html += '<tr><th>Stage</th><th>Effective Cols</th><th>Bubbles</th><th>All Filled</th><th>Issues</th></tr>';
+                html += `<tr>
+                    <td>Infinite Stack</td>
+                    <td>${stackResult.calculation.effectiveGridCols}</td>
+                    <td>${stackResult.bubblesGenerated}</td>
+                    <td>${stackResult.allFilled ? '✅' : '❌'}</td>
+                    <td>${stackResult.allFilled ? 'None' : 'Missing bubbles!'}</td>
+                </tr>`;
+                html += `<tr>
+                    <td>Add New Row</td>
+                    <td>${addRowResult.calculation.effectiveGridCols}</td>
+                    <td>${addRowResult.bubblesPlaced}</td>
+                    <td>${addRowResult.allFilled ? '✅' : '❌'}</td>
+                    <td>${addRowResult.missingBubbles.length > 0 ? addRowResult.missingBubbles.map(m => `Col ${m.col}: ${m.reason}`).join(', ') : 'None'}</td>
+                </tr>`;
+                html += '</table>';
+                
+                // Visual representation
+                html += '<h4>Visual Row Comparison:</h4>';
+                html += '<p>Infinite Stack Row:</p>';
+                html += '<div class="bubble-row">';
+                stackResult.rowData.forEach((color, index) => {
+                    if (color) {
+                        html += `<div class="bubble" style="background-color: ${color}" title="Col ${index}: ${color}">●</div>`;
+                    } else {
+                        html += `<div class="missing-bubble" title="Col ${index}: MISSING">✗</div>`;
+                    }
+                });
+                html += '</div>';
+                
+                html += '<p>Final Added Row:</p>';
+                html += '<div class="bubble-row">';
+                addRowResult.finalRow.forEach((color, index) => {
+                    if (color) {
+                        html += `<div class="bubble" style="background-color: ${color}" title="Col ${index}: ${color}">●</div>`;
+                    } else {
+                        html += `<div class="missing-bubble" title="Col ${index}: MISSING">✗</div>`;
+                    }
+                });
+                html += '</div>';
+                
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            
+            // Test 3: Edge case detection
+            html += '<div class="debug-section">';
+            html += '<h2>⚠️ Test 3: Edge Case Detection</h2>';
+            
+            // Test with very narrow canvas
+            const narrowWidth = 200;
+            const narrowResult = simulateInfiniteStackGeneration(narrowWidth);
+            
+            html += `<h3>Narrow Canvas (${narrowWidth}px)</h3>`;
+            html += `<p>Effective Columns: ${narrowResult.calculation.effectiveGridCols}</p>`;
+            html += `<p>Bubbles Generated: ${narrowResult.bubblesGenerated}</p>`;
+            html += `<p>Expected vs Actual: ${narrowResult.expectedBubbles} vs ${narrowResult.bubblesGenerated}</p>`;
+            
+            // Test with very wide canvas
+            const wideWidth = 800;
+            const wideResult = simulateInfiniteStackGeneration(wideWidth);
+            
+            html += `<h3>Wide Canvas (${wideWidth}px)</h3>`;
+            html += `<p>Effective Columns: ${wideResult.calculation.effectiveGridCols}</p>`;
+            html += `<p>Bubbles Generated: ${wideResult.bubblesGenerated}</p>`;
+            html += `<p>Expected vs Actual: ${wideResult.expectedBubbles} vs ${wideResult.bubblesGenerated}</p>`;
+            html += `<p>Limited by GRID_COLS (${GRID_COLS}): ${wideResult.calculation.effectiveGridCols === GRID_COLS ? '✅ Yes' : '❌ No'}</p>`;
+            
+            html += '</div>';
+            
+            // Test 4: Potential array length mismatch
+            html += '<div class="debug-section">';
+            html += '<h2>📊 Test 4: Array Length Analysis</h2>';
+            
+            const analysisWidth = 400;
+            const analysisResult = simulateInfiniteStackGeneration(analysisWidth);
+            
+            html += '<table>';
+            html += '<tr><th>Metric</th><th>Value</th><th>Notes</th></tr>';
+            html += `<tr><td>Canvas Width</td><td>${analysisWidth}px</td><td>Test canvas size</td></tr>`;
+            html += `<tr><td>Bubble Radius</td><td>${BUBBLE_RADIUS}px</td><td>Constant</td></tr>`;
+            html += `<tr><td>Col Spacing</td><td>${GRID_COL_SPACING}px</td><td>Bubble diameter</td></tr>`;
+            html += `<tr><td>Available Width</td><td>${analysisResult.calculation.availableWidth}px</td><td>Canvas - (2 * radius)</td></tr>`;
+            html += `<tr><td>Max Bubbles Per Row</td><td>${analysisResult.calculation.maxBubblesPerRow}</td><td>Floor(available / spacing)</td></tr>`;
+            html += `<tr><td>GRID_COLS Limit</td><td>${GRID_COLS}</td><td>Hard coded limit</td></tr>`;
+            html += `<tr><td>Effective Grid Cols</td><td>${analysisResult.calculation.effectiveGridCols}</td><td>Min(maxBubbles, GRID_COLS)</td></tr>`;
+            html += `<tr><td>Array Length</td><td>${analysisResult.rowData.length}</td><td>Generated array size</td></tr>`;
+            html += `<tr><td>Bubbles Generated</td><td>${analysisResult.bubblesGenerated}</td><td>Non-null elements</td></tr>`;
+            html += '</table>';
+            
+            // Diagnose the issue
+            if (analysisResult.rowData.length !== analysisResult.calculation.effectiveGridCols) {
+                html += `<div class="debug-section error">`;
+                html += `<h3>🚨 ISSUE FOUND: Array Length Mismatch!</h3>`;
+                html += `<p>The generated array length (${analysisResult.rowData.length}) does not match effectiveGridCols (${analysisResult.calculation.effectiveGridCols}).</p>`;
+                html += `<p>This could cause the missing bubble issue.</p>`;
+                html += `</div>`;
+            } else if (analysisResult.bubblesGenerated !== analysisResult.calculation.effectiveGridCols) {
+                html += `<div class="debug-section error">`;
+                html += `<h3>🚨 ISSUE FOUND: Bubble Count Mismatch!</h3>`;
+                html += `<p>Not all array positions were filled with bubbles.</p>`;
+                html += `<p>Expected: ${analysisResult.calculation.effectiveGridCols}, Got: ${analysisResult.bubblesGenerated}</p>`;
+                html += `</div>`;
+            } else {
+                html += `<div class="debug-section">`;
+                html += `<h3>✅ No Issues Detected</h3>`;
+                html += `<p>Array length and bubble count match expectations.</p>`;
+                html += `</div>`;
+            }
+            
+            html += '</div>';
+            
+            resultsDiv.innerHTML = html;
+        }
+        
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', runDebugTests);
+    </script>
+</body>
+</html>

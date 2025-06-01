@@ -1007,32 +1007,46 @@ class Game {
         const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
         const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
         
+        console.log(`Generating infinite stack with effectiveGridCols: ${effectiveGridCols} (canvas width: ${this.canvas.width})`);
+        
         // Generate 20 rows ahead for the infinite stack
         for (let stackRow = 0; stackRow < 20; stackRow++) {
             const rowData = new Array(effectiveGridCols).fill(null);
             
+            // CRITICAL: Always fill ALL valid columns for new descending rows
+            // This ensures maximum pressure and strategic challenge
             for (let col = 0; col < effectiveGridCols; col++) {
-                // Create bubbles with some randomness but ensure clusters for strategy
-                if (Math.random() < 0.8) { // 80% chance of bubble placement
-                    let color;
-                    
-                    // Create color clusters for strategic gameplay
-                    if (col > 0 && rowData[col-1] && Math.random() < 0.5) {
-                        color = rowData[col-1];
-                    } else if (stackRow > 0 && this.infiniteStack[stackRow-1] && this.infiniteStack[stackRow-1][col] && Math.random() < 0.4) {
-                        color = this.infiniteStack[stackRow-1][col];
-                    } else {
-                        color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
-                    }
-                    
-                    rowData[col] = color;
+                let color;
+                
+                // Smart color generation algorithm for strategic gameplay
+                if (col > 0 && rowData[col-1] && Math.random() < 0.4) {
+                    // 40% chance to match previous column for horizontal clusters
+                    color = rowData[col-1];
+                } else if (stackRow > 0 && this.infiniteStack[stackRow-1] && 
+                          this.infiniteStack[stackRow-1].bubbles[col] && Math.random() < 0.3) {
+                    // 30% chance to match above bubble for vertical clusters
+                    color = this.infiniteStack[stackRow-1].bubbles[col];
+                } else {
+                    // Random color from available subset
+                    color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                 }
+                
+                // GUARANTEE: Every position gets a bubble (no null values)
+                rowData[col] = color;
             }
             
-            this.infiniteStack.push(rowData);
+            // Store row data with metadata to ensure consistency
+            const rowWithMetadata = {
+                bubbles: rowData,
+                effectiveGridCols: effectiveGridCols,
+                generatedAt: Date.now(),
+                canvasWidth: this.canvas.width
+            };
+            
+            this.infiniteStack.push(rowWithMetadata);
         }
         
-        console.log('Infinite stack generated with', this.infiniteStack.length, 'rows');
+        console.log('Infinite stack generated with', this.infiniteStack.length, 'completely filled rows');
     }
 
     calculateLoseLine() {
@@ -1064,8 +1078,20 @@ class Game {
             this.generateInfiniteStack();
         }
         
-        // Get the next row from infinite stack
-        const newRowData = this.infiniteStack.shift();
+        // Get the next row from infinite stack (now includes metadata)
+        const newRowWithMetadata = this.infiniteStack.shift();
+        const newRowData = newRowWithMetadata.bubbles;
+        const storedEffectiveGridCols = newRowWithMetadata.effectiveGridCols;
+        
+        // Calculate current effective grid cols for comparison/validation
+        const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
+        const currentEffectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
+        
+        // Log for debugging - this helps us track when mismatches occur
+        console.log(`Using row with stored effectiveGridCols: ${storedEffectiveGridCols}, current would be: ${currentEffectiveGridCols}`);
+        if (storedEffectiveGridCols !== currentEffectiveGridCols) {
+            console.warn(`🚨 Canvas width changed! Generated: ${storedEffectiveGridCols}, Current: ${currentEffectiveGridCols}, Canvas: ${this.canvas.width}px (was ${newRowWithMetadata.canvasWidth}px)`);
+        }
         
         // Extend grid if needed to accommodate the descent
         const maxNeededRows = this.loseLineRow + 3; // Allow some buffer beyond lose line
@@ -1092,24 +1118,40 @@ class Game {
             }
         }
         
-        // Add new row at the top (row 0)
-        const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
-        const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
+        // Add new row at the top (row 0) - ALWAYS COMPLETELY FILLED
+        // CRITICAL FIX: Use the stored effectiveGridCols instead of recalculating
+        const effectiveGridCols = storedEffectiveGridCols;
         
+        console.log(`Creating new top row with ${effectiveGridCols} bubbles (completely filled) from stored metadata`);
+        
+        // CRITICAL: Ensure EVERY valid column gets a bubble
         for (let col = 0; col < effectiveGridCols; col++) {
-            if (newRowData[col]) {
-                const x = this.getColPosition(0, col);
-                const y = this.getRowPosition(0);
-                
-                const bubble = new Bubble(x, y, newRowData[col], 0, col);
-                bubble.stuck = true;
-                bubble.vx = 0;
-                bubble.vy = 0;
-                
-                this.gridBubbles[0][col] = bubble;
-                this.totalBubbles++;
+            // Get color from infinite stack data, but guarantee it exists
+            let color = newRowData[col];
+            
+            // Fallback: If for any reason the infinite stack doesn't have a color, generate one
+            if (!color) {
+                const settings = this.difficultySettings[this.difficulty];
+                const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
+                color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
+                console.warn(`Missing color at col ${col}, using fallback: ${color}`);
             }
+            
+            const x = this.getColPosition(0, col);
+            const y = this.getRowPosition(0);
+            
+            // Create bubble and ensure it's properly configured
+            const bubble = new Bubble(x, y, color, 0, col);
+            bubble.stuck = true;
+            bubble.vx = 0;
+            bubble.vy = 0;
+            
+            // Place bubble in grid
+            this.gridBubbles[0][col] = bubble;
+            this.totalBubbles++;
         }
+        
+        console.log(`✓ New top row created with ${effectiveGridCols} bubbles`);
         
         // Replenish infinite stack
         if (this.infiniteStack.length < 10) {
