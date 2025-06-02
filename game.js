@@ -442,76 +442,143 @@ class Bubble {
             ctx.fill();
         }
 
-        // Modern 3D glossy bubble rendering similar to the screenshot
+        // Ultra-realistic 3D bubble rendering matching the screenshot quality
         const baseColor = this.color;
         
-        // Step 1: Draw subtle shadow/depth
+        // Step 1: Enhanced drop shadow for better depth perception
         ctx.beginPath();
-        ctx.arc(1, 1, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.arc(2, 3, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.fill();
         
-        // Step 2: Main bubble body with sophisticated gradient
+        // Step 2: Outer subtle glow for premium feel
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius + 2, 0, Math.PI * 2);
+        const outerGlowGradient = ctx.createRadialGradient(0, 0, this.radius, 0, 0, this.radius + 2);
+        outerGlowGradient.addColorStop(0, baseColor);
+        outerGlowGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = outerGlowGradient;
+        ctx.globalAlpha = 0.3 * this.opacity;
+        ctx.fill();
+        
+        // Step 3: Main bubble body with ultra-realistic gradient (enhanced)
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         
-        const mainGradient = ctx.createRadialGradient(-8, -8, 0, 0, 0, this.radius * 1.2);
-        const lightColor = this.lightenColor(baseColor, 0.5);
-        const darkColor = this.darkenColor(baseColor, 0.3);
+        const mainGradient = ctx.createRadialGradient(-this.radius * 0.3, -this.radius * 0.3, 0, 0, 0, this.radius * 1.2);
+        const lightColor = this.lightenColor(baseColor, 0.8);
+        const midLight = this.lightenColor(baseColor, 0.3);
+        const midDark = this.darkenColor(baseColor, 0.1);
+        const darkColor = this.darkenColor(baseColor, 0.5);
+        const veryDarkColor = this.darkenColor(baseColor, 0.7);
         
-        mainGradient.addColorStop(0, lightColor);      // Bright top-left
-        mainGradient.addColorStop(0.3, baseColor);     // Main color
-        mainGradient.addColorStop(0.7, baseColor);     // Keep main color longer
-        mainGradient.addColorStop(1, darkColor);       // Darker edge
+        mainGradient.addColorStop(0, lightColor);      // Bright highlight area
+        mainGradient.addColorStop(0.15, midLight);     // Smooth transition
+        mainGradient.addColorStop(0.35, baseColor);    // Main color
+        mainGradient.addColorStop(0.65, midDark);      // Subtle darkening
+        mainGradient.addColorStop(0.85, darkColor);    // Dark area
+        mainGradient.addColorStop(1, veryDarkColor);   // Very dark rim
         
         ctx.fillStyle = mainGradient;
         ctx.globalAlpha = this.opacity;
         ctx.fill();
         
-        // Step 3: Create 3D depth with bottom shadow gradient
+        // Step 4: Bottom shadow for 3D depth illusion
         ctx.beginPath();
-        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-        
-        const depthGradient = ctx.createRadialGradient(0, -this.radius * 0.3, this.radius * 0.3, 0, this.radius * 0.7, this.radius);
-        depthGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        depthGradient.addColorStop(1, `rgba(0, 0, 0, 0.3)`);
-        
-        ctx.fillStyle = depthGradient;
+        ctx.arc(0, this.radius * 0.2, this.radius * 0.8, 0, Math.PI * 2);
+        const bottomShadowGradient = ctx.createRadialGradient(0, this.radius * 0.2, 0, 0, this.radius * 0.2, this.radius * 0.8);
+        bottomShadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0.2)');
+        bottomShadowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = bottomShadowGradient;
         ctx.fill();
         
-        // Step 4: Glossy highlight (main feature from screenshot)
+        // Step 5: Enhanced primary specular highlight (key feature from screenshot)
         ctx.beginPath();
-        ctx.arc(-this.radius * 0.3, -this.radius * 0.4, this.radius * 0.4, 0, Math.PI * 2);
+        ctx.arc(-this.radius * 0.2, -this.radius * 0.3, this.radius * 0.4, 0, Math.PI * 2);
         
-        const glossGradient = ctx.createRadialGradient(
-            -this.radius * 0.3, -this.radius * 0.4, 0,
-            -this.radius * 0.3, -this.radius * 0.4, this.radius * 0.4
+        const primaryHighlight = ctx.createRadialGradient(
+            -this.radius * 0.2, -this.radius * 0.3, 0,
+            -this.radius * 0.2, -this.radius * 0.3, this.radius * 0.4
         );
-        glossGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-        glossGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
-        glossGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        primaryHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+        primaryHighlight.addColorStop(0.2, 'rgba(255, 255, 255, 0.85)');
+        primaryHighlight.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+        primaryHighlight.addColorStop(0.8, 'rgba(255, 255, 255, 0.1)');
+        primaryHighlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
         
-        ctx.fillStyle = glossGradient;
+        ctx.fillStyle = primaryHighlight;
         ctx.fill();
         
-        // Step 5: Secondary smaller highlight for extra gloss
+        // Step 6: Enhanced secondary bright spot highlight
         ctx.beginPath();
-        ctx.arc(-this.radius * 0.15, -this.radius * 0.25, this.radius * 0.15, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.arc(-this.radius * 0.05, -this.radius * 0.15, this.radius * 0.15, 0, Math.PI * 2);
+        const secondaryHighlight = ctx.createRadialGradient(
+            -this.radius * 0.05, -this.radius * 0.15, 0,
+            -this.radius * 0.05, -this.radius * 0.15, this.radius * 0.15
+        );
+        secondaryHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+        secondaryHighlight.addColorStop(0.6, 'rgba(255, 255, 255, 0.3)');
+        secondaryHighlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = secondaryHighlight;
         ctx.fill();
         
-        // Step 6: Subtle border with enhanced collision effect
+        // Step 7: Enhanced tertiary micro highlight for extra realism
+        ctx.beginPath();
+        ctx.arc(-this.radius * 0.3, -this.radius * 0.1, this.radius * 0.1, 0, Math.PI * 2);
+        const tertiaryHighlight = ctx.createRadialGradient(
+            -this.radius * 0.3, -this.radius * 0.1, 0,
+            -this.radius * 0.3, -this.radius * 0.1, this.radius * 0.1
+        );
+        tertiaryHighlight.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+        tertiaryHighlight.addColorStop(0.7, 'rgba(255, 255, 255, 0.2)');
+        tertiaryHighlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = tertiaryHighlight;
+        ctx.fill();
+        
+        // Step 8: Enhanced rim lighting effect for glass-like appearance
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        const rimGradient = ctx.createRadialGradient(0, 0, this.radius * 0.75, 0, 0, this.radius);
+        rimGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        rimGradient.addColorStop(0.88, 'rgba(255, 255, 255, 0)');
+        rimGradient.addColorStop(0.94, 'rgba(255, 255, 255, 0.2)');
+        rimGradient.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
+        ctx.fillStyle = rimGradient;
+        ctx.fill();
+        
+        // Step 8.5: Add subtle curved reflection for premium glass effect
+        ctx.beginPath();
+        ctx.arc(-this.radius * 0.6, 0, this.radius * 0.25, 0, Math.PI * 2);
+        const curvedReflection = ctx.createRadialGradient(
+            -this.radius * 0.6, 0, 0,
+            -this.radius * 0.6, 0, this.radius * 0.25
+        );
+        curvedReflection.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+        curvedReflection.addColorStop(0.5, 'rgba(255, 255, 255, 0.1)');
+        curvedReflection.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = curvedReflection;
+        ctx.fill();
+        
+        // Step 9: Enhanced border with realistic glass edge effect
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         
-        let borderColor = this.darkenColor(baseColor, 0.6);
-        let borderWidth = 1;
-        
+        let borderColor, borderWidth;
         if (this.isColliding) {
             const collisionProgress = this.collisionAnimationTimer / 30;
             const highlightIntensity = (1 - collisionProgress) * 0.8;
             borderColor = `rgba(255, 255, 255, ${highlightIntensity})`;
-            borderWidth = 2;
+            borderWidth = 3;
+        } else {
+            // Create sophisticated border gradient
+            const borderGradient = ctx.createLinearGradient(-this.radius, -this.radius, this.radius, this.radius);
+            const darkBorder = this.darkenColor(baseColor, 0.5);
+            const lightBorder = this.lightenColor(baseColor, 0.2);
+            borderGradient.addColorStop(0, lightBorder);
+            borderGradient.addColorStop(0.5, darkBorder);
+            borderGradient.addColorStop(1, this.darkenColor(baseColor, 0.7));
+            borderColor = borderGradient;
+            borderWidth = 1.5;
         }
         
         ctx.strokeStyle = borderColor;
