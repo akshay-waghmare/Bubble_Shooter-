@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stuck Bubble Test - Physics Fix Validation</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a; 
+            color: #fff;
+            padding: 20px;
+        }
+        canvas { 
+            border: 2px solid #333; 
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+            display: block;
+            margin: 20px auto;
+        }
+        .test-controls {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .status {
+            margin: 20px auto;
+            max-width: 800px;
+            padding: 15px;
+            background: #2a2a2a;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .test-info {
+            background: #444;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .error { border-left-color: #f44336; }
+        .success { border-left-color: #4CAF50; }
+        .warning { border-left-color: #ff9800; }
+    </style>
+</head>
+<body>
+    <div class="test-controls">
+        <h1>Stuck Bubble Test - Physics Fix Validation</h1>
+        <p>This test validates that bubbles no longer get stuck midair during descent animations</p>
+        <button onclick="startStuckBubbleTest()">Start Stuck Bubble Test</button>
+        <button onclick="triggerDescentAnimation()">Trigger Grid Descent</button>
+        <button onclick="shootRapidBubbles()">Rapid Fire Test</button>
+        <button onclick="resetTest()">Reset Test</button>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="status">
+        <div class="test-info">
+            <h3>Test Status</h3>
+            <div id="testStatus">Ready to test...</div>
+        </div>
+        <div class="test-info">
+            <h3>Physics Status</h3>
+            <div id="physicsStatus">Initializing...</div>
+        </div>
+        <div class="test-info">
+            <h3>Bubble Analysis</h3>
+            <div id="bubbleAnalysis">No bubbles detected</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="game.js"></script>
+    <script>
+        let game;
+        let testStartTime;
+        let stuckBubbleCount = 0;
+        let shotBubbleCount = 0;
+        let testInterval;
+
+        function initTest() {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            game.init();
+            
+            // Set up test scenario with some grid bubbles
+            setupTestScenario();
+            
+            updateStatus();
+            
+            // Start monitoring loop
+            if (testInterval) clearInterval(testInterval);
+            testInterval = setInterval(monitorBubbles, 100);
+        }
+
+        function setupTestScenario() {
+            // Clear existing grid
+            game.gridBubbles = [];
+            
+            // Create a test scenario with bubbles that will require descent
+            for (let row = 0; row < 3; row++) {
+                game.gridBubbles[row] = [];
+                for (let col = 0; col < GRID_COLS; col++) {
+                    if (Math.random() < 0.7) { // 70% chance of bubble
+                        const colors = ['red', 'blue', 'green', 'yellow', 'purple'];
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        const bubble = new Bubble(
+                            col * BUBBLE_SIZE + (row % 2) * (BUBBLE_SIZE / 2) + BUBBLE_RADIUS,
+                            row * BUBBLE_SPACING + BUBBLE_RADIUS + 50,
+                            color
+                        );
+                        bubble.stuck = true;
+                        bubble.row = row;
+                        bubble.col = col;
+                        game.gridBubbles[row][col] = bubble;
+                    }
+                }
+            }
+            
+            updateStatus('Test scenario created with ' + countGridBubbles() + ' grid bubbles');
+        }
+
+        function countGridBubbles() {
+            let count = 0;
+            for (let row = 0; row < game.gridBubbles.length; row++) {
+                for (let col = 0; col < GRID_COLS; col++) {
+                    if (game.gridBubbles[row] && game.gridBubbles[row][col]) {
+                        count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function startStuckBubbleTest() {
+            testStartTime = Date.now();
+            stuckBubbleCount = 0;
+            shotBubbleCount = 0;
+            
+            updateStatus('Starting stuck bubble test...', 'warning');
+            
+            // Shoot several bubbles during a descent animation
+            setTimeout(() => triggerDescentAnimation(), 500);
+            setTimeout(() => shootTestBubble(), 800);
+            setTimeout(() => shootTestBubble(), 1200);
+            setTimeout(() => shootTestBubble(), 1600);
+            setTimeout(() => checkTestResults(), 3000);
+        }
+
+        function triggerDescentAnimation() {
+            if (game.gridBubbles.length > 0) {
+                // Force add a new row to trigger descent
+                game.addNewRow();
+                updateStatus('Grid descent animation triggered');
+            }
+        }
+
+        function shootTestBubble() {
+            if (game.shooter) {
+                // Aim at a middle position
+                const targetX = game.canvas.width / 2;
+                const targetY = 200;
+                game.shooter.aimAt(targetX, targetY);
+                
+                const bubble = game.shooter.shoot();
+                if (bubble) {
+                    shotBubbleCount++;
+                    game.flyingBubbles.push(bubble);
+                    updateStatus(`Shot bubble #${shotBubbleCount} with physics: ${bubble.isPhysicsEnabled}`);
+                }
+            }
+        }
+
+        function shootRapidBubbles() {
+            updateStatus('Starting rapid fire test...');
+            let count = 0;
+            const rapidShoot = setInterval(() => {
+                shootTestBubble();
+                count++;
+                if (count >= 5) {
+                    clearInterval(rapidShoot);
+                    updateStatus('Rapid fire test completed');
+                }
+            }, 300);
+        }
+
+        function monitorBubbles() {
+            if (!game) return;
+            
+            let stuckCount = 0;
+            let flyingCount = game.flyingBubbles.length;
+            let physicsEnabledCount = 0;
+            let suspiciousBubbles = [];
+            
+            // Check flying bubbles for stuck behavior
+            game.flyingBubbles.forEach((bubble, index) => {
+                if (bubble.isPhysicsEnabled) {
+                    physicsEnabledCount++;
+                }
+                
+                // Check if bubble is not moving (potentially stuck)
+                if (bubble.vx !== undefined && bubble.vy !== undefined) {
+                    const speed = Math.sqrt(bubble.vx * bubble.vx + bubble.vy * bubble.vy);
+                    if (speed < 0.1 && !bubble.stuck) {
+                        stuckCount++;
+                        suspiciousBubbles.push({
+                            index,
+                            x: Math.round(bubble.x),
+                            y: Math.round(bubble.y),
+                            speed: speed.toFixed(3),
+                            physics: bubble.isPhysicsEnabled
+                        });
+                    }
+                }
+            });
+            
+            // Update physics status
+            document.getElementById('physicsStatus').innerHTML = `
+                <strong>Matter.js Engine:</strong> ${game.engine ? 'Active' : 'Inactive'}<br>
+                <strong>Flying Bubbles:</strong> ${flyingCount}<br>
+                <strong>Physics Enabled:</strong> ${physicsEnabledCount}/${flyingCount}<br>
+                <strong>Grid Descent Active:</strong> ${game.isDescending || false}
+            `;
+            
+            // Update bubble analysis
+            let analysisHtml = `
+                <strong>Potentially Stuck Bubbles:</strong> ${stuckCount}<br>
+                <strong>Grid Bubbles:</strong> ${countGridBubbles()}<br>
+            `;
+            
+            if (suspiciousBubbles.length > 0) {
+                analysisHtml += '<br><strong>Suspicious Bubbles:</strong><br>';
+                suspiciousBubbles.forEach(bubble => {
+                    analysisHtml += `• #${bubble.index}: (${bubble.x}, ${bubble.y}) speed=${bubble.speed} physics=${bubble.physics}<br>`;
+                });
+            }
+            
+            document.getElementById('bubbleAnalysis').innerHTML = analysisHtml;
+            
+            // Track stuck bubble count for test
+            if (stuckCount > stuckBubbleCount) {
+                stuckBubbleCount = stuckCount;
+            }
+        }
+
+        function checkTestResults() {
+            const testDuration = (Date.now() - testStartTime) / 1000;
+            
+            if (stuckBubbleCount === 0) {
+                updateStatus(`✅ TEST PASSED: No stuck bubbles detected after ${testDuration.toFixed(1)}s`, 'success');
+            } else {
+                updateStatus(`❌ TEST FAILED: ${stuckBubbleCount} bubbles got stuck during test`, 'error');
+            }
+        }
+
+        function resetTest() {
+            if (testInterval) clearInterval(testInterval);
+            game.flyingBubbles = [];
+            setupTestScenario();
+            updateStatus('Test reset completed');
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('testStatus');
+            const timestamp = new Date().toLocaleTimeString();
+            statusEl.innerHTML = `[${timestamp}] ${message}`;
+            
+            // Update class for styling
+            statusEl.className = `test-info ${type}`;
+        }
+
+        // Initialize test when page loads
+        window.addEventListener('load', initTest);
+        
+        // Game loop for rendering
+        function gameLoop() {
+            if (game) {
+                game.update();
+                game.render();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    </script>
+</body>
+</html>

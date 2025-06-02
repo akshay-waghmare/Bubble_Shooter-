@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Stuck Bubbles Issue</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a; 
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas { 
+            border: 1px solid #333; 
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+        }
+        .debug-panel {
+            width: 800px;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .debug-section {
+            margin: 15px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .bubble-info {
+            display: inline-block;
+            margin: 5px;
+            padding: 5px 10px;
+            background: #444;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .stuck { background: #ff4444; }
+        .flying { background: #44ff44; }
+        .descending { background: #4444ff; }
+        .warning { color: #ffaa00; }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #0088ff; }
+    </style>
+</head>
+<body>
+    <h1>🐛 Debug: Stuck Flying Bubbles Issue</h1>
+    
+    <div class="debug-panel">
+        <div class="debug-section">
+            <h3>Test Controls</h3>
+            <button onclick="startDebugTest()">Start Debug Test</button>
+            <button onclick="triggerDescentAnimation()">Trigger Descent Animation</button>
+            <button onclick="shootBubbleDuringDescent()">Shoot During Descent</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="debug-section">
+            <h3>Bubble Status Monitor</h3>
+            <div id="bubbleStatus"></div>
+        </div>
+        
+        <div class="debug-section">
+            <h3>Debug Log</h3>
+            <div id="debugLog"></div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        let debugGame = null;
+        let monitoringActive = false;
+        let debugInterval = null;
+
+        function log(message, type = 'info') {
+            const debugLog = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : '';
+            debugLog.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+
+        function updateBubbleStatus() {
+            if (!debugGame) return;
+            
+            const statusDiv = document.getElementById('bubbleStatus');
+            let statusHTML = '';
+            
+            // Flying bubbles
+            statusHTML += `<div><strong>Flying Bubbles (${debugGame.flyingBubbles.length}):</strong></div>`;
+            debugGame.flyingBubbles.forEach((bubble, i) => {
+                const stuck = bubble.stuck ? ' STUCK' : '';
+                const velocity = `vx:${bubble.vx?.toFixed(1) || 0}, vy:${bubble.vy?.toFixed(1) || 0}`;
+                statusHTML += `<span class="bubble-info flying">B${i} (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)}) ${velocity}${stuck}</span>`;
+                
+                // Check if bubble seems stuck (no velocity)
+                if (!bubble.stuck && Math.abs(bubble.vx || 0) < 0.1 && Math.abs(bubble.vy || 0) < 0.1) {
+                    log(`⚠️ WARNING: Flying bubble ${i} has zero velocity! Position: (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)})`, 'warning');
+                }
+            });
+            
+            // Grid bubbles with animation status
+            let descendingCount = 0;
+            let animatingCount = 0;
+            for (let row = 0; row < debugGame.gridBubbles.length; row++) {
+                for (let col = 0; col < debugGame.gridBubbles[row].length; col++) {
+                    const bubble = debugGame.gridBubbles[row][col];
+                    if (bubble) {
+                        if (bubble.isDescending) descendingCount++;
+                        if (bubble.isAnimating) animatingCount++;
+                    }
+                }
+            }
+            
+            statusHTML += `<div><strong>Grid Bubbles:</strong> ${descendingCount} descending, ${animatingCount} animating</div>`;
+            
+            statusDiv.innerHTML = statusHTML;
+        }
+
+        function startDebugTest() {
+            log('🚀 Starting debug test for stuck bubbles...', 'success');
+            
+            const canvas = document.getElementById('gameCanvas');
+            debugGame = new Game(canvas);
+            debugGame.initGame();
+            debugGame.startGame();
+            
+            // Start monitoring
+            monitoringActive = true;
+            debugInterval = setInterval(() => {
+                debugGame.update();
+                debugGame.draw();
+                updateBubbleStatus();
+                
+                // Check for stuck flying bubbles
+                debugGame.flyingBubbles.forEach((bubble, i) => {
+                    if (!bubble.stuck && Math.abs(bubble.vx || 0) < 0.1 && Math.abs(bubble.vy || 0) < 0.1) {
+                        log(`🔴 ERROR: Flying bubble ${i} appears to be stuck midair at (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)})`, 'error');
+                    }
+                });
+                
+            }, 16); // ~60 FPS
+            
+            log('Debug monitoring started. Flying bubbles will be tracked for stuck conditions.');
+        }
+
+        function triggerDescentAnimation() {
+            if (!debugGame) {
+                log('❌ No game instance. Start debug test first.', 'error');
+                return;
+            }
+            
+            log('🔽 Triggering descent animation...', 'info');
+            debugGame.addNewRow();
+            log('Descent animation triggered. Watch for animation conflicts.');
+        }
+
+        function shootBubbleDuringDescent() {
+            if (!debugGame) {
+                log('❌ No game instance. Start debug test first.', 'error');
+                return;
+            }
+            
+            // Check if any bubbles are currently descending
+            let hasDescendingBubbles = false;
+            for (let row = 0; row < debugGame.gridBubbles.length; row++) {
+                for (let col = 0; col < debugGame.gridBubbles[row].length; col++) {
+                    const bubble = debugGame.gridBubbles[row][col];
+                    if (bubble && bubble.isDescending) {
+                        hasDescendingBubbles = true;
+                        break;
+                    }
+                }
+                if (hasDescendingBubbles) break;
+            }
+            
+            if (!hasDescendingBubbles) {
+                log('⚠️ No descent animation active. Triggering one first...', 'warning');
+                triggerDescentAnimation();
+                // Wait a bit then shoot
+                setTimeout(() => shootBubbleDuringDescent(), 50);
+                return;
+            }
+            
+            log('🎯 Shooting bubble during descent animation...', 'info');
+            const bubble = debugGame.shooter.shoot();
+            if (bubble) {
+                debugGame.flyingBubbles.push(bubble);
+                log(`Bubble shot with velocity: vx=${bubble.vx.toFixed(1)}, vy=${bubble.vy.toFixed(1)}`);
+                log('This should test collision detection during descent animations.');
+            } else {
+                log('❌ Failed to shoot bubble', 'error');
+            }
+        }
+
+        // Auto-start test after page load
+        window.addEventListener('load', () => {
+            setTimeout(startDebugTest, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Comprehensive Animation Fixes Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background-color: #16213e;
+        }
+        .test-result {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success { background-color: #1a5f1a; border-left: 4px solid #4caf50; }
+        .error { background-color: #5f1a1a; border-left: 4px solid #f44336; }
+        .info { background-color: #1a3a5f; border-left: 4px solid #2196f3; }
+        .warning { background-color: #5f4a1a; border-left: 4px solid #ff9800; }
+        
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #666; cursor: not-allowed; }
+        
+        canvas {
+            border: 2px solid #444;
+            margin: 10px 0;
+        }
+        
+        .game-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .controls {
+            min-width: 300px;
+        }
+        
+        .metrics {
+            background-color: #2a2a4e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎯 Comprehensive Animation Fixes Validation</h1>
+        <p>This test validates all the animation fixes for bubble overlapping, timing, and collision detection.</p>
+        
+        <div class="game-container">
+            <div class="controls">
+                <div class="test-section">
+                    <h3>🎮 Test Controls</h3>
+                    <button onclick="initializeTest()">Initialize Test Game</button>
+                    <button onclick="triggerNewRow()" id="newRowBtn" disabled>Trigger New Row</button>
+                    <button onclick="rapidDescentTest()" id="rapidBtn" disabled>Rapid Descent Test</button>
+                    <button onclick="collisionTest()" id="collisionBtn" disabled>Collision Test</button>
+                </div>
+                
+                <div class="test-section">
+                    <h3>📊 Live Metrics</h3>
+                    <div class="metrics" id="metrics">
+                        <div class="metric-item">
+                            <span>Descending Bubbles:</span>
+                            <span id="descendingCount">0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>Fading Bubbles:</span>
+                            <span id="fadingCount">0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>Animating Bubbles:</span>
+                            <span id="animatingCount">0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>Flying Bubbles:</span>
+                            <span id="flyingCount">0</span>
+                        </div>
+                        <div class="metric-item">
+                            <span>Continuous Descent Paused:</span>
+                            <span id="pausedState">No</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="test-section">
+                    <h3>🔍 Test Results</h3>
+                    <div id="testResults" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Test results will be added here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        let testGame = null;
+        let metricsInterval = null;
+        
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function updateMetrics() {
+            if (!testGame) return;
+            
+            let descendingCount = 0;
+            let fadingCount = 0;
+            let animatingCount = 0;
+            
+            // Count animations in progress
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    if (testGame.gridBubbles[row][col]) {
+                        const bubble = testGame.gridBubbles[row][col];
+                        
+                        if (bubble.isDescending) descendingCount++;
+                        if (bubble.isFadingIn) fadingCount++;
+                        if (bubble.isAnimating) animatingCount++;
+                    }
+                }
+            }
+            
+            // Update UI
+            document.getElementById('descendingCount').textContent = descendingCount;
+            document.getElementById('fadingCount').textContent = fadingCount;
+            document.getElementById('animatingCount').textContent = animatingCount;
+            document.getElementById('flyingCount').textContent = testGame.flyingBubbles.length;
+            document.getElementById('pausedState').textContent = testGame.temporarilyPauseContinuousDescent ? 'Yes' : 'No';
+        }
+        
+        function initializeTest() {
+            try {
+                const canvas = document.getElementById('gameCanvas');
+                testGame = new Game(canvas);
+                testGame.difficulty = 'novice'; // Start with easier settings
+                testGame.initGame();
+                testGame.start();
+                
+                // Start metrics monitoring
+                if (metricsInterval) clearInterval(metricsInterval);
+                metricsInterval = setInterval(updateMetrics, 100);
+                
+                // Enable other buttons
+                document.getElementById('newRowBtn').disabled = false;
+                document.getElementById('rapidBtn').disabled = false;
+                document.getElementById('collisionBtn').disabled = false;
+                
+                log('✅ Test game initialized successfully', 'success');
+                
+                // Run initial validation
+                setTimeout(() => validateInitialState(), 1000);
+                
+            } catch (error) {
+                log(`❌ Failed to initialize test game: ${error.message}`, 'error');
+            }
+        }
+        
+        function validateInitialState() {
+            if (!testGame) return;
+            
+            log('🔍 Running initial state validation...', 'info');
+            
+            // Check basic game state
+            if (testGame.gridBubbles && testGame.gridBubbles.length > 0) {
+                log(`✅ Grid initialized with ${testGame.gridBubbles.length} rows`, 'success');
+            } else {
+                log('❌ Grid not properly initialized', 'error');
+            }
+            
+            // Check continuous descent state
+            if (testGame.continuousDescentEnabled !== undefined) {
+                log(`✅ Continuous descent system: ${testGame.continuousDescentEnabled ? 'enabled' : 'disabled'}`, 'info');
+            }
+            
+            // Check pause mechanism
+            if (testGame.temporarilyPauseContinuousDescent === false) {
+                log('✅ Continuous descent pause mechanism ready', 'success');
+            }
+        }
+        
+        function triggerNewRow() {
+            if (!testGame) {
+                log('❌ Game not initialized', 'error');
+                return;
+            }
+            
+            log('🎬 Triggering new row animation test...', 'info');
+            
+            // Store pre-animation state
+            const bubbleCountBefore = testGame.gridBubbles.flat().filter(b => b !== null).length;
+            const rowCountBefore = testGame.gridBubbles.length;
+            
+            try {
+                // Trigger new row
+                testGame.addNewRow();
+                
+                // Immediate post-trigger validation
+                const bubbleCountAfter = testGame.gridBubbles.flat().filter(b => b !== null).length;
+                const rowCountAfter = testGame.gridBubbles.length;
+                
+                log(`✅ New row triggered: ${rowCountBefore} → ${rowCountAfter} rows`, 'success');
+                log(`✅ Bubble count: ${bubbleCountBefore} → ${bubbleCountAfter}`, 'success');
+                
+                // Monitor animation progress
+                monitorAnimationProgress('New Row Test');
+                
+            } catch (error) {
+                log(`❌ New row trigger failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function monitorAnimationProgress(testName) {
+            let startTime = Date.now();
+            let lastDescentCount = -1;
+            let lastFadingCount = -1;
+            
+            function checkProgress() {
+                const elapsed = Date.now() - startTime;
+                
+                let descendingCount = 0;
+                let fadingCount = 0;
+                let animatingCount = 0;
+                
+                for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                    for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                        if (testGame.gridBubbles[row][col]) {
+                            const bubble = testGame.gridBubbles[row][col];
+                            if (bubble.isDescending) descendingCount++;
+                            if (bubble.isFadingIn) fadingCount++;
+                            if (bubble.isAnimating) animatingCount++;
+                        }
+                    }
+                }
+                
+                // Report animation start detection
+                if (descendingCount > 0 && lastDescentCount === 0) {
+                    log(`🔄 Descent animation started (${descendingCount} bubbles)`, 'info');
+                }
+                if (fadingCount > 0 && lastFadingCount === 0) {
+                    log(`✨ Fade-in animation started (${fadingCount} bubbles)`, 'info');
+                }
+                
+                // Check synchronization
+                if (descendingCount > 0 && fadingCount > 0) {
+                    if (descendingCount !== fadingCount) {
+                        log(`⚠️ Animation desync: ${descendingCount} descending vs ${fadingCount} fading`, 'warning');
+                    } else {
+                        log(`✅ Animations synchronized: ${descendingCount} bubbles`, 'success');
+                    }
+                }
+                
+                // Check pause state during animation
+                if (animatingCount > 0 && testGame.temporarilyPauseContinuousDescent) {
+                    log('✅ Continuous descent properly paused during animation', 'success');
+                }
+                
+                lastDescentCount = descendingCount;
+                lastFadingCount = fadingCount;
+                
+                // Continue monitoring until animations complete or timeout
+                if ((descendingCount > 0 || fadingCount > 0) && elapsed < 5000) {
+                    requestAnimationFrame(checkProgress);
+                } else if (elapsed >= 5000) {
+                    log(`⚠️ ${testName} monitoring timeout after ${elapsed}ms`, 'warning');
+                } else {
+                    log(`✅ ${testName} completed successfully in ${elapsed}ms`, 'success');
+                    
+                    // Final validation
+                    setTimeout(() => validatePostAnimation(), 100);
+                }
+            }
+            
+            requestAnimationFrame(checkProgress);
+        }
+        
+        function validatePostAnimation() {
+            log('🔍 Post-animation validation...', 'info');
+            
+            // Check that pause state is cleared
+            if (!testGame.temporarilyPauseContinuousDescent) {
+                log('✅ Continuous descent pause properly cleared', 'success');
+            } else {
+                log('⚠️ Continuous descent still paused after animation', 'warning');
+            }
+            
+            // Check that no bubbles are still animating
+            let stillAnimating = 0;
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    if (testGame.gridBubbles[row][col] && testGame.gridBubbles[row][col].isAnimating) {
+                        stillAnimating++;
+                    }
+                }
+            }
+            
+            if (stillAnimating === 0) {
+                log('✅ All animations completed cleanly', 'success');
+            } else {
+                log(`⚠️ ${stillAnimating} bubbles still marked as animating`, 'warning');
+            }
+        }
+        
+        function rapidDescentTest() {
+            if (!testGame) {
+                log('❌ Game not initialized', 'error');
+                return;
+            }
+            
+            log('⚡ Starting rapid descent test...', 'info');
+            
+            let descentCount = 0;
+            const maxDescents = 3;
+            
+            function triggerNext() {
+                if (descentCount < maxDescents && testGame) {
+                    descentCount++;
+                    log(`🔄 Rapid descent ${descentCount}/${maxDescents}`, 'info');
+                    
+                    testGame.addNewRow();
+                    
+                    setTimeout(triggerNext, 500); // 500ms between descents
+                }
+            }
+            
+            triggerNext();
+        }
+        
+        function collisionTest() {
+            if (!testGame) {
+                log('❌ Game not initialized', 'error');
+                return;
+            }
+            
+            log('💥 Starting collision detection test...', 'info');
+            
+            // First trigger a new row to create animating bubbles
+            testGame.addNewRow();
+            
+            // Wait a bit then shoot a bubble to test collision during animation
+            setTimeout(() => {
+                try {
+                    // Create a flying bubble
+                    const shooter = testGame.shooter;
+                    const angle = Math.PI / 2; // Straight up
+                    const speed = 8;
+                    
+                    const flyingBubble = new Bubble(
+                        shooter.x, 
+                        shooter.y, 
+                        testGame.currentBubble.color
+                    );
+                    flyingBubble.vx = Math.cos(angle) * speed;
+                    flyingBubble.vy = Math.sin(angle) * speed;
+                    flyingBubble.game = testGame;
+                    
+                    testGame.flyingBubbles.push(flyingBubble);
+                    
+                    log('🚀 Flying bubble launched during animation', 'info');
+                    
+                    // Monitor collision detection
+                    let collisionCheckCount = 0;
+                    function checkCollisions() {
+                        collisionCheckCount++;
+                        
+                        if (testGame.flyingBubbles.length === 0) {
+                            log(`✅ Collision test completed after ${collisionCheckCount} checks`, 'success');
+                            return;
+                        }
+                        
+                        if (collisionCheckCount < 100) {
+                            requestAnimationFrame(checkCollisions);
+                        } else {
+                            log('⚠️ Collision test timeout', 'warning');
+                        }
+                    }
+                    
+                    requestAnimationFrame(checkCollisions);
+                    
+                } catch (error) {
+                    log(`❌ Collision test failed: ${error.message}`, 'error');
+                }
+            }, 100);
+        }
+        
+        // Auto-initialize on load
+        window.addEventListener('load', () => {
+            log('🎯 Comprehensive animation fixes test ready!', 'info');
+            log('Click "Initialize Test Game" to begin validation...', 'info');
+        });
+    </script>
+</body>
+</html>

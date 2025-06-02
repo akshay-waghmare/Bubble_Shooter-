@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Start Button Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a2e;
+            color: white;
+        }
+        button {
+            background: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 18px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #4ecdc4; color: white; }
+        .error { background: #ff6b6b; color: white; }
+        .info { background: #45b7d1; color: white; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Simple Start Button Test</h1>
+    
+    <!-- Recreate the essential elements from index.html -->
+    <div class="game-menu" id="gameMenu">
+        <h2>Game Menu</h2>
+        <button id="startGame" class="start-button">Start Game</button>
+    </div>
+    
+    <div class="game-screen hidden" id="gameScreen">
+        <h2>Game Screen</h2>
+        <canvas id="gameCanvas" width="400" height="300"></canvas>
+        <button id="backToMenu">Back to Menu</button>
+    </div>
+    
+    <div id="status"></div>
+    
+    <script>
+        function addStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            status.appendChild(div);
+            console.log(message);
+        }
+
+        // Test 1: Basic element detection
+        window.addEventListener('load', () => {
+            addStatus('Page loaded', 'info');
+            
+            const startBtn = document.getElementById('startGame');
+            const gameMenu = document.getElementById('gameMenu');
+            const gameScreen = document.getElementById('gameScreen');
+            const canvas = document.getElementById('gameCanvas');
+            
+            if (startBtn) {
+                addStatus('✅ Start button found', 'success');
+            } else {
+                addStatus('❌ Start button NOT found', 'error');
+                return;
+            }
+            
+            if (gameMenu && gameScreen && canvas) {
+                addStatus('✅ All essential elements found', 'success');
+            } else {
+                addStatus('❌ Missing essential elements', 'error');
+                return;
+            }
+            
+            // Test 2: Add simple click handler
+            startBtn.addEventListener('click', () => {
+                addStatus('🎯 Start button clicked!', 'success');
+                
+                try {
+                    gameMenu.style.display = 'none';
+                    gameScreen.style.display = 'block';
+                    gameScreen.classList.remove('hidden');
+                    
+                    addStatus('✅ Successfully switched to game screen', 'success');
+                    
+                    // Try to load and test the game
+                    testGameLoading();
+                    
+                } catch (error) {
+                    addStatus(`❌ Error in click handler: ${error.message}`, 'error');
+                }
+            });
+            
+            addStatus('✅ Click handler attached', 'success');
+            
+            // Add back to menu handler
+            const backBtn = document.getElementById('backToMenu');
+            if (backBtn) {
+                backBtn.addEventListener('click', () => {
+                    gameScreen.style.display = 'none';
+                    gameScreen.classList.add('hidden');
+                    gameMenu.style.display = 'block';
+                    addStatus('↩️ Returned to menu', 'info');
+                });
+            }
+        });
+
+        function testGameLoading() {
+            addStatus('🔄 Testing game class loading...', 'info');
+            
+            // Try to load the game script dynamically
+            if (typeof Game === 'undefined') {
+                addStatus('⚠️ Game class not loaded, attempting to load game.js...', 'info');
+                
+                const script = document.createElement('script');
+                script.src = 'game.js';
+                script.onload = () => {
+                    addStatus('✅ game.js loaded successfully', 'success');
+                    createGameInstance();
+                };
+                script.onerror = () => {
+                    addStatus('❌ Failed to load game.js', 'error');
+                };
+                document.head.appendChild(script);
+            } else {
+                addStatus('✅ Game class already available', 'success');
+                createGameInstance();
+            }
+        }
+
+        function createGameInstance() {
+            try {
+                const canvas = document.getElementById('gameCanvas');
+                addStatus('🎮 Creating game instance...', 'info');
+                
+                const game = new Game(canvas);
+                addStatus('✅ Game instance created!', 'success');
+                
+                game.gameMode = 'classic';
+                game.difficulty = 'novice';
+                game.soundEnabled = true;
+                
+                addStatus('✅ Game settings configured', 'success');
+                
+                game.start();
+                addStatus('✅ Game started successfully!', 'success');
+                
+            } catch (error) {
+                addStatus(`❌ Game creation failed: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

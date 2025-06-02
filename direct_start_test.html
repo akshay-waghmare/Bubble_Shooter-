@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Start Button Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #1a1a2e;
+            color: white;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .log {
+            background: #16213e;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { border-left: 4px solid #4ecdc4; }
+        .error { border-left: 4px solid #ff6b6b; }
+        .warning { border-left: 4px solid #feca57; }
+        .info { border-left: 4px solid #45b7d1; }
+        
+        button {
+            background: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        /* Copy exact styles from original game */
+        .game-menu { display: block; }
+        .game-screen { display: none; }
+        .start-button {
+            background: linear-gradient(to right, #4ECDC4, #45B7D1);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+        #gameCanvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Direct Start Button Test</h1>
+    
+    <div id="log-container"></div>
+    
+    <div class="game-menu" id="gameMenu">
+        <h2>Game Menu</h2>
+        <button id="startGame" class="start-button">Start Game</button>
+    </div>
+    
+    <div class="game-screen" id="gameScreen">
+        <h2>Game Screen</h2>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <button onclick="backToMenu()">Back to Menu</button>
+    </div>
+    
+    <!-- Load exact same dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+    
+    <script>
+        let logContainer = document.getElementById('log-container');
+        let stepCount = 0;
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = `${++stepCount}. [${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(div);
+            console.log(message);
+        }
+        
+        function backToMenu() {
+            document.getElementById('gameScreen').style.display = 'none';
+            document.getElementById('gameMenu').style.display = 'block';
+            log('Returned to menu', 'info');
+        }
+        
+        // Step 1: Wait for DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            log('DOM Content Loaded', 'success');
+            
+            // Step 2: Check elements
+            const startBtn = document.getElementById('startGame');
+            const gameMenu = document.getElementById('gameMenu');
+            const gameScreen = document.getElementById('gameScreen');
+            const canvas = document.getElementById('gameCanvas');
+            
+            if (!startBtn) {
+                log('❌ Start button not found!', 'error');
+                return;
+            }
+            if (!gameMenu) {
+                log('❌ Game menu not found!', 'error');
+                return;
+            }
+            if (!gameScreen) {
+                log('❌ Game screen not found!', 'error');
+                return;
+            }
+            if (!canvas) {
+                log('❌ Canvas not found!', 'error');
+                return;
+            }
+            
+            log('✅ All elements found', 'success');
+            
+            // Step 3: Attach event listener
+            startBtn.addEventListener('click', function() {
+                log('🎯 START BUTTON CLICKED!', 'success');
+                
+                try {
+                    // Hide menu, show game
+                    gameMenu.style.display = 'none';
+                    gameScreen.style.display = 'block';
+                    log('✅ Successfully switched to game screen', 'success');
+                    
+                    // Load game scripts
+                    loadGameScripts();
+                    
+                } catch (error) {
+                    log(`❌ Error in click handler: ${error.message}`, 'error');
+                }
+            });
+            
+            log('✅ Event listener attached to start button', 'success');
+        });
+        
+        // Step 4: Load game scripts sequentially
+        function loadGameScripts() {
+            log('📦 Loading game scripts...', 'info');
+            
+            const scripts = [
+                'bubbleRenderer3D.js',
+                'bubbleTrailRenderer.js', 
+                'bubbleRenderer.js',
+                'game.js'
+            ];
+            
+            loadScriptsSequentially(scripts, 0);
+        }
+        
+        function loadScriptsSequentially(scripts, index) {
+            if (index >= scripts.length) {
+                log('✅ All scripts loaded - testing game creation', 'success');
+                testGameCreation();
+                return;
+            }
+            
+            const script = scripts[index];
+            log(`Loading ${script}...`, 'info');
+            
+            const scriptElement = document.createElement('script');
+            scriptElement.src = script;
+            
+            scriptElement.onload = () => {
+                log(`✅ ${script} loaded successfully`, 'success');
+                loadScriptsSequentially(scripts, index + 1);
+            };
+            
+            scriptElement.onerror = () => {
+                log(`❌ Failed to load ${script}`, 'error');
+                loadScriptsSequentially(scripts, index + 1); // Continue with next script
+            };
+            
+            document.head.appendChild(scriptElement);
+        }
+        
+        // Step 5: Test game creation
+        function testGameCreation() {
+            try {
+                log('🎮 Testing Game class availability...', 'info');
+                
+                if (typeof Game === 'undefined') {
+                    log('❌ Game class not available', 'error');
+                    return;
+                }
+                
+                log('✅ Game class found', 'success');
+                
+                const canvas = document.getElementById('gameCanvas');
+                log('🔨 Creating Game instance...', 'info');
+                
+                const game = new Game(canvas);
+                log('✅ Game instance created successfully!', 'success');
+                
+                // Configure game
+                game.gameMode = 'classic';
+                game.difficulty = 'novice';
+                game.soundEnabled = true;
+                log('✅ Game configured', 'success');
+                
+                // Start game
+                game.start();
+                log('🚀 GAME STARTED! The start button is working!', 'success');
+                
+            } catch (error) {
+                log(`❌ Game creation failed: ${error.message}`, 'error');
+                log(`Stack trace: ${error.stack}`, 'error');
+            }
+        }
+        
+        // Check library loading
+        window.addEventListener('load', () => {
+            log('Window load event fired', 'info');
+            
+            if (typeof THREE !== 'undefined') {
+                log('✅ Three.js available', 'success');
+            } else {
+                log('❌ Three.js not available', 'error');
+            }
+            
+            if (typeof Matter !== 'undefined') {
+                log('✅ Matter.js available', 'success');
+            } else {
+                log('❌ Matter.js not available', 'error');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continuous Descent Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        #output {
+            background: #0f0f23;
+            padding: 10px;
+            border-radius: 5px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+        .test-info {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .metrics {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .metric {
+            text-align: center;
+            padding: 10px;
+            background: #3d3d3d;
+            border-radius: 3px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4ECDC4;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+        button {
+            background: #4ECDC4;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45b7b8;
+        }
+        .speed-control {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌊 Continuous Descent Test</h1>
+    
+    <div class="test-info">
+        <h3>📋 Test Description</h3>
+        <p>This test verifies the new continuous descent system where bubbles move smoothly pixel-by-pixel every millisecond.</p>
+        <ul>
+            <li><strong>Expected:</strong> Bubbles should move down continuously and smoothly</li>
+            <li><strong>Expected:</strong> Movement speed varies by difficulty (0.001 to 0.005 pixels/ms)</li>
+            <li><strong>Expected:</strong> New rows are generated when descent accumulates to full row height</li>
+            <li><strong>Expected:</strong> Visual descent should be clearly visible</li>
+        </ul>
+    </div>
+    
+    <div class="speed-control">
+        <h4>Descent Speed Control</h4>
+        <button onclick="setDifficulty('novice')">Novice (0.001 px/ms)</button>
+        <button onclick="setDifficulty('easy')">Easy (0.0015 px/ms)</button>
+        <button onclick="setDifficulty('medium')">Medium (0.002 px/ms)</button>
+        <button onclick="setDifficulty('hard')">Hard (0.003 px/ms)</button>
+        <button onclick="setDifficulty('master')">Master (0.005 px/ms)</button>
+    </div>
+    
+    <button onclick="startTest()">Start Continuous Descent Test</button>
+    <button onclick="stopTest()">Stop Test</button>
+    <button onclick="addTestBubbles()">Add Test Bubbles</button>
+    <button onclick="location.href='index.html'">Back to Main Game</button>
+    
+    <div class="metrics" id="metrics">
+        <div class="metric">
+            <div class="metric-value" id="pixelsAccumulated">0.0</div>
+            <div class="metric-label">Pixels Accumulated</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value" id="currentOffset">0.0</div>
+            <div class="metric-label">Current Offset</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value" id="newRowsGenerated">0</div>
+            <div class="metric-label">New Rows Generated</div>
+        </div>
+    </div>
+    
+    <canvas id="testCanvas" width="800" height="600"></canvas>
+    
+    <div id="output"></div>
+
+    <script src="game.js"></script>
+    <script>
+        let testGame = null;
+        let testStartTime = 0;
+        let newRowCount = 0;
+        let isRunning = false;
+        let monitorInterval = null;
+        
+        function log(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function startTest() {
+            if (isRunning) {
+                log('❌ Test already running');
+                return;
+            }
+            
+            const canvas = document.getElementById('testCanvas');
+            
+            log('=== STARTING CONTINUOUS DESCENT TEST ===');
+            testStartTime = Date.now();
+            newRowCount = 0;
+            isRunning = true;
+            
+            try {
+                testGame = new Game(canvas);
+                testGame.gameMode = 'classic';
+                testGame.difficulty = 'medium'; // Start with medium speed
+                testGame.soundEnabled = false;
+                
+                // Enable continuous descent explicitly
+                testGame.continuousDescentEnabled = true;
+                
+                log('✅ Test game created successfully');
+                log(`Continuous descent enabled: ${testGame.continuousDescentEnabled}`);
+                log(`Descent speed: ${testGame.difficultySettings[testGame.difficulty].pixelsPerMs} pixels/ms`);
+                
+                testGame.start();
+                
+                // Add some initial test bubbles
+                addTestBubbles();
+                
+                // Monitor descent system
+                const originalUpdateContinuousDescent = testGame.updateContinuousDescent;
+                testGame.updateContinuousDescent = function() {
+                    const result = originalUpdateContinuousDescent.call(this);
+                    updateMetrics();
+                    return result;
+                };
+                
+                // Monitor new row generation
+                const originalAddNewRow = testGame.addNewRow;
+                testGame.addNewRow = function() {
+                    newRowCount++;
+                    const elapsed = (Date.now() - testStartTime) / 1000;
+                    log(`🔄 NEW ROW ${newRowCount}: Generated after ${elapsed.toFixed(1)}s (offset: ${this.currentDescentOffset.toFixed(2)})`);
+                    return originalAddNewRow.call(this);
+                };
+                
+                // Start monitoring
+                startMonitoring();
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                console.error(error);
+                isRunning = false;
+            }
+        }
+        
+        function stopTest() {
+            if (!isRunning) {
+                log('❌ No test running');
+                return;
+            }
+            
+            isRunning = false;
+            if (monitorInterval) {
+                clearInterval(monitorInterval);
+                monitorInterval = null;
+            }
+            
+            log('⏹️ Test stopped');
+        }
+        
+        function setDifficulty(difficulty) {
+            if (!testGame) {
+                log('❌ No game instance. Start test first.');
+                return;
+            }
+            
+            testGame.difficulty = difficulty;
+            const pixelsPerMs = testGame.difficultySettings[difficulty].pixelsPerMs;
+            log(`⚙️ Difficulty set to ${difficulty} (${pixelsPerMs} pixels/ms)`);
+        }
+        
+        function addTestBubbles() {
+            if (!testGame) {
+                log('❌ No game instance. Start test first.');
+                return;
+            }
+            
+            // Add some bubbles in the first few rows for testing
+            const colors = ['red', 'blue', 'green', 'yellow'];
+            let bubblesAdded = 0;
+            
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (Math.random() < 0.7) { // 70% chance to add a bubble
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        const x = testGame.getColPosition(row, col);
+                        const y = testGame.getRowPosition(row);
+                        
+                        const bubble = new Bubble(x, y, color, row, col);
+                        bubble.game = testGame;
+                        bubble.stuck = true;
+                        testGame.gridBubbles[row][col] = bubble;
+                        bubblesAdded++;
+                    }
+                }
+            }
+            
+            log(`✅ Added ${bubblesAdded} test bubbles`);
+        }
+        
+        function updateMetrics() {
+            if (!testGame) return;
+            
+            document.getElementById('pixelsAccumulated').textContent = 
+                testGame.accumulatedDescentPixels.toFixed(3);
+            document.getElementById('currentOffset').textContent = 
+                testGame.currentDescentOffset.toFixed(2);
+            document.getElementById('newRowsGenerated').textContent = newRowCount;
+        }
+        
+        function startMonitoring() {
+            monitorInterval = setInterval(() => {
+                if (!isRunning || !testGame) return;
+                
+                const elapsed = (Date.now() - testStartTime) / 1000;
+                const settings = testGame.difficultySettings[testGame.difficulty];
+                const expectedPixels = elapsed * 1000 * settings.pixelsPerMs;
+                
+                // Log detailed status every 5 seconds
+                if (elapsed > 0 && Math.floor(elapsed) % 5 === 0) {
+                    log(`📊 ${elapsed.toFixed(0)}s: Expected ${expectedPixels.toFixed(2)}px moved, Actual offset ${testGame.currentDescentOffset.toFixed(2)}px, ${newRowCount} rows generated`);
+                }
+                
+                updateMetrics();
+            }, 1000);
+        }
+        
+        // Enhanced logging for debug
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            if (args[0] && typeof args[0] === 'string' && 
+                (args[0].includes('Continuous descent') || args[0].includes('descent:'))) {
+                log(`🔍 ${args.join(' ')}`);
+            }
+        };
+    </script>
+</body>
+</html>

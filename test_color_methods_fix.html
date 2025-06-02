@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Methods Fix Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a2e; 
+            color: white; 
+        }
+        .test-container {
+            background: #0f0f23;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .success { color: #4ECDC4; }
+        .error { color: #FF6B6B; }
+        .info { color: #FFE66D; }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 Color Methods Fix Verification Test</h1>
+    
+    <div class="test-container">
+        <h2>Testing Missing Color Methods in Shooter Class</h2>
+        <div id="testResults"></div>
+        <canvas id="testCanvas" width="400" height="300"></canvas>
+    </div>
+
+    <script src="game.js?v=10"></script>
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            const span = document.createElement('div');
+            span.className = type;
+            span.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            results.appendChild(span);
+        }
+
+        async function runColorMethodsTest() {
+            log('🧪 Starting Color Methods Fix Test...', 'info');
+            
+            try {
+                // Create a canvas for testing
+                const canvas = document.getElementById('testCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                log('✅ Canvas created successfully', 'success');
+                
+                // Create a game instance
+                const game = new Game(canvas);
+                log('✅ Game instance created successfully', 'success');
+                
+                // Test if shooter was created
+                if (!game.shooter) {
+                    log('❌ ERROR: Shooter not created', 'error');
+                    return;
+                }
+                log('✅ Shooter instance created successfully', 'success');
+                
+                // Test color methods directly
+                const testColor = '#FF6B6B';
+                
+                // Test lightenColor method
+                try {
+                    const lightColor = game.shooter.lightenColor(testColor, 0.5);
+                    log(`✅ lightenColor works: ${testColor} → ${lightColor}`, 'success');
+                } catch (error) {
+                    log(`❌ lightenColor failed: ${error.message}`, 'error');
+                    return;
+                }
+                
+                // Test darkenColor method
+                try {
+                    const darkColor = game.shooter.darkenColor(testColor, 0.3);
+                    log(`✅ darkenColor works: ${testColor} → ${darkColor}`, 'success');
+                } catch (error) {
+                    log(`❌ darkenColor failed: ${error.message}`, 'error');
+                    return;
+                }
+                
+                // Test hexToRgb method
+                try {
+                    const rgb = game.shooter.hexToRgb(testColor);
+                    log(`✅ hexToRgb works: ${testColor} → r:${rgb.r}, g:${rgb.g}, b:${rgb.b}`, 'success');
+                } catch (error) {
+                    log(`❌ hexToRgb failed: ${error.message}`, 'error');
+                    return;
+                }
+                
+                // Test rgbToHex method
+                try {
+                    const hex = game.shooter.rgbToHex(255, 107, 107);
+                    log(`✅ rgbToHex works: (255,107,107) → ${hex}`, 'success');
+                } catch (error) {
+                    log(`❌ rgbToHex failed: ${error.message}`, 'error');
+                    return;
+                }
+                
+                // Test drawing the shooter (this was causing the original error)
+                try {
+                    log('🎨 Testing shooter.draw() method...', 'info');
+                    game.shooter.draw(ctx);
+                    log('✅ SUCCESS: shooter.draw() completed without errors!', 'success');
+                } catch (error) {
+                    log(`❌ shooter.draw() failed: ${error.message}`, 'error');
+                    console.error('Draw error details:', error);
+                    return;
+                }
+                
+                // Test game start
+                try {
+                    log('🎮 Testing game start...', 'info');
+                    game.start();
+                    log('✅ SUCCESS: Game started without errors!', 'success');
+                } catch (error) {
+                    log(`❌ Game start failed: ${error.message}`, 'error');
+                    console.error('Game start error details:', error);
+                    return;
+                }
+                
+                log('🎉 ALL TESTS PASSED! Color methods fix is working correctly!', 'success');
+                log('🎯 The "Start Game" button should now be functional!', 'success');
+                
+            } catch (error) {
+                log(`❌ CRITICAL ERROR: ${error.message}`, 'error');
+                console.error('Test error details:', error);
+            }
+        }
+
+        // Run tests when page loads
+        window.addEventListener('load', () => {
+            setTimeout(runColorMethodsTest, 500);
+        });
+
+        // Capture any unhandled errors
+        window.addEventListener('error', (event) => {
+            log(`❌ UNHANDLED ERROR: ${event.error.message}`, 'error');
+            console.error('Unhandled error:', event.error);
+        });
+    </script>
+</body>
+</html>

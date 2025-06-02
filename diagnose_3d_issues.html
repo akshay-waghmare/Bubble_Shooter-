@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Integration Diagnostics</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a2e; color: white; }
+        .diagnostic-section { margin: 20px 0; padding: 15px; background: #2d2d44; border-radius: 8px; }
+        .error { color: #ff6b6b; }
+        .success { color: #4ecdc4; }
+        .warning { color: #feca57; }
+        pre { background: #16213e; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        button { background: #4ecdc4; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #45b7d1; }
+        #output { background: #16213e; padding: 15px; border-radius: 8px; min-height: 200px; white-space: pre-wrap; font-family: monospace; }
+        canvas { border: 2px solid #4ecdc4; display: block; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔍 3D Integration Diagnostics</h1>
+    
+    <div class="diagnostic-section">
+        <h2>📋 Dependency Check</h2>
+        <div id="dependencyStatus"></div>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h2>🎮 Game Initialization Test</h2>
+        <button onclick="testGameInitialization()">Test Game Init</button>
+        <button onclick="test3DRenderer()">Test 3D Renderer</button>
+        <button onclick="testBubbleCreation()">Test Bubble Creation</button>
+        <button onclick="clearOutput()">Clear Output</button>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h2>📊 Test Canvas</h2>
+        <canvas id="testCanvas" width="400" height="300"></canvas>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h2>📝 Test Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <!-- Load required dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/shaders/FXAAShader.js"></script>
+    
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+        
+        // Check dependencies
+        function checkDependencies() {
+            const status = document.getElementById('dependencyStatus');
+            let html = '';
+            
+            // Check Matter.js
+            if (typeof Matter !== 'undefined') {
+                html += '<p class="success">✅ Matter.js loaded successfully</p>';
+            } else {
+                html += '<p class="error">❌ Matter.js not loaded</p>';
+            }
+            
+            // Check Three.js
+            if (typeof THREE !== 'undefined') {
+                html += '<p class="success">✅ Three.js loaded successfully</p>';
+                html += `<p>Three.js version: ${THREE.REVISION}</p>`;
+            } else {
+                html += '<p class="error">❌ Three.js not loaded</p>';
+            }
+            
+            // Check post-processing
+            if (typeof THREE !== 'undefined' && THREE.EffectComposer) {
+                html += '<p class="success">✅ Post-processing effects available</p>';
+            } else {
+                html += '<p class="warning">⚠️ Post-processing effects not available</p>';
+            }
+            
+            status.innerHTML = html;
+        }
+        
+        async function testGameInitialization() {
+            log('🎮 Testing Game Initialization...', 'info');
+            
+            try {
+                const canvas = document.getElementById('testCanvas');
+                
+                // Load the required scripts
+                log('Loading game scripts...', 'info');
+                
+                // Check if BubbleRenderer3D exists
+                if (typeof BubbleRenderer3D === 'undefined') {
+                    log('❌ BubbleRenderer3D not found, loading...', 'warning');
+                    
+                    // Load the script dynamically
+                    await loadScript('bubbleRenderer3D.js');
+                    await loadScript('bubbleTrailRenderer.js');
+                }
+                
+                if (typeof BubbleRenderer3D !== 'undefined') {
+                    log('✅ BubbleRenderer3D loaded successfully', 'success');
+                } else {
+                    log('❌ Failed to load BubbleRenderer3D', 'error');
+                    return;
+                }
+                
+                // Test 3D renderer initialization
+                log('Initializing 3D renderer...', 'info');
+                const renderer3D = new BubbleRenderer3D(canvas);
+                log('✅ 3D renderer initialized successfully', 'success');
+                
+                // Test bubble creation
+                log('Creating test bubbles...', 'info');
+                renderer3D.createBubble('test1', 0, 0, 0, 20, '#4ECDC4', { glow: true });
+                renderer3D.createBubble('test2', 50, 50, 10, 20, '#FF6B6B', { caustics: true });
+                renderer3D.createBubble('test3', -50, -50, -10, 20, '#FECA57', { wobble: true });
+                log('✅ Test bubbles created successfully', 'success');
+                
+                log('🎉 All tests passed! 3D integration is working correctly.', 'success');
+                
+            } catch (error) {
+                log(`❌ Error during game initialization: ${error.message}`, 'error');
+                log(`Stack trace: ${error.stack}`, 'error');
+            }
+        }
+        
+        async function test3DRenderer() {
+            log('🔧 Testing 3D Renderer directly...', 'info');
+            
+            try {
+                const canvas = document.getElementById('testCanvas');
+                
+                if (typeof BubbleRenderer3D === 'undefined') {
+                    await loadScript('bubbleRenderer3D.js');
+                }
+                
+                const renderer3D = new BubbleRenderer3D(canvas);
+                log('✅ 3D Renderer created successfully', 'success');
+                
+                // Test methods
+                log('Testing renderer methods...', 'info');
+                log(`- Scene exists: ${renderer3D.scene ? 'Yes' : 'No'}`, 'info');
+                log(`- Camera exists: ${renderer3D.camera ? 'Yes' : 'No'}`, 'info');
+                log(`- Renderer exists: ${renderer3D.renderer ? 'Yes' : 'No'}`, 'info');
+                
+                // Test bubble creation
+                renderer3D.createBubble('diagnostic', 0, 0, 0, 25, '#4ECDC4', { glow: true });
+                log('✅ Bubble creation test passed', 'success');
+                
+            } catch (error) {
+                log(`❌ 3D Renderer test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testBubbleCreation() {
+            log('🫧 Testing Bubble class integration...', 'info');
+            
+            try {
+                // Load game.js if needed
+                if (typeof Bubble === 'undefined') {
+                    await loadScript('game.js');
+                }
+                
+                if (typeof Bubble === 'undefined') {
+                    log('❌ Bubble class not found', 'error');
+                    return;
+                }
+                
+                log('✅ Bubble class loaded', 'success');
+                
+                // Create a test bubble
+                const bubble = new Bubble(100, 100, '#4ECDC4');
+                log(`✅ Test bubble created with ID: ${bubble.bubbleId}`, 'success');
+                log(`- Has 3D methods: ${typeof bubble.create3DRepresentation === 'function' ? 'Yes' : 'No'}`, 'info');
+                
+            } catch (error) {
+                log(`❌ Bubble creation test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            checkDependencies();
+            log('🚀 Diagnostic page loaded. Click buttons to run tests.', 'info');
+        });
+    </script>
+</body>
+</html>

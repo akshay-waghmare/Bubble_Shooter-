@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Test: Unified Continuous Descent System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background-color: #16213e;
+        }
+        .test-result {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background-color: #1a5f1a; border-left: 4px solid #4caf50; }
+        .error { background-color: #5f1a1a; border-left: 4px solid #f44336; }
+        .info { background-color: #1a3a5f; border-left: 4px solid #2196f3; }
+        .warning { background-color: #5f4a1a; border-left: 4px solid #ff9800; }
+        
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #666; cursor: not-allowed; }
+        
+        canvas {
+            border: 2px solid #444;
+            margin: 10px 0;
+            background-color: #0f1419;
+        }
+        
+        .metrics-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .metric-box {
+            background-color: #2a2a4e;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4caf50;
+        }
+        
+        .animation-status {
+            background-color: #1e1e3e;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎯 Test: Unified Continuous Descent System</h1>
+        <p>This test validates that continuous descent and discrete row addition work seamlessly together without conflicts.</p>
+        
+        <div class="test-section">
+            <h2>🎮 Game Instance</h2>
+            <canvas id="testCanvas" width="600" height="700"></canvas>
+            <div>
+                <button onclick="startTest()">Start Test</button>
+                <button onclick="triggerManualRow()" id="manualRowBtn" disabled>Trigger Manual Row</button>
+                <button onclick="resetTest()">Reset Test</button>
+            </div>
+        </div>
+        
+        <div class="metrics-panel">
+            <div class="metric-box">
+                <div class="metric-value" id="continuousProgress">0.0 px</div>
+                <div>Continuous Progress</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-value" id="descentSpeed">0.0 px/s</div>
+                <div>Descent Speed</div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📊 Animation Status</h2>
+            <div class="animation-status" id="animationStatus">
+                Waiting for test to start...
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🧪 Test Results</h2>
+            <div id="testResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📋 Integration Checklist</h2>
+            <div id="integrationChecklist">
+                <div class="test-result info">⏳ Waiting for test to start...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the game files -->
+    <script src="game.js"></script>
+    
+    <script>
+        let testGame = null;
+        let testRunning = false;
+        let monitoringInterval = null;
+        let testStartTime = 0;
+        let rowAdditions = 0;
+        let continuousMovement = 0;
+        let animationConflicts = 0;
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        function updateMetrics() {
+            if (!testGame) return;
+            
+            // Update continuous progress
+            const progressEl = document.getElementById('continuousProgress');
+            progressEl.textContent = `${testGame.currentDescentOffset.toFixed(1)} px`;
+            
+            // Update descent speed
+            const speedEl = document.getElementById('descentSpeed');
+            const settings = testGame.difficultySettings[testGame.difficulty];
+            const pixelsPerSecond = settings.pixelsPerMs * 1000;
+            speedEl.textContent = `${pixelsPerSecond.toFixed(1)} px/s`;
+            
+            // Update animation status
+            const statusEl = document.getElementById('animationStatus');
+            let status = [];
+            
+            if (testGame.continuousDescentEnabled) {
+                status.push(`✅ Continuous Descent: ACTIVE`);
+            } else {
+                status.push(`❌ Continuous Descent: DISABLED`);
+            }
+            
+            if (testGame.temporarilyPauseContinuousDescent) {
+                status.push(`⏸️ Temporarily Paused: YES`);
+            } else {
+                status.push(`▶️ Temporarily Paused: NO`);
+            }
+            
+            if (testGame.pendingNewRow) {
+                status.push(`📥 Pending New Row: YES`);
+            } else {
+                status.push(`📥 Pending New Row: NO`);
+            }
+            
+            // Count active animations
+            let descendingBubbles = 0;
+            let fadingBubbles = 0;
+            
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    const bubble = testGame.gridBubbles[row][col];
+                    if (bubble) {
+                        if (bubble.isDescending) descendingBubbles++;
+                        if (bubble.isFadingIn) fadingBubbles++;
+                    }
+                }
+            }
+            
+            status.push(`🔄 Descending Bubbles: ${descendingBubbles}`);
+            status.push(`✨ Fading Bubbles: ${fadingBubbles}`);
+            
+            statusEl.innerHTML = status.join('<br>');
+        }
+        
+        function checkIntegration() {
+            if (!testGame) return;
+            
+            const checklist = document.getElementById('integrationChecklist');
+            const checks = [];
+            
+            // Check 1: Continuous descent system active
+            if (testGame.continuousDescentEnabled) {
+                checks.push(['✅ Continuous descent system is enabled', 'success']);
+            } else {
+                checks.push(['❌ Continuous descent system is disabled', 'error']);
+            }
+            
+            // Check 2: Pause mechanism working
+            if (typeof testGame.temporarilyPauseContinuousDescent !== 'undefined') {
+                checks.push(['✅ Pause mechanism is implemented', 'success']);
+            } else {
+                checks.push(['❌ Pause mechanism is missing', 'error']);
+            }
+            
+            // Check 3: Pending row system
+            if (typeof testGame.pendingNewRow !== 'undefined') {
+                checks.push(['✅ Pending row system is implemented', 'success']);
+            } else {
+                checks.push(['❌ Pending row system is missing', 'error']);
+            }
+            
+            // Check 4: UpdateContinuousDescent method exists
+            if (typeof testGame.updateContinuousDescent === 'function') {
+                checks.push(['✅ updateContinuousDescent method exists', 'success']);
+            } else {
+                checks.push(['❌ updateContinuousDescent method missing', 'error']);
+            }
+            
+            // Check 5: AddNewRow integration
+            if (typeof testGame.addNewRow === 'function') {
+                checks.push(['✅ addNewRow method exists', 'success']);
+            } else {
+                checks.push(['❌ addNewRow method missing', 'error']);
+            }
+            
+            // Check 6: Animation conflict detection
+            let hasConflict = false;
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    const bubble = testGame.gridBubbles[row][col];
+                    if (bubble && bubble.isDescending && !testGame.temporarilyPauseContinuousDescent) {
+                        // Continuous descent should be paused during discrete animations
+                        hasConflict = true;
+                        break;
+                    }
+                }
+                if (hasConflict) break;
+            }
+            
+            if (!hasConflict) {
+                checks.push(['✅ No animation conflicts detected', 'success']);
+            } else {
+                checks.push(['⚠️ Potential animation conflict detected', 'warning']);
+                animationConflicts++;
+            }
+            
+            // Update checklist display
+            checklist.innerHTML = checks.map(([text, type]) => 
+                `<div class="test-result ${type}">${text}</div>`
+            ).join('');
+        }
+        
+        function startTest() {
+            const canvas = document.getElementById('testCanvas');
+            if (!canvas) {
+                log('❌ Canvas not found', 'error');
+                return;
+            }
+            
+            log('🚀 Starting unified continuous descent test...', 'info');
+            
+            try {
+                // Create game instance
+                testGame = new Game(canvas);
+                testGame.start();
+                
+                // Ensure continuous descent is enabled
+                testGame.continuousDescentEnabled = true;
+                
+                // Create some initial grid bubbles for testing
+                const colors = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88'];
+                for (let row = 1; row < 4; row++) {
+                    for (let col = 0; col < 10; col++) {
+                        if (Math.random() < 0.7) {
+                            const color = colors[Math.floor(Math.random() * colors.length)];
+                            const bubble = new Bubble(
+                                testGame.getColPosition(row, col),
+                                testGame.getRowPosition(row),
+                                color,
+                                row,
+                                col
+                            );
+                            bubble.game = testGame;
+                            bubble.stuck = true;
+                            testGame.gridBubbles[row][col] = bubble;
+                        }
+                    }
+                }
+                
+                testRunning = true;
+                testStartTime = Date.now();
+                rowAdditions = 0;
+                continuousMovement = 0;
+                animationConflicts = 0;
+                
+                document.getElementById('manualRowBtn').disabled = false;
+                
+                log('✅ Test started successfully', 'success');
+                log('🎯 Continuous descent will trigger new rows automatically', 'info');
+                log('🎯 You can also trigger manual rows to test integration', 'info');
+                
+                // Start monitoring
+                monitoringInterval = setInterval(() => {
+                    if (testRunning && testGame) {
+                        testGame.update();
+                        testGame.draw();
+                        updateMetrics();
+                        checkIntegration();
+                        
+                        // Track continuous movement
+                        if (testGame.accumulatedDescentPixels > 0) {
+                            continuousMovement++;
+                        }
+                    }
+                }, 16); // ~60fps
+                
+            } catch (error) {
+                log(`❌ Test failed to start: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+        
+        function triggerManualRow() {
+            if (!testGame || !testRunning) {
+                log('❌ No active test game', 'error');
+                return;
+            }
+            
+            log('📥 Manually triggering new row addition...', 'info');
+            
+            try {
+                const beforePause = testGame.temporarilyPauseContinuousDescent;
+                testGame.addNewRow();
+                const afterPause = testGame.temporarilyPauseContinuousDescent;
+                
+                rowAdditions++;
+                
+                if (!beforePause && afterPause) {
+                    log('✅ Continuous descent paused during row addition', 'success');
+                } else if (beforePause && afterPause) {
+                    log('ℹ️ Continuous descent was already paused', 'info');
+                } else {
+                    log('⚠️ Continuous descent pause behavior unclear', 'warning');
+                }
+                
+                log(`📊 Total row additions: ${rowAdditions}`, 'info');
+                
+            } catch (error) {
+                log(`❌ Manual row trigger failed: ${error.message}`, 'error');
+                console.error('Manual row error:', error);
+            }
+        }
+        
+        function resetTest() {
+            testRunning = false;
+            
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+            }
+            
+            testGame = null;
+            document.getElementById('manualRowBtn').disabled = true;
+            
+            // Clear displays
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('animationStatus').innerHTML = 'Test reset - waiting for restart...';
+            document.getElementById('integrationChecklist').innerHTML = '<div class="test-result info">⏳ Waiting for test to start...</div>';
+            
+            // Reset metrics
+            document.getElementById('continuousProgress').textContent = '0.0 px';
+            document.getElementById('descentSpeed').textContent = '0.0 px/s';
+            
+            // Clear canvas
+            const canvas = document.getElementById('testCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            log('🔄 Test reset completed', 'info');
+        }
+        
+        // Auto-run some tests when page loads
+        window.addEventListener('load', () => {
+            log('🎯 Unified Continuous Descent Test Environment Ready', 'info');
+            log('📋 This test validates the integration between continuous descent and discrete row addition', 'info');
+            log('🚀 Click "Start Test" to begin validation', 'info');
+        });
+    </script>
+</body>
+</html>

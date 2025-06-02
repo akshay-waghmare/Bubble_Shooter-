@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics-Based Bubble Shooter Test</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: 'Courier New', monospace; 
+            background: #0a0a0a; 
+            color: #00ff00;
+            padding: 20px;
+        }
+        canvas { 
+            border: 2px solid #00ff00; 
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+            display: block;
+            margin: 20px auto;
+        }
+        .test-panel {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #111;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        .controls {
+            margin: 15px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border-left: 4px solid #00ff00;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border-left: 4px solid #0088ff;
+        }
+        .bubble-info {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 12px;
+            background: #222;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid #444;
+        }
+        .physics-enabled { border-color: #00ff00; background: #003300; }
+        .physics-disabled { border-color: #ff6600; background: #331100; }
+        .stuck { border-color: #ff0000; background: #330000; }
+        .flying { border-color: #00aaff; background: #001133; }
+        .falling { border-color: #aa00ff; background: #220033; }
+        .descending { border-color: #ffff00; background: #333300; }
+        
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #003366;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #004488; }
+        
+        .log {
+            height: 250px;
+            overflow-y: auto;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.3;
+            margin-top: 10px;
+        }
+        .log-physics { color: #00ff00; }
+        .log-collision { color: #ff8800; }
+        .log-error { color: #ff4444; }
+        .log-success { color: #88ff88; }
+    </style>
+</head>
+<body>
+    <div class="test-panel">
+        <h1>🔬 Physics-Based Bubble Shooter - Stuck Bubble Fix Test</h1>
+        
+        <div class="controls">
+            <h3>🎮 Test Controls</h3>
+            <button onclick="startPhysicsTest()">Start Physics Test</button>
+            <button onclick="triggerDescentWithPhysics()">Trigger Physics Descent</button>
+            <button onclick="shootMultipleBubbles()">Shoot Multiple Bubbles</button>
+            <button onclick="simulateStuckScenario()">Simulate Stuck Scenario</button>
+            <button onclick="pauseTest()">Pause/Resume</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="status">
+            <h3>📊 Physics Status Monitor</h3>
+            <div id="physicsStatus">No data</div>
+        </div>
+        
+        <div class="status">
+            <h3>🔍 Test Log</h3>
+            <div id="testLog" class="log"></div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        let testGame = null;
+        let testRunning = false;
+        let testInterval = null;
+        let frameCount = 0;
+        let stuckBubbleCount = 0;
+        let lastBubblePositions = new Map();
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = `log-${type}`;
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('testLog').innerHTML = '';
+            frameCount = 0;
+            stuckBubbleCount = 0;
+            lastBubblePositions.clear();
+        }
+        
+        function updatePhysicsStatus() {
+            if (!testGame) return;
+            
+            const statusDiv = document.getElementById('physicsStatus');
+            let statusHTML = '<h4>Flying Bubbles:</h4>';
+            
+            // Analyze flying bubbles
+            testGame.flyingBubbles.forEach((bubble, i) => {
+                const velocity = Math.sqrt((bubble.vx || 0) ** 2 + (bubble.vy || 0) ** 2);
+                const isMoving = velocity > 0.01;
+                const hasPhysics = bubble.isPhysicsEnabled;
+                
+                let className = hasPhysics ? 'physics-enabled' : 'physics-disabled';
+                if (bubble.stuck) className = 'stuck';
+                else if (!isMoving && !bubble.stuck) className = 'stuck';
+                
+                statusHTML += `<div class="bubble-info ${className}">
+                    B${i}: (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)}) 
+                    V:${velocity.toFixed(2)}
+                    ${hasPhysics ? 'PHYSICS' : 'MANUAL'}
+                    ${bubble.stuck ? 'STUCK' : isMoving ? 'MOVING' : 'STOPPED'}
+                </div>`;
+                
+                // Track bubble movement
+                const bubbleId = `flying-${i}`;
+                const currentPos = { x: bubble.x, y: bubble.y };
+                const lastPos = lastBubblePositions.get(bubbleId);
+                
+                if (lastPos) {
+                    const moved = Math.abs(currentPos.x - lastPos.x) > 0.01 || 
+                                 Math.abs(currentPos.y - lastPos.y) > 0.01;
+                    
+                    if (!moved && velocity > 0.01 && !bubble.stuck) {
+                        log(`⚠️ POTENTIAL STUCK BUBBLE: Flying bubble ${i} has velocity but didn't move`, 'error');
+                    }
+                }
+                
+                lastBubblePositions.set(bubbleId, currentPos);
+            });
+            
+            // Grid bubble physics status
+            let physicsEnabledCount = 0;
+            let descendingCount = 0;
+            let fallingCount = 0;
+            
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    const bubble = testGame.gridBubbles[row][col];
+                    if (bubble) {
+                        if (bubble.isPhysicsEnabled) physicsEnabledCount++;
+                        if (bubble.isDescending) descendingCount++;
+                    }
+                }
+            }
+            
+            testGame.fallingBubbles.forEach(bubble => {
+                if (bubble.isPhysicsEnabled) fallingCount++;
+            });
+            
+            statusHTML += `<h4>Grid Physics:</h4>`;
+            statusHTML += `<div class="bubble-info physics-enabled">Physics Enabled: ${physicsEnabledCount}</div>`;
+            statusHTML += `<div class="bubble-info descending">Descending: ${descendingCount}</div>`;
+            statusHTML += `<div class="bubble-info falling">Falling: ${fallingCount}</div>`;
+            statusHTML += `<div class="bubble-info">Total Falling: ${testGame.fallingBubbles.length}</div>`;
+            
+            statusDiv.innerHTML = statusHTML;
+        }
+        
+        function validatePhysicsSystem() {
+            if (!testGame) return;
+            
+            // Check flying bubbles for physics consistency
+            testGame.flyingBubbles.forEach((bubble, i) => {
+                if (!bubble.isPhysicsEnabled && !bubble.stuck) {
+                    log(`❌ Flying bubble ${i} should have physics enabled`, 'error');
+                }
+                
+                if (bubble.isPhysicsEnabled && !bubble.body) {
+                    log(`❌ Physics-enabled bubble ${i} missing Matter.js body`, 'error');
+                }
+                
+                if (bubble.stuck && bubble.isPhysicsEnabled) {
+                    log(`❌ Stuck bubble ${i} should not have physics enabled`, 'error');
+                }
+            });
+            
+            // Check for collisions that should happen
+            testGame.flyingBubbles.forEach((flyingBubble, i) => {
+                for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                    for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                        const gridBubble = testGame.gridBubbles[row][col];
+                        if (gridBubble) {
+                            const distance = Math.sqrt(
+                                (flyingBubble.x - gridBubble.x) ** 2 + 
+                                (flyingBubble.y - gridBubble.y) ** 2
+                            );
+                            
+                            if (distance < BUBBLE_RADIUS * 1.5) {
+                                log(`⚡ Flying bubble ${i} very close to grid bubble at (${row},${col}), distance: ${distance.toFixed(1)}`, 'collision');
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function runTestFrame() {
+            if (!testRunning || !testGame) return;
+            
+            frameCount++;
+            
+            // Update game
+            testGame.update();
+            testGame.draw();
+            updatePhysicsStatus();
+            
+            // Run validation every 30 frames (about every 0.5 seconds)
+            if (frameCount % 30 === 0) {
+                validatePhysicsSystem();
+            }
+            
+            // Log periodic status
+            if (frameCount % 60 === 0) {
+                log(`Frame ${frameCount}: ${testGame.flyingBubbles.length} flying, ${testGame.fallingBubbles.length} falling`, 'physics');
+            }
+        }
+        
+        function startPhysicsTest() {
+            clearLog();
+            log('🚀 Starting physics-based bubble shooter test...', 'success');
+            
+            const canvas = document.getElementById('gameCanvas');
+            testGame = new Game(canvas);
+            testGame.initGame();
+            testGame.startGame();
+            
+            // Create a test grid
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'];
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const x = testGame.getColPosition(row, col);
+                    const y = testGame.getRowPosition(row);
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    const bubble = new Bubble(x, y, color, row, col);
+                    bubble.game = testGame;
+                    bubble.stuck = true;
+                    testGame.gridBubbles[row][col] = bubble;
+                }
+            }
+            
+            testRunning = true;
+            testInterval = setInterval(runTestFrame, 16); // ~60 FPS
+            
+            log('✅ Test started with physics-enabled system', 'success');
+            log('📋 Test will monitor for stuck bubbles and physics inconsistencies', 'physics');
+        }
+        
+        function pauseTest() {
+            if (testRunning) {
+                testRunning = false;
+                clearInterval(testInterval);
+                log('⏸️ Test paused', 'info');
+            } else {
+                testRunning = true;
+                testInterval = setInterval(runTestFrame, 16);
+                log('▶️ Test resumed', 'success');
+            }
+        }
+        
+        function triggerDescentWithPhysics() {
+            if (!testGame) return;
+            log('🔽 Triggering physics-based descent animation...', 'physics');
+            testGame.addNewRow();
+            log('📊 Check status monitor for physics-enabled descent bubbles', 'physics');
+        }
+        
+        function shootMultipleBubbles() {
+            if (!testGame) return;
+            log('🎯 Shooting multiple test bubbles...', 'physics');
+            
+            // Shoot 3 bubbles in different directions
+            const angles = [-Math.PI/3, -Math.PI/2, -2*Math.PI/3];
+            
+            angles.forEach((angle, i) => {
+                setTimeout(() => {
+                    testGame.shooter.angle = angle;
+                    const bubble = testGame.shooter.shoot();
+                    if (bubble) {
+                        testGame.flyingBubbles.push(bubble);
+                        log(`✅ Shot bubble ${i+1} at angle ${(angle * 180 / Math.PI).toFixed(1)}°, physics: ${bubble.isPhysicsEnabled}`, 'physics');
+                    }
+                }, i * 500); // Stagger shots
+            });
+        }
+        
+        function simulateStuckScenario() {
+            if (!testGame) return;
+            log('🧪 Simulating stuck bubble scenario...', 'physics');
+            
+            // First trigger descent
+            triggerDescentWithPhysics();
+            
+            // Then shoot bubbles during descent
+            setTimeout(() => {
+                shootMultipleBubbles();
+                log('📋 This tests collision detection during physics-based descent animations', 'physics');
+            }, 100);
+        }
+        
+        // Auto-start test
+        window.addEventListener('load', () => {
+            setTimeout(startPhysicsTest, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Integration Validation</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a2e;
+            color: #e94560;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: #16213e;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #4ECDC4;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #0f3460;
+            border-radius: 5px;
+            border-left: 4px solid #4ECDC4;
+        }
+        
+        button {
+            background-color: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45B7D1;
+        }
+        
+        #console-output {
+            background-color: #000;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 5px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border: 2px solid #4ECDC4;
+            white-space: pre-wrap;
+        }
+        
+        .game-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        canvas {
+            border: 2px solid #4ECDC4;
+            border-radius: 5px;
+            background-color: #1a1a2e;
+        }
+        
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .status.success {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .status.warning {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .status.error {
+            background-color: #e74c3c;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 3D Integration Validation Suite</h1>
+        
+        <div class="test-section">
+            <h3>🔧 Test Controls</h3>
+            <button onclick="initializeGame()">Initialize Game</button>
+            <button onclick="runValidationTests()">Run 3D Integration Tests</button>
+            <button onclick="testCleanup3DMethod()">Test cleanup3D Method</button>
+            <button onclick="testGameLifecycle()">Test Game Lifecycle</button>
+            <button onclick="clearConsole()">Clear Console</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>🎯 Game Instance</h3>
+            <div class="game-container">
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+            </div>
+            <div id="game-status" class="status">Game not initialized</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📋 Console Output</h3>
+            <div id="console-output">3D Integration Validation Console\n=====================================\nClick "Initialize Game" to start testing...\n</div>
+        </div>
+    </div>
+
+    <!-- Load Three.js for 3D support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.17.1/matter.min.js"></script>
+    
+    <!-- Load game files -->
+    <script src="bubbleRenderer3D.js"></script>
+    <script src="game.js"></script>
+    
+    <!-- Load validation script -->
+    <script src="validate_3d_integration.js"></script>
+
+    <script>
+        let game = null;
+        const consoleOutput = document.getElementById('console-output');
+        const gameStatus = document.getElementById('game-status');
+        
+        // Override console.log to capture output
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.join(' ') + '\n';
+            consoleOutput.textContent += message;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+        
+        function clearConsole() {
+            consoleOutput.textContent = '3D Integration Validation Console\n=====================================\n';
+        }
+        
+        function updateGameStatus(message, type = 'info') {
+            gameStatus.textContent = message;
+            gameStatus.className = `status ${type}`;
+        }
+        
+        function initializeGame() {
+            try {
+                console.log('🎮 Initializing game for 3D integration testing...');
+                
+                const canvas = document.getElementById('gameCanvas');
+                game = new Game(canvas);
+                game.gameMode = 'classic';
+                game.difficulty = 'easy';
+                game.soundEnabled = false; // Disable sound for testing
+                
+                // Set global reference for testing
+                window.gameInstance = game;
+                
+                console.log('✅ Game initialized successfully');
+                console.log('🔧 3D Mode:', game.use3D ? 'ENABLED' : 'DISABLED');
+                console.log('🔧 Renderer3D:', game.renderer3D ? 'AVAILABLE' : 'NOT AVAILABLE');
+                
+                updateGameStatus('Game initialized - Ready for testing', 'success');
+                
+                // Auto-start game for testing
+                game.start();
+                
+            } catch (error) {
+                console.log('❌ Error initializing game:', error.message);
+                updateGameStatus('Game initialization failed', 'error');
+            }
+        }
+        
+        function runValidationTests() {
+            if (!game) {
+                console.log('⚠️  Please initialize the game first');
+                updateGameStatus('Game not initialized', 'warning');
+                return;
+            }
+            
+            try {
+                console.log('\n🚀 Starting comprehensive 3D integration validation...');
+                
+                // Run the validation tests from our script
+                if (typeof runAll3DIntegrationTests === 'function') {
+                    const results = runAll3DIntegrationTests();
+                    
+                    if (results.failed === 0) {
+                        updateGameStatus(`All ${results.total} tests passed!`, 'success');
+                    } else {
+                        updateGameStatus(`${results.failed} of ${results.total} tests failed`, 'error');
+                    }
+                } else {
+                    console.log('❌ Validation function not available');
+                    updateGameStatus('Validation function not found', 'error');
+                }
+                
+            } catch (error) {
+                console.log('❌ Error running validation tests:', error.message);
+                updateGameStatus('Validation tests failed', 'error');
+            }
+        }
+        
+        function testCleanup3DMethod() {
+            if (!game || !game.shooter) {
+                console.log('⚠️  Game or shooter not available');
+                updateGameStatus('Shooter not available', 'warning');
+                return;
+            }
+            
+            try {
+                console.log('\n🧪 Testing cleanup3D method directly...');
+                
+                // Check if method exists
+                if (typeof game.shooter.cleanup3D === 'function') {
+                    console.log('✅ cleanup3D method found');
+                    
+                    // Add mock 3D representations
+                    game.shooter.currentBubble3D = { mockObject: true };
+                    game.shooter.nextBubble3D = { mockObject: true };
+                    
+                    console.log('🔧 Added mock 3D representations');
+                    console.log('🔧 Calling cleanup3D...');
+                    
+                    game.shooter.cleanup3D();
+                    
+                    console.log('✅ cleanup3D method executed successfully');
+                    updateGameStatus('cleanup3D test passed', 'success');
+                } else {
+                    console.log('❌ cleanup3D method NOT found');
+                    updateGameStatus('cleanup3D method missing', 'error');
+                }
+                
+            } catch (error) {
+                console.log('❌ Error testing cleanup3D:', error.message);
+                updateGameStatus('cleanup3D test failed', 'error');
+            }
+        }
+        
+        function testGameLifecycle() {
+            if (!game) {
+                console.log('⚠️  Game not available');
+                updateGameStatus('Game not available', 'warning');
+                return;
+            }
+            
+            try {
+                console.log('\n🔄 Testing game lifecycle with 3D cleanup...');
+                
+                // Test restart functionality
+                console.log('🔧 Testing restart with 3D cleanup...');
+                game.restart();
+                console.log('✅ Game restart completed');
+                
+                // Test game over scenarios (without actually ending the game)
+                console.log('🔧 Testing game over scenario detection...');
+                
+                // Check if checkGameState method has cleanup3D calls
+                const checkGameStateSource = game.checkGameState.toString();
+                if (checkGameStateSource.includes('cleanup3D')) {
+                    console.log('✅ checkGameState includes cleanup3D calls');
+                } else {
+                    console.log('❌ checkGameState missing cleanup3D calls');
+                }
+                
+                updateGameStatus('Game lifecycle test completed', 'success');
+                
+            } catch (error) {
+                console.log('❌ Error testing game lifecycle:', error.message);
+                updateGameStatus('Game lifecycle test failed', 'error');
+            }
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            console.log('🎯 3D Integration Validation Suite Loaded');
+            console.log('📋 Available test functions:');
+            console.log('   - initializeGame()');
+            console.log('   - runValidationTests()');
+            console.log('   - testCleanup3DMethod()');
+            console.log('   - testGameLifecycle()');
+            console.log('\nClick the buttons above to run tests.');
+        });
+    </script>
+</body>
+</html>

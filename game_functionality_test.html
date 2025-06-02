@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            margin: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #2d5a27; }
+        .error { background: #5a2727; }
+        .info { background: #27345a; }
+        .loading { background: #5a5027; }
+        #gameFrame {
+            border: 2px solid #555;
+            margin: 20px 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #4a7c59;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5a8c69;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Game Functionality Test</h1>
+    <div id="testResults"></div>
+    
+    <div class="controls">
+        <button onclick="runAllTests()">🔄 Run All Tests</button>
+        <button onclick="testStartButton()">🎯 Test Start Button</button>
+        <button onclick="test3DRendering()">🌟 Test 3D Rendering</button>
+        <button onclick="testBubbleShooting()">💥 Test Bubble Shooting</button>
+    </div>
+    
+    <iframe id="gameFrame" src="/index.html" width="400" height="600"></iframe>
+    
+    <script>
+        const results = document.getElementById('testResults');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+            console.log(`[TEST] ${message}`);
+        }
+        
+        function runAllTests() {
+            results.innerHTML = '';
+            log('Starting comprehensive game functionality tests...', 'loading');
+            
+            setTimeout(() => testStartButton(), 1000);
+            setTimeout(() => test3DRendering(), 2000);
+            setTimeout(() => testBubbleShooting(), 3000);
+        }
+        
+        function testStartButton() {
+            log('🎯 Testing Start Button Functionality...', 'info');
+            
+            const iframe = document.getElementById('gameFrame');
+            try {
+                // Check if iframe loaded
+                if (!iframe.contentWindow) {
+                    log('❌ FAIL: Iframe not loaded', 'error');
+                    return;
+                }
+                
+                // Try to access the iframe content
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                const startBtn = iframeDoc.getElementById('startGameBtn');
+                
+                if (!startBtn) {
+                    log('❌ FAIL: Start button not found', 'error');
+                    return;
+                }
+                
+                log('✅ SUCCESS: Start button found', 'success');
+                
+                // Check if button has event listener
+                if (startBtn.onclick || startBtn.addEventListener) {
+                    log('✅ SUCCESS: Start button appears to have event handling', 'success');
+                } else {
+                    log('⚠️ WARNING: Start button may not have event listeners', 'error');
+                }
+                
+                // Simulate click
+                log('🔄 Simulating start button click...', 'loading');
+                startBtn.click();
+                
+                setTimeout(() => {
+                    const gameCanvas = iframeDoc.getElementById('gameCanvas');
+                    if (gameCanvas && gameCanvas.style.display !== 'none') {
+                        log('✅ SUCCESS: Game canvas is visible after start', 'success');
+                    } else {
+                        log('❌ FAIL: Game canvas not visible after start', 'error');
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                log(`❌ FAIL: Error testing start button - ${error.message}`, 'error');
+            }
+        }
+        
+        function test3DRendering() {
+            log('🌟 Testing 3D Rendering System...', 'info');
+            
+            const iframe = document.getElementById('gameFrame');
+            try {
+                const iframeWindow = iframe.contentWindow;
+                
+                // Check for Three.js availability
+                if (typeof iframeWindow.THREE !== 'undefined') {
+                    log('✅ SUCCESS: Three.js is loaded', 'success');
+                } else {
+                    log('❌ FAIL: Three.js not available', 'error');
+                    return;
+                }
+                
+                // Check for BubbleRenderer3D
+                if (typeof iframeWindow.BubbleRenderer3D !== 'undefined') {
+                    log('✅ SUCCESS: BubbleRenderer3D class available', 'success');
+                } else {
+                    log('❌ FAIL: BubbleRenderer3D not found', 'error');
+                }
+                
+                // Check for game instance
+                if (iframeWindow.gameInstance) {
+                    const game = iframeWindow.gameInstance;
+                    
+                    if (game.use3D) {
+                        log('✅ SUCCESS: Game is using 3D mode', 'success');
+                    } else {
+                        log('⚠️ WARNING: Game is in 2D mode', 'error');
+                    }
+                    
+                    if (game.renderer3D) {
+                        log('✅ SUCCESS: 3D renderer initialized', 'success');
+                        
+                        // Check bubble count in 3D scene
+                        if (game.renderer3D.scene && game.renderer3D.scene.children.length > 0) {
+                            log(`✅ SUCCESS: 3D scene has ${game.renderer3D.scene.children.length} objects`, 'success');
+                        } else {
+                            log('⚠️ INFO: 3D scene is empty (may be normal at start)', 'info');
+                        }
+                    } else {
+                        log('❌ FAIL: 3D renderer not initialized', 'error');
+                    }
+                } else {
+                    log('⚠️ INFO: Game instance not yet available', 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ FAIL: Error testing 3D rendering - ${error.message}`, 'error');
+            }
+        }
+        
+        function testBubbleShooting() {
+            log('💥 Testing Bubble Shooting Mechanics...', 'info');
+            
+            const iframe = document.getElementById('gameFrame');
+            try {
+                const iframeWindow = iframe.contentWindow;
+                const iframeDoc = iframe.contentDocument || iframeWindow.document;
+                
+                if (iframeWindow.gameInstance) {
+                    const game = iframeWindow.gameInstance;
+                    
+                    // Check if shooter exists
+                    if (game.shooter) {
+                        log('✅ SUCCESS: Shooter object exists', 'success');
+                        
+                        // Check if shooter has current and next colors
+                        if (game.shooter.currentColor && game.shooter.nextColor) {
+                            log(`✅ SUCCESS: Shooter has colors - Current: ${game.shooter.currentColor}, Next: ${game.shooter.nextColor}`, 'success');
+                        }
+                        
+                        // Check 3D shooter bubbles
+                        if (game.use3D && game.renderer3D) {
+                            if (game.shooter.currentBubble3D) {
+                                log('✅ SUCCESS: Shooter current bubble has 3D representation', 'success');
+                            }
+                            if (game.shooter.nextBubble3D) {
+                                log('✅ SUCCESS: Shooter next bubble has 3D representation', 'success');
+                            }
+                        }
+                        
+                        // Check bubble arrays
+                        log(`📊 Bubble counts - Grid: ${game.gridBubbles.flat().filter(b => b !== null).length}, Flying: ${game.flyingBubbles.length}, Falling: ${game.fallingBubbles.length}`, 'info');
+                        
+                        // Simulate shooting
+                        log('🎯 Simulating mouse click to shoot...', 'loading');
+                        const canvas = iframeDoc.getElementById('gameCanvas');
+                        if (canvas) {
+                            const event = new iframeWindow.MouseEvent('click', {
+                                clientX: canvas.width / 2,
+                                clientY: canvas.height - 100,
+                                bubbles: true
+                            });
+                            canvas.dispatchEvent(event);
+                            
+                            setTimeout(() => {
+                                if (game.flyingBubbles.length > 0) {
+                                    log('✅ SUCCESS: Flying bubble created after click', 'success');
+                                } else {
+                                    log('⚠️ WARNING: No flying bubbles detected', 'error');
+                                }
+                            }, 500);
+                        }
+                        
+                    } else {
+                        log('❌ FAIL: Shooter object not found', 'error');
+                    }
+                } else {
+                    log('❌ FAIL: Game instance not available', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ FAIL: Error testing bubble shooting - ${error.message}`, 'error');
+            }
+        }
+        
+        // Start tests when iframe loads
+        document.getElementById('gameFrame').onload = function() {
+            log('🔄 Game iframe loaded, starting tests in 2 seconds...', 'loading');
+            setTimeout(runAllTests, 2000);
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stuck Bubble Issue Debug</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: 'Courier New', monospace; 
+            background: #0a0a0a; 
+            color: #00ff00;
+            padding: 20px;
+        }
+        canvas { 
+            border: 2px solid #00ff00; 
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+            display: block;
+            margin: 20px auto;
+        }
+        .debug-panel {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #111;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        .section {
+            margin: 15px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border-left: 4px solid #00ff00;
+        }
+        .critical { color: #ff4444; font-weight: bold; }
+        .warning { color: #ffaa00; }
+        .success { color: #44ff44; }
+        .info { color: #44aaff; }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #003366;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #004488; }
+        #log {
+            height: 400px;
+            overflow-y: auto;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.3;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 6px;
+            border-radius: 2px;
+        }
+        .velocity-loss { background: #4a1a1a; color: #ffaaaa; }
+        .stuck-change { background: #4a4a1a; color: #ffffaa; }
+        .collision-miss { background: #1a1a4a; color: #aaaaff; }
+        .frame-data { background: #1a4a1a; color: #aaffaa; }
+    </style>
+</head>
+<body>
+    <div class="debug-panel">
+        <h1>🐛 Stuck Bubble Root Cause Analysis</h1>
+        
+        <div class="section">
+            <h3>Test Controls</h3>
+            <button onclick="startTest()">Start Test</button>
+            <button onclick="triggerDescentAndShoot()">Descent + Shoot</button>
+            <button onclick="shootMultipleBubbles()">Shoot 3 Bubbles</button>
+            <button onclick="clearLog()">Clear Log</button>
+            <button onclick="toggleVerbose()">Toggle Verbose</button>
+        </div>
+        
+        <div class="section">
+            <h3>Issue Tracker</h3>
+            <div id="issueTracker">No data</div>
+        </div>
+        
+        <div class="section">
+            <h3>Debug Log</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        let testGame = null;
+        let monitoring = false;
+        let monitorInterval = null;
+        let frameCount = 0;
+        let verboseMode = false;
+        let bubbleTracker = new Map();
+        
+        function log(message, type = 'info', forceShow = false) {
+            if (!verboseMode && !forceShow) return;
+            
+            const logDiv = document.getElementById('log');
+            const timestamp = performance.now().toFixed(1);
+            const frame = frameCount;
+            const className = `log-entry ${type}`;
+            logDiv.innerHTML += `<div class="${className}">[F${frame}@${timestamp}ms] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            frameCount = 0;
+            bubbleTracker.clear();
+        }
+        
+        function toggleVerbose() {
+            verboseMode = !verboseMode;
+            log(`Verbose mode ${verboseMode ? 'enabled' : 'disabled'}`, 'info', true);
+        }
+        
+        function trackBubble(bubble, bubbleId, phase) {
+            if (!bubbleTracker.has(bubbleId)) {
+                bubbleTracker.set(bubbleId, {
+                    id: bubbleId,
+                    createdFrame: frameCount,
+                    initialVelocity: { vx: bubble.vx, vy: bubble.vy },
+                    history: []
+                });
+            }
+            
+            const tracker = bubbleTracker.get(bubbleId);
+            tracker.history.push({
+                frame: frameCount,
+                phase: phase,
+                position: { x: bubble.x, y: bubble.y },
+                velocity: { vx: bubble.vx || 0, vy: bubble.vy || 0 },
+                stuck: bubble.stuck,
+                falling: bubble.falling,
+                isPhysicsEnabled: bubble.isPhysicsEnabled
+            });
+            
+            // Check for problematic state changes
+            const history = tracker.history;
+            if (history.length >= 2) {
+                const prev = history[history.length - 2];
+                const curr = history[history.length - 1];
+                
+                // Check for velocity loss
+                const prevSpeed = Math.sqrt(prev.velocity.vx ** 2 + prev.velocity.vy ** 2);
+                const currSpeed = Math.sqrt(curr.velocity.vx ** 2 + curr.velocity.vy ** 2);
+                
+                if (prevSpeed > 1 && currSpeed < 0.1 && !curr.stuck) {
+                    log(`🚨 VELOCITY LOSS: Bubble ${bubbleId} lost velocity (${prevSpeed.toFixed(2)} → ${currSpeed.toFixed(2)}) without collision`, 'velocity-loss', true);
+                }
+                
+                // Check for stuck state changes
+                if (prev.stuck !== curr.stuck) {
+                    log(`🔄 STUCK CHANGE: Bubble ${bubbleId} stuck: ${prev.stuck} → ${curr.stuck}`, 'stuck-change', true);
+                }
+                
+                // Check for position freezing
+                const moved = Math.abs(curr.position.x - prev.position.x) > 0.01 || Math.abs(curr.position.y - prev.position.y) > 0.01;
+                if (!moved && currSpeed > 0.1 && !curr.stuck) {
+                    log(`🚨 POSITION FREEZE: Bubble ${bubbleId} has velocity but didn't move`, 'collision-miss', true);
+                }
+            }
+        }
+        
+        function analyzeCollisionSystem() {
+            if (!testGame || testGame.flyingBubbles.length === 0) return;
+            
+            testGame.flyingBubbles.forEach((bubble, i) => {
+                const bubbleId = `B${i}`;
+                trackBubble(bubble, bubbleId, 'pre-collision-check');
+                
+                // Manually check what collision detection should find
+                let shouldCollide = false;
+                let candidateCollisions = [];
+                
+                const effectiveRows = testGame.gridBubbles.length;
+                for (let row = 0; row < effectiveRows; row++) {
+                    for (let col = 0; col < GRID_COLS; col++) {
+                        if (testGame.gridBubbles[row] && testGame.gridBubbles[row][col]) {
+                            const gridBubble = testGame.gridBubbles[row][col];
+                            
+                            let checkX = gridBubble.x;
+                            let checkY = gridBubble.y;
+                            
+                            // Use animation-aware position
+                            if (gridBubble.isDescending && gridBubble.descentStartTime) {
+                                const currentTime = Date.now();
+                                const elapsed = currentTime - gridBubble.descentStartTime;
+                                const progress = Math.min(elapsed / gridBubble.descentDuration, 1);
+                                
+                                checkX = gridBubble.startX + (gridBubble.targetX - gridBubble.startX) * progress;
+                                checkY = gridBubble.startY + (gridBubble.targetY - gridBubble.startY) * progress;
+                            }
+                            
+                            if (gridBubble.isFadingIn && gridBubble.targetX !== undefined && gridBubble.targetY !== undefined) {
+                                checkX = gridBubble.targetX;
+                                checkY = gridBubble.targetY;
+                            }
+                            
+                            const distance = Math.sqrt(
+                                (bubble.x - checkX) ** 2 + 
+                                (bubble.y - checkY) ** 2
+                            );
+                            
+                            if (distance < BUBBLE_RADIUS * 1.9) {
+                                shouldCollide = true;
+                                candidateCollisions.push({
+                                    row, col, distance: distance.toFixed(1),
+                                    gridPos: `(${checkX.toFixed(1)}, ${checkY.toFixed(1)})`,
+                                    isAnimating: gridBubble.isAnimating,
+                                    isDescending: gridBubble.isDescending,
+                                    isFadingIn: gridBubble.isFadingIn
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                if (shouldCollide) {
+                    log(`⚡ Bubble ${bubbleId} should collide with: ${candidateCollisions.map(c => `(${c.row},${c.col}):${c.distance}`).join(', ')}`, 'collision-miss');
+                }
+                
+                trackBubble(bubble, bubbleId, 'post-collision-check');
+            });
+        }
+        
+        function runMonitorFrame() {
+            if (!monitoring || !testGame) return;
+            
+            frameCount++;
+            
+            // Track before game update
+            testGame.flyingBubbles.forEach((bubble, i) => {
+                trackBubble(bubble, `B${i}`, 'pre-update');
+            });
+            
+            // Run collision analysis before game update
+            analyzeCollisionSystem();
+            
+            // Update game
+            testGame.update();
+            testGame.draw();
+            
+            // Track after game update
+            testGame.flyingBubbles.forEach((bubble, i) => {
+                trackBubble(bubble, `B${i}`, 'post-update');
+            });
+            
+            // Update issue tracker
+            updateIssueTracker();
+            
+            if (frameCount % 60 === 0) {
+                log(`Frame ${frameCount}: ${testGame.flyingBubbles.length} flying bubbles`, 'frame-data');
+            }
+        }
+        
+        function updateIssueTracker() {
+            const trackerDiv = document.getElementById('issueTracker');
+            let issueCount = 0;
+            let stuckCount = 0;
+            let zeroVelCount = 0;
+            
+            testGame.flyingBubbles.forEach((bubble, i) => {
+                const velocity = Math.sqrt((bubble.vx || 0) ** 2 + (bubble.vy || 0) ** 2);
+                
+                if (bubble.stuck) {
+                    stuckCount++;
+                } else if (velocity < 0.01) {
+                    zeroVelCount++;
+                    issueCount++;
+                }
+            });
+            
+            let html = `<div>Flying Bubbles: ${testGame.flyingBubbles.length}</div>`;
+            html += `<div>Stuck: ${stuckCount}</div>`;
+            html += `<div class="critical">Zero Velocity (Issue): ${zeroVelCount}</div>`;
+            html += `<div>Issues Detected: ${issueCount}</div>`;
+            
+            if (issueCount > 0) {
+                html += `<div class="critical">🚨 BUBBLES ARE STUCK MIDAIR!</div>`;
+            }
+            
+            trackerDiv.innerHTML = html;
+        }
+        
+        function startTest() {
+            clearLog();
+            log('🚀 Starting stuck bubble analysis test...', 'info', true);
+            
+            const canvas = document.getElementById('gameCanvas');
+            testGame = new Game(canvas);
+            testGame.initGame();
+            testGame.startGame();
+            
+            // Create test grid
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1'];
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const x = testGame.getColPosition(row, col);
+                    const y = testGame.getRowPosition(row);
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    const bubble = new Bubble(x, y, color, row, col);
+                    bubble.game = testGame;
+                    bubble.stuck = true;
+                    testGame.gridBubbles[row][col] = bubble;
+                }
+            }
+            
+            monitoring = true;
+            monitorInterval = setInterval(runMonitorFrame, 16);
+            
+            log('✅ Test started with monitoring enabled', 'success', true);
+        }
+        
+        function triggerDescentAndShoot() {
+            if (!testGame) return;
+            
+            log('🔽 Triggering descent animation...', 'info', true);
+            testGame.addNewRow();
+            
+            // Wait a bit for animation to start, then shoot
+            setTimeout(() => {
+                log('🎯 Shooting bubble during descent...', 'info', true);
+                testGame.shooter.angle = -Math.PI / 2; // Straight up
+                const bubble = testGame.shooter.shoot();
+                if (bubble) {
+                    testGame.flyingBubbles.push(bubble);
+                    log(`Bubble shot: vel(${bubble.vx.toFixed(2)}, ${bubble.vy.toFixed(2)})`, 'success', true);
+                }
+            }, 100);
+        }
+        
+        function shootMultipleBubbles() {
+            if (!testGame) return;
+            
+            log('🎯 Shooting multiple test bubbles...', 'info', true);
+            
+            const angles = [-Math.PI/2, -Math.PI/2.5, -Math.PI/1.5];
+            
+            angles.forEach((angle, i) => {
+                setTimeout(() => {
+                    testGame.shooter.angle = angle;
+                    const bubble = testGame.shooter.shoot();
+                    if (bubble) {
+                        testGame.flyingBubbles.push(bubble);
+                        log(`Bubble ${i+1} shot at angle ${(angle * 180 / Math.PI).toFixed(1)}°`, 'success', true);
+                    }
+                }, i * 200);
+            });
+        }
+        
+        // Auto-start
+        window.addEventListener('load', () => {
+            setTimeout(startTest, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collision Fix Validation</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: Arial, sans-serif; 
+            background: #1a1a1a; 
+            color: white;
+            padding: 20px;
+        }
+        canvas { 
+            border: 1px solid #333; 
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+            display: block;
+            margin: 20px auto;
+        }
+        .test-panel {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .test-section {
+            margin: 15px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .success { color: #44ff44; }
+        .error { color: #ff4444; }
+        .warning { color: #ffaa00; }
+        .info { color: #4ac2ff; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #0088ff; }
+        .result { 
+            margin: 5px 0; 
+            padding: 8px; 
+            background: #444; 
+            border-radius: 3px; 
+        }
+        .status {
+            font-family: monospace;
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-panel">
+        <h1>✅ Collision Detection Fix Validation</h1>
+        
+        <div class="test-section">
+            <h3>Test: Flying Bubble Collision During Descent Animation</h3>
+            <button onclick="runValidationTest()">Run Validation Test</button>
+            <button onclick="clearResults()">Clear Results</button>
+            <div id="testResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Current Status</h3>
+            <div id="statusDisplay" class="status">Test not started</div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        let validationGame = null;
+        let testPhase = 0;
+        let testStartTime = 0;
+        
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const className = type === 'error' ? 'error' : type === 'warning' ? 'warning' : type === 'success' ? 'success' : 'info';
+            resultsDiv.innerHTML += `<div class="result ${className}">${message}</div>`;
+        }
+        
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '';
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('statusDisplay').innerHTML = message;
+        }
+        
+        async function runValidationTest() {
+            clearResults();
+            testPhase = 0;
+            testStartTime = Date.now();
+            
+            addResult('🧪 Starting collision detection validation test...', 'info');
+            
+            try {
+                // Phase 1: Initialize game
+                const canvas = document.getElementById('gameCanvas');
+                validationGame = new Game(canvas);
+                validationGame.initGame();
+                validationGame.startGame();
+                
+                updateStatus('Phase 1: Game initialized');
+                addResult('✅ Game initialized successfully', 'success');
+                
+                // Phase 2: Create test grid
+                const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A'];
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const x = validationGame.getColPosition(row, col);
+                        const y = validationGame.getRowPosition(row);
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        
+                        const bubble = new Bubble(x, y, color, row, col);
+                        bubble.game = validationGame;
+                        bubble.stuck = true;
+                        validationGame.gridBubbles[row][col] = bubble;
+                    }
+                }
+                
+                updateStatus('Phase 2: Test grid created (3 rows, 8 cols each)');
+                addResult('✅ Test grid created: 3 rows with 8 bubbles each', 'success');
+                
+                // Phase 3: Draw initial state
+                validationGame.draw();
+                updateStatus('Phase 3: Initial state rendered');
+                
+                // Phase 4: Trigger descent animation
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                updateStatus('Phase 4: Triggering descent animation...');
+                addResult('🔽 Triggering descent animation...', 'info');
+                
+                validationGame.addNewRow();
+                
+                // Verify animation started
+                let animatingBubbles = 0;
+                let descendingBubbles = 0;
+                for (let row = 0; row < validationGame.gridBubbles.length; row++) {
+                    for (let col = 0; col < validationGame.gridBubbles[row].length; col++) {
+                        const bubble = validationGame.gridBubbles[row][col];
+                        if (bubble) {
+                            if (bubble.isAnimating) animatingBubbles++;
+                            if (bubble.isDescending) descendingBubbles++;
+                        }
+                    }
+                }
+                
+                addResult(`📊 Animation status: ${animatingBubbles} animating, ${descendingBubbles} descending`, 'info');
+                
+                // Phase 5: Wait for animation to be in progress
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Phase 6: Shoot bubble during animation
+                updateStatus('Phase 5: Shooting bubble during descent animation...');
+                addResult('🎯 Shooting bubble during descent animation...', 'info');
+                
+                // Set predictable angle
+                validationGame.shooter.angle = -Math.PI / 2; // Straight up
+                const flyingBubble = validationGame.shooter.shoot();
+                
+                if (!flyingBubble) {
+                    throw new Error('Failed to create flying bubble');
+                }
+                
+                validationGame.flyingBubbles.push(flyingBubble);
+                addResult(`✅ Flying bubble created with velocity: vx=${flyingBubble.vx.toFixed(2)}, vy=${flyingBubble.vy.toFixed(2)}`, 'success');
+                
+                // Phase 7: Monitor the test
+                updateStatus('Phase 6: Monitoring bubble behavior...');
+                let monitoringFrames = 0;
+                const maxMonitoringFrames = 300; // 5 seconds at 60fps
+                let lastBubblePosition = { x: flyingBubble.x, y: flyingBubble.y };
+                let stuckFrameCount = 0;
+                
+                const monitorInterval = setInterval(() => {
+                    monitoringFrames++;
+                    
+                    // Update game
+                    validationGame.update();
+                    validationGame.draw();
+                    
+                    // Check if bubble is still flying
+                    const stillFlying = validationGame.flyingBubbles.includes(flyingBubble);
+                    
+                    if (!stillFlying) {
+                        clearInterval(monitorInterval);
+                        updateStatus('✅ TEST PASSED: Bubble successfully collided');
+                        addResult('🎉 SUCCESS: Flying bubble successfully collided with grid during descent animation', 'success');
+                        addResult('✅ COLLISION DETECTION FIX IS WORKING CORRECTLY', 'success');
+                        return;
+                    }
+                    
+                    // Check for stuck condition
+                    const currentPosition = { x: flyingBubble.x, y: flyingBubble.y };
+                    const hasMoved = Math.abs(currentPosition.x - lastBubblePosition.x) > 0.1 || 
+                                    Math.abs(currentPosition.y - lastBubblePosition.y) > 0.1;
+                    
+                    if (!hasMoved) {
+                        stuckFrameCount++;
+                        if (stuckFrameCount > 60) { // Stuck for 1 second
+                            clearInterval(monitorInterval);
+                            updateStatus('❌ TEST FAILED: Bubble stuck midair');
+                            addResult(`❌ FAILURE: Bubble stuck at position (${currentPosition.x.toFixed(1)}, ${currentPosition.y.toFixed(1)})`, 'error');
+                            addResult(`Velocity: vx=${flyingBubble.vx?.toFixed(3) || 0}, vy=${flyingBubble.vy?.toFixed(3) || 0}`, 'error');
+                            addResult('❌ COLLISION DETECTION ISSUE STILL EXISTS', 'error');
+                            
+                            // Additional debugging info
+                            let nearbyAnimating = 0;
+                            for (let row = 0; row < validationGame.gridBubbles.length; row++) {
+                                for (let col = 0; col < validationGame.gridBubbles[row].length; col++) {
+                                    const gridBubble = validationGame.gridBubbles[row][col];
+                                    if (gridBubble && gridBubble.isAnimating) {
+                                        const distance = Math.sqrt(
+                                            (flyingBubble.x - gridBubble.x) ** 2 + 
+                                            (flyingBubble.y - gridBubble.y) ** 2
+                                        );
+                                        if (distance < 100) nearbyAnimating++;
+                                    }
+                                }
+                            }
+                            addResult(`Debug: ${nearbyAnimating} nearby animating bubbles`, 'warning');
+                            return;
+                        }
+                    } else {
+                        stuckFrameCount = 0;
+                    }
+                    
+                    lastBubblePosition = currentPosition;
+                    
+                    // Update status with progress
+                    updateStatus(`Monitoring: Frame ${monitoringFrames}/${maxMonitoringFrames}, Bubble at (${currentPosition.x.toFixed(1)}, ${currentPosition.y.toFixed(1)})`);
+                    
+                    // Timeout check
+                    if (monitoringFrames >= maxMonitoringFrames) {
+                        clearInterval(monitorInterval);
+                        updateStatus('⚠️ TEST TIMEOUT: Took too long');
+                        addResult('⚠️ TEST TIMEOUT: Bubble took too long to collide (may indicate slow movement rather than stuck)', 'warning');
+                    }
+                }, 16); // ~60 FPS
+                
+            } catch (error) {
+                updateStatus('❌ Test failed with error');
+                addResult(`❌ Test failed: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

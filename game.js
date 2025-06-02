@@ -201,11 +201,16 @@ class Bubble {
         this.trail = [];
         this.maxTrailLength = 8;
         
+        // 3D renderer integration
+        this.bubbleId = 'bubble_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        this.has3DRepresentation = false;
+        
         console.log('BUBBLE CREATED:', {
             position: { x: this.x, y: this.y },
             color: this.color,
             gridPos: { row: this.row, col: this.col },
-            stuck: this.stuck
+            stuck: this.stuck,
+            bubbleId: this.bubbleId
         });
     }
 
@@ -261,7 +266,83 @@ class Bubble {
         }
     }
 
+    // 3D renderer integration methods
+    create3DRepresentation(renderer3D, options = {}) {
+        if (!renderer3D || this.has3DRepresentation) return;
+        
+        const bubbleOptions = {
+            glow: !this.stuck || this.removing, // Flying and removing bubbles glow
+            caustics: this.stuck, // Grid bubbles have water-like effects
+            wobble: !this.stuck || this.removing, // Flying and popping bubbles wobble
+            collision: this.isColliding,
+            preview: options.preview || false,
+            ...options
+        };
+        
+        // Convert 2D screen coordinates to 3D world coordinates
+        const z = this.stuck ? 0 : (this.falling ? -20 : 10); // Flying bubbles in front, falling behind
+        
+        renderer3D.createBubble(
+            this.bubbleId,
+            this.x - renderer3D.canvas.width / 2,  // Center the coordinate system
+            renderer3D.canvas.height / 2 - this.y,  // Flip Y coordinate for Three.js
+            z,
+            this.radius,
+            this.color,
+            bubbleOptions
+        );
+        
+        this.has3DRepresentation = true;
+    }
+    
+    update3DRepresentation(renderer3D) {
+        if (!renderer3D || !this.has3DRepresentation) return;
+        
+        // Convert 2D screen coordinates to 3D world coordinates
+        const z = this.stuck ? 0 : (this.falling ? -20 : 10);
+        
+        renderer3D.updateBubble(
+            this.bubbleId,
+            this.x - renderer3D.canvas.width / 2,
+            renderer3D.canvas.height / 2 - this.y,
+            z,
+            {
+                color: this.color,
+                scale: this.scale,
+                opacity: this.opacity
+            }
+        );
+    }
+    
+    remove3DRepresentation(renderer3D, animated = true) {
+        if (!renderer3D || !this.has3DRepresentation) return;
+        
+        renderer3D.removeBubble(this.bubbleId, animated);
+        this.has3DRepresentation = false;
+    }
+
     draw(ctx) {
+        // If using 3D renderer, handle 3D representation instead of 2D drawing
+        if (this.game && this.game.use3D && this.game.renderer3D) {
+            // Create 3D representation if it doesn't exist
+            if (!this.has3DRepresentation) {
+                this.create3DRepresentation(this.game.renderer3D);
+            } else {
+                // Update existing 3D representation
+                this.update3DRepresentation(this.game.renderer3D);
+            }
+            
+            // Handle removal in 3D
+            if (this.removing && this.has3DRepresentation) {
+                this.remove3DRepresentation(this.game.renderer3D, true);
+            }
+            
+            // For 3D mode, we still draw minimal 2D for UI elements if needed
+            // but the main bubble rendering is handled by Three.js
+            return;
+        }
+        
+        // Original 2D rendering code follows...
         // Update trail for flying bubbles
         if (!this.stuck && !this.removing && !this.falling) {
             this.trail.push({ x: this.x, y: this.y, opacity: 1.0 });
@@ -361,47 +442,81 @@ class Bubble {
             ctx.fill();
         }
 
+        // Modern 3D glossy bubble rendering similar to the screenshot
+        const baseColor = this.color;
+        
+        // Step 1: Draw subtle shadow/depth
+        ctx.beginPath();
+        ctx.arc(1, 1, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fill();
+        
+        // Step 2: Main bubble body with sophisticated gradient
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         
-        // Enhanced gradient system for all colors
-        const gradient = ctx.createRadialGradient(-5, -5, 0, 0, 0, this.radius);
-        const baseColor = this.color;
+        const mainGradient = ctx.createRadialGradient(-8, -8, 0, 0, 0, this.radius * 1.2);
+        const lightColor = this.lightenColor(baseColor, 0.5);
+        const darkColor = this.darkenColor(baseColor, 0.3);
         
-        // Create lighter and darker variants
-        const lightColor = this.lightenColor(baseColor, 0.3);
-        const darkColor = this.darkenColor(baseColor, 0.2);
+        mainGradient.addColorStop(0, lightColor);      // Bright top-left
+        mainGradient.addColorStop(0.3, baseColor);     // Main color
+        mainGradient.addColorStop(0.7, baseColor);     // Keep main color longer
+        mainGradient.addColorStop(1, darkColor);       // Darker edge
         
-        gradient.addColorStop(0, lightColor);
-        gradient.addColorStop(0.7, baseColor);
-        gradient.addColorStop(1, darkColor);
-        
-        ctx.fillStyle = gradient;
+        ctx.fillStyle = mainGradient;
         ctx.globalAlpha = this.opacity;
         ctx.fill();
         
-        // Enhanced border with depth - add collision highlight
-        let borderColor = this.darkenColor(baseColor, 0.4);
+        // Step 3: Create 3D depth with bottom shadow gradient
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        
+        const depthGradient = ctx.createRadialGradient(0, -this.radius * 0.3, this.radius * 0.3, 0, this.radius * 0.7, this.radius);
+        depthGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        depthGradient.addColorStop(1, `rgba(0, 0, 0, 0.3)`);
+        
+        ctx.fillStyle = depthGradient;
+        ctx.fill();
+        
+        // Step 4: Glossy highlight (main feature from screenshot)
+        ctx.beginPath();
+        ctx.arc(-this.radius * 0.3, -this.radius * 0.4, this.radius * 0.4, 0, Math.PI * 2);
+        
+        const glossGradient = ctx.createRadialGradient(
+            -this.radius * 0.3, -this.radius * 0.4, 0,
+            -this.radius * 0.3, -this.radius * 0.4, this.radius * 0.4
+        );
+        glossGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+        glossGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+        glossGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        
+        ctx.fillStyle = glossGradient;
+        ctx.fill();
+        
+        // Step 5: Secondary smaller highlight for extra gloss
+        ctx.beginPath();
+        ctx.arc(-this.radius * 0.15, -this.radius * 0.25, this.radius * 0.15, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+        
+        // Step 6: Subtle border with enhanced collision effect
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        
+        let borderColor = this.darkenColor(baseColor, 0.6);
+        let borderWidth = 1;
+        
         if (this.isColliding) {
             const collisionProgress = this.collisionAnimationTimer / 30;
             const highlightIntensity = (1 - collisionProgress) * 0.8;
             borderColor = `rgba(255, 255, 255, ${highlightIntensity})`;
+            borderWidth = 2;
         }
         
         ctx.strokeStyle = borderColor;
-        ctx.lineWidth = this.isColliding ? 3 : 2;
+        ctx.lineWidth = borderWidth;
         ctx.stroke();
-        
-        // Multiple highlight layers for depth
-        ctx.beginPath();
-        ctx.arc(-6, -6, this.radius * 0.25, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fill();
-        
-        ctx.beginPath();
-        ctx.arc(-3, -3, this.radius * 0.15, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.fill();
 
         // Enhanced visual feedback for predicted snap
         if (this.snapPredicted && !this.stuck) {
@@ -555,6 +670,11 @@ class Shooter {
         this.lastShot = 0;
         this.engine = null; // Will be set by Game class
         this.game = game; // Store game reference for bubble creation
+        
+        // 3D representation IDs for shooter bubbles
+        this.currentBubble3D = null;
+        this.nextBubble3D = null;
+        
         console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor });
     }
 
@@ -563,6 +683,74 @@ class Shooter {
     }
 
     draw(ctx) {
+        // Check if we're in 3D mode and create 3D representations for shooter bubbles
+        if (this.game && this.game.use3D && this.game.renderer3D) {
+            // Create 3D representation for current bubble if it doesn't exist
+            if (!this.currentBubble3D) {
+                this.currentBubble3D = 'shooter_current_' + Date.now();
+                this.game.renderer3D.createBubble(
+                    this.currentBubble3D,
+                    this.x - this.game.renderer3D.canvas.width / 2,
+                    this.game.renderer3D.canvas.height / 2 - this.y,
+                    15, // Z position in front
+                    BUBBLE_RADIUS * 0.8,
+                    this.currentColor,
+                    { glow: true, preview: true }
+                );
+            } else {
+                // Update position and color
+                this.game.renderer3D.updateBubble(
+                    this.currentBubble3D,
+                    this.x - this.game.renderer3D.canvas.width / 2,
+                    this.game.renderer3D.canvas.height / 2 - this.y,
+                    15,
+                    {
+                        color: this.currentColor,
+                        scale: 1.0,
+                        opacity: 1.0
+                    }
+                );
+            }
+            
+            // Create 3D representation for next bubble if it doesn't exist
+            const nextX = this.x - 50;
+            const nextY = this.y + 10;
+            if (!this.nextBubble3D) {
+                this.nextBubble3D = 'shooter_next_' + Date.now();
+                this.game.renderer3D.createBubble(
+                    this.nextBubble3D,
+                    nextX - this.game.renderer3D.canvas.width / 2,
+                    this.game.renderer3D.canvas.height / 2 - nextY,
+                    12, // Z position
+                    BUBBLE_RADIUS * 0.6,
+                    this.nextColor,
+                    { glow: true, preview: true }
+                );
+            } else {
+                // Update position and color
+                this.game.renderer3D.updateBubble(
+                    this.nextBubble3D,
+                    nextX - this.game.renderer3D.canvas.width / 2,
+                    this.game.renderer3D.canvas.height / 2 - nextY,
+                    12,
+                    {
+                        color: this.nextColor,
+                        scale: 0.6,
+                        opacity: 0.8
+                    }
+                );
+            }
+            
+            // Still draw 2D UI elements (shooter base, aim line, labels)
+            this.draw2DUIElements(ctx);
+            return;
+        }
+        
+        // Original 2D mode
+        this.draw2DComplete(ctx);
+    }
+    
+    draw2DUIElements(ctx) {
         // Draw shooter base
         ctx.beginPath();
         ctx.arc(this.x, this.y, 30, 0, Math.PI * 2);
@@ -584,28 +772,177 @@ class Shooter {
         ctx.lineWidth = 8;
         ctx.stroke();
 
-        // Draw current bubble
+        // Draw aim line with wall bounces
+        if (this.canShoot()) {
+            this.drawAimLine(ctx, this.x, this.y, this.angle, 800);
+        }
+        
+        // Label for next bubble
+        ctx.font = '14px Arial';
+        ctx.fillStyle = 'white';
+        ctx.fillText('Next', this.x - 70, this.y + 10);
+    }
+    
+    draw2DComplete(ctx) {
+        // Draw shooter base
         ctx.beginPath();
-        ctx.arc(this.x, this.y, BUBBLE_RADIUS * 0.8, 0, Math.PI * 2);
-        ctx.fillStyle = this.currentColor;
+        ctx.arc(this.x, this.y, 30, 0, Math.PI * 2);
+        ctx.fillStyle = '#444';
         ctx.fill();
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 3;
         ctx.stroke();
+
+        // Draw cannon barrel
+        const barrelLength = 40;
+        const endX = this.x + Math.cos(this.angle) * barrelLength;
+        const endY = this.y + Math.sin(this.angle) * barrelLength;
+        
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(endX, endY);
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+
+        // Draw current bubble with modern 3D style
+        const bubbleRadius = BUBBLE_RADIUS * 0.8;
+        const baseColor = this.currentColor;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Subtle shadow
+        ctx.beginPath();
+        ctx.arc(0.5, 0.5, bubbleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fill();
+        
+        // Main bubble body
+        ctx.beginPath();
+        ctx.arc(0, 0, bubbleRadius, 0, Math.PI * 2);
+        
+        const mainGradient = ctx.createRadialGradient(-6, -6, 0, 0, 0, bubbleRadius * 1.2);
+        const lightColor = this.lightenColor(baseColor, 0.5);
+        const darkColor = this.darkenColor(baseColor, 0.3);
+        
+        mainGradient.addColorStop(0, lightColor);
+        mainGradient.addColorStop(0.3, baseColor);
+        mainGradient.addColorStop(0.7, baseColor);
+        mainGradient.addColorStop(1, darkColor);
+        
+        ctx.fillStyle = mainGradient;
+        ctx.fill();
+        
+        // Depth gradient
+        ctx.beginPath();
+        ctx.arc(0, 0, bubbleRadius, 0, Math.PI * 2);
+        const depthGradient = ctx.createRadialGradient(0, -bubbleRadius * 0.3, bubbleRadius * 0.3, 0, bubbleRadius * 0.7, bubbleRadius);
+        depthGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        depthGradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+        ctx.fillStyle = depthGradient;
+        ctx.fill();
+        
+        // Main gloss highlight
+        ctx.beginPath();
+        ctx.arc(-bubbleRadius * 0.3, -bubbleRadius * 0.4, bubbleRadius * 0.4, 0, Math.PI * 2);
+        const glossGradient = ctx.createRadialGradient(
+            -bubbleRadius * 0.3, -bubbleRadius * 0.4, 0,
+            -bubbleRadius * 0.3, -bubbleRadius * 0.4, bubbleRadius * 0.4
+        );
+        glossGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+        glossGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+        glossGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = glossGradient;
+        ctx.fill();
+        
+        // Small highlight
+        ctx.beginPath();
+        ctx.arc(-bubbleRadius * 0.15, -bubbleRadius * 0.25, bubbleRadius * 0.15, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+        
+        // Border
+        ctx.beginPath();
+        ctx.arc(0, 0, bubbleRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = this.darkenColor(baseColor, 0.6);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        ctx.restore();
 
         // Draw aim line with wall bounces
         if (this.canShoot()) {
             this.drawAimLine(ctx, this.x, this.y, this.angle, 800);
         }
 
-        // Draw next bubble preview
+        // Draw next bubble preview with modern 3D style
+        const nextBubbleRadius = BUBBLE_RADIUS * 0.6;
+        const nextX = this.x - 50;
+        const nextY = this.y + 10;
+        const nextBaseColor = this.nextColor;
+        
+        ctx.save();
+        ctx.translate(nextX, nextY);
+        
+        // Subtle shadow
         ctx.beginPath();
-        ctx.arc(this.x - 50, this.y + 10, BUBBLE_RADIUS * 0.6, 0, Math.PI * 2);
-        ctx.fillStyle = this.nextColor;
+        ctx.arc(0.5, 0.5, nextBubbleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
         ctx.fill();
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
+        
+        // Main bubble body
+        ctx.beginPath();
+        ctx.arc(0, 0, nextBubbleRadius, 0, Math.PI * 2);
+        
+        const nextMainGradient = ctx.createRadialGradient(-4, -4, 0, 0, 0, nextBubbleRadius * 1.2);
+        const nextLightColor = this.lightenColor(nextBaseColor, 0.5);
+        const nextDarkColor = this.darkenColor(nextBaseColor, 0.3);
+        
+        nextMainGradient.addColorStop(0, nextLightColor);
+        nextMainGradient.addColorStop(0.3, nextBaseColor);
+        nextMainGradient.addColorStop(0.7, nextBaseColor);
+        nextMainGradient.addColorStop(1, nextDarkColor);
+        
+        ctx.fillStyle = nextMainGradient;
+        ctx.fill();
+        
+        // Depth gradient
+        ctx.beginPath();
+        ctx.arc(0, 0, nextBubbleRadius, 0, Math.PI * 2);
+        const nextDepthGradient = ctx.createRadialGradient(0, -nextBubbleRadius * 0.3, nextBubbleRadius * 0.3, 0, nextBubbleRadius * 0.7, nextBubbleRadius);
+        nextDepthGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        nextDepthGradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+        ctx.fillStyle = nextDepthGradient;
+        ctx.fill();
+        
+        // Main gloss highlight
+        ctx.beginPath();
+        ctx.arc(-nextBubbleRadius * 0.3, -nextBubbleRadius * 0.4, nextBubbleRadius * 0.4, 0, Math.PI * 2);
+        const nextGlossGradient = ctx.createRadialGradient(
+            -nextBubbleRadius * 0.3, -nextBubbleRadius * 0.4, 0,
+            -nextBubbleRadius * 0.3, -nextBubbleRadius * 0.4, nextBubbleRadius * 0.4
+        );
+        nextGlossGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+        nextGlossGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+        nextGlossGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = nextGlossGradient;
+        ctx.fill();
+        
+        // Small highlight
+        ctx.beginPath();
+        ctx.arc(-nextBubbleRadius * 0.15, -nextBubbleRadius * 0.25, nextBubbleRadius * 0.15, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+        
+        // Border
+        ctx.beginPath();
+        ctx.arc(0, 0, nextBubbleRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = this.darkenColor(nextBaseColor, 0.6);
+        ctx.lineWidth = 1;
         ctx.stroke();
+        
+        ctx.restore();
         
         // Label for next bubble
         ctx.font = '14px Arial';
@@ -740,11 +1077,73 @@ class Shooter {
         this.nextColor = this.getRandomColor();
         this.lastShot = Date.now();
         
+        // Update 3D representations when colors change
+        if (this.game && this.game.use3D && this.game.renderer3D) {
+            // Remove the current 3D bubble (it's now the flying bubble)
+            if (this.currentBubble3D) {
+                this.game.renderer3D.removeBubble(this.currentBubble3D, false);
+                this.currentBubble3D = null;
+            }
+        }
+        
         return bubble;
     }
 
     update() {
         // No longer needed, but keeping for consistency
+    }
+
+    // Cleanup 3D representations when needed
+    cleanup3D() {
+        if (this.game && this.game.use3D && this.game.renderer3D) {
+            // Clean up current bubble 3D representation
+            if (this.currentBubble3D) {
+                this.game.renderer3D.removeBubble(this.currentBubble3D, false);
+                this.currentBubble3D = null;
+            }
+            
+            // Clean up next bubble 3D representation
+            if (this.nextBubble3D) {
+                this.game.renderer3D.removeBubble(this.nextBubble3D, false);
+                this.nextBubble3D = null;
+            }
+        }
+    }
+
+    // Color utility methods needed for bubble rendering
+    lightenColor(color, factor) {
+        const rgb = this.hexToRgb(color);
+        if (!rgb) return color;
+        
+        const r = Math.min(255, Math.round(rgb.r + (255 - rgb.r) * factor));
+        const g = Math.min(255, Math.round(rgb.g + (255 - rgb.g) * factor));
+        const b = Math.min(255, Math.round(rgb.b + (255 - rgb.b) * factor));
+        
+        return this.rgbToHex(r, g, b);
+    }
+    
+    darkenColor(color, factor) {
+        const rgb = this.hexToRgb(color);
+        if (!rgb) return color;
+        
+        const r = Math.round(rgb.r * (1 - factor));
+        const g = Math.round(rgb.g * (1 - factor));
+        const b = Math.round(rgb.b * (1 - factor));
+        
+        return this.rgbToHex(r, g, b);
+    }
+    
+    hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    }
+    
+    rgbToHex(r, g, b) {
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     }
 }
 
@@ -752,35 +1151,83 @@ class Game {
     constructor(canvas) {
         console.log('=== GAME CONSTRUCTOR START ===');
         
-        this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
+        try {
+            this.canvas = canvas;
+            this.ctx = canvas.getContext('2d');
+            console.log('✅ Canvas and 2D context initialized');
+            
+            // RENDERING MODE SELECTION
+            this.use3D = true; // Set to true for 3D mode, false for 2D mode
+            this.renderer3D = null;
+            this.trailRenderer = null;
+            
+            // Initialize 3D renderer if enabled and Three.js is available
+            if (this.use3D && typeof THREE !== 'undefined') {
+                try {
+                    console.log('Initializing 3D bubble renderer...');
+                    this.renderer3D = new BubbleRenderer3D(canvas);
+                    console.log('✅ 3D renderer created');
+                    this.trailRenderer = new BubbleTrailRenderer(this.renderer3D.scene, this.renderer3D.camera);
+                    console.log('✅ 3D renderer initialized successfully');
+                } catch (error) {
+                    console.warn('⚠️ 3D renderer failed to initialize, falling back to 2D:', error);
+                    this.use3D = false;
+                    this.renderer3D = null;
+                    this.trailRenderer = null;
+                }
+            } else if (this.use3D) {
+                console.warn('⚠️ Three.js not available, falling back to 2D rendering');
+                this.use3D = false;
+            }
+            
+            console.log(`🎨 Rendering mode: ${this.use3D ? '3D (Three.js)' : '2D (Canvas)'}`);
+            
+            console.log('Initializing Matter.js physics engine...');
+            // Initialize Matter.js physics engine
+            this.engine = Engine.create();
+            this.engine.world.gravity.y = 0.4; // Reduced gravity for bubble shooter feel
+            this.engine.world.gravity.x = 0;
+            console.log('✅ Matter.js engine created');
+            
+            console.log('Setting canvas dimensions...');
+            // Set initial canvas dimensions
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const maxWidth = Math.min(viewportWidth - 20, 400);
+            const portraitHeight = Math.min(viewportHeight - 100, maxWidth * 1.6);
+            
+            canvas.width = maxWidth;
+            canvas.height = portraitHeight;
+            console.log('✅ Canvas dimensions set');
+            
+        } catch (error) {
+            console.error('❌ CRITICAL ERROR in Game constructor (early stage):', error);
+            throw error;
+        }
         
-        // Initialize Matter.js physics engine
-        this.engine = Engine.create();
-        this.engine.world.gravity.y = 0.4; // Reduced gravity for bubble shooter feel
-        this.engine.world.gravity.x = 0;
+        try {
+            console.log('Creating physics walls...');
+            // Create invisible walls AFTER canvas dimensions are set
+            this.createWalls();
+            console.log('✅ Physics walls created');
+            
+            console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height });
+            console.log('Matter.js engine initialized');
+            
+            console.log('Initializing bubble arrays...');
+            this.gridBubbles = []; // 2D array representing the grid of bubbles
+            this.flyingBubbles = []; // Bubbles that are currently moving
+            this.removingBubbles = []; // Bubbles that are being removed
+            this.fallingBubbles = []; // Bubbles that are falling
+            console.log('✅ Bubble arrays initialized');
+            
+        } catch (error) {
+            console.error('❌ CRITICAL ERROR in Game constructor (middle stage):', error);
+            throw error;
+        }
         
-        // Set initial canvas dimensions
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const maxWidth = Math.min(viewportWidth - 20, 400);
-        const portraitHeight = Math.min(viewportHeight - 100, maxWidth * 1.6);
-        
-        canvas.width = maxWidth;
-        canvas.height = portraitHeight;
-        
-        // Create invisible walls AFTER canvas dimensions are set
-        this.createWalls();
-        
-        console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height });
-        console.log('Matter.js engine initialized');
-        
-        this.gridBubbles = []; // 2D array representing the grid of bubbles
-        this.flyingBubbles = []; // Bubbles that are currently moving
-        this.removingBubbles = []; // Bubbles that are being removed
-        this.fallingBubbles = []; // Bubbles that are falling
-        
-        console.log('Bubble arrays initialized');
+        try {
+            console.log('Bubble arrays initialized');
         
         // Initialize shooter as null - will be created in resizeCanvas
         this.shooter = null;
@@ -858,9 +1305,11 @@ class Game {
     
         console.log('=== CALLING setupEventListeners ===');
         this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
+        console.log('✅ Event listeners set up');
         
         console.log('=== CALLING initGame ===');
         this.initGame(); // Initialize the game grid and basic setup
+        console.log('✅ Game initialized');
         
         // CRITICAL: Mark initialization as complete
         this.initializing = false;
@@ -868,6 +1317,7 @@ class Game {
         
         console.log('=== STARTING gameLoop ===');
         this.gameLoop(); // Start the rendering loop
+        console.log('✅ Game loop started');
         
         console.log('=== GAME CONSTRUCTOR END ===');
         console.log('Final bubble counts:', {
@@ -876,6 +1326,12 @@ class Game {
             fallingBubbles: this.fallingBubbles.length,
             removingBubbles: this.removingBubbles.length
         });
+        
+        } catch (error) {
+            console.error('❌ CRITICAL ERROR in Game constructor (final stage):', error);
+            console.error('Error stack:', error.stack);
+            throw error;
+        }
     }
     
     start() {
@@ -1235,6 +1691,10 @@ class Game {
                     console.log('LOSE CONDITION MET: Bubble found at row', row, 'which is at/below lose line row', this.loseLineRow);
                     this.gameOver = true;
                     this.gameWon = false;
+                    // Cleanup 3D representations on lose line condition
+                    if (this.shooter) {
+                        this.shooter.cleanup3D();
+                    }
                     this.playSound('lose');
                     this.saveHighScore(this.score);
                     return true;
@@ -1379,7 +1839,7 @@ class Game {
         // Remove from flying bubbles
         const index = this.flyingBubbles.indexOf(flyingBubble);
         if (index > -1) {
-            this.flyingBubbles.splice(index, 1);
+            this.flyingBubbles.splice(index,  1);
         }
     }
 
@@ -1690,7 +2150,7 @@ class Game {
                     this.gridBubbles[nRow][nCol]) {
                     
                     connected.add(key);
-                    queue.push({ row: nRow, col: nCol });
+                    queue.push({ row: nRow, col });
                 }
             }
         }
@@ -1872,6 +2332,10 @@ class Game {
         if (remainingBubbles === 0) {
             this.gameWon = true;
             this.gameOver = true;
+            // Cleanup 3D representations on game win
+            if (this.shooter) {
+                this.shooter.cleanup3D();
+            }
             this.playSound('win');
             this.saveHighScore(this.score);
             console.log('Game won! All bubbles cleared.');
@@ -1888,6 +2352,10 @@ class Game {
         if (this.missedShots >= 5) {
             this.gameOver = true;
             this.gameWon = false;
+            // Cleanup 3D representations on game over
+            if (this.shooter) {
+                this.shooter.cleanup3D();
+            }
             this.playSound('lose');
             this.saveHighScore(this.score);
             console.log('Game over! Too many missed shots.');
@@ -1900,6 +2368,10 @@ class Game {
             if (this.shotsLeft <= 0 && this.flyingBubbles.length === 0) {
                 this.gameOver = true;
                 this.gameWon = false;
+                // Cleanup 3D representations on strategy mode game over
+                if (this.shooter) {
+                    this.shooter.cleanup3D();
+                }
                 this.playSound('lose');
                 this.saveHighScore(this.score);
                 console.log('Game over! No shots remaining in strategy mode.');
@@ -1910,6 +2382,10 @@ class Game {
             if (this.timeLeft <= 0) {
                 this.gameOver = true;
                 this.gameWon = false;
+                // Cleanup 3D representations on arcade mode game over
+                if (this.shooter) {
+                    this.shooter.cleanup3D();
+                }
                 this.playSound('lose');
                 this.saveHighScore(this.score);
                 console.log('Game over! Time expired in arcade mode.');
@@ -1930,6 +2406,10 @@ class Game {
         if (gridFull) {
             this.gameOver = true;
             this.gameWon = false;
+            // Cleanup 3D representations on grid full game over
+            if (this.shooter) {
+                this.shooter.cleanup3D();
+            }
             this.playSound('lose');
             this.saveHighScore(this.score);
             console.log('Game over! Grid is completely full.');
@@ -1938,6 +2418,26 @@ class Game {
     }
 
     draw() {
+        // Handle 3D rendering mode
+        if (this.use3D && this.renderer3D) {
+            // Render the 3D scene
+            this.renderer3D.render();
+            
+            // For 3D mode, we still need to draw 2D UI elements on top
+            // Clear only small areas for UI instead of the entire canvas
+            this.drawDangerZone();
+            
+            // Draw shooter (2D overlay in 3D mode for UI consistency)
+            if (this.shooter) {
+                this.shooter.draw(this.ctx);
+            }
+            
+            // Draw UI overlay
+            this.drawUI();
+            return;
+        }
+        
+        // Traditional 2D rendering mode
         // Clear canvas
         this.ctx.fillStyle = '#1a1a2e';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2197,6 +2697,11 @@ class Game {
         this.lastDescentTime = Date.now();
         this.infiniteStack = [];
         
+        // Cleanup 3D representations
+        if (this.shooter) {
+            this.shooter.cleanup3D();
+        }
+        
         // Reset mode-specific variables
         if (this.gameMode === "strategy") {
             this.shotsLeft = 30;
@@ -2233,6 +2738,8 @@ class Game {
 
 // Initialize menu and game when page loads
 window.addEventListener('load', () => {
+    console.log('🔄 Window load event fired - initializing menu...');
+    
     const canvas = document.getElementById('gameCanvas');
     const gameMenu = document.getElementById('gameMenu');
     const gameScreen = document.getElementById('gameScreen');
@@ -2242,6 +2749,28 @@ window.addEventListener('load', () => {
     const showLeaderboardBtn = document.getElementById('showLeaderboard');
     const backToMenuFromLeaderboardBtn = document.getElementById('backToMenuFromLeaderboard');
     const toggleSoundBtn = document.getElementById('toggleSound');
+    
+    console.log('📋 Element detection:', {
+        canvas: !!canvas,
+        gameMenu: !!gameMenu,
+        gameScreen: !!gameScreen,
+        startGameBtn: !!startGameBtn,
+        backToMenuBtn: !!backToMenuBtn
+    });
+    
+    // Check for missing critical elements
+    if (!canvas || !gameMenu || !gameScreen || !startGameBtn) {
+        console.error('❌ Critical elements missing!');
+        console.error('Missing elements:', {
+            canvas: !canvas ? 'gameCanvas' : null,
+            gameMenu: !gameMenu ? 'gameMenu' : null,
+            gameScreen: !gameScreen ? 'gameScreen' : null,
+            startGameBtn: !startGameBtn ? 'startGame' : null
+        });
+        return;
+    }
+    
+    console.log('✅ All critical elements found - proceeding with initialization');
     
     let game = null;
     let selectedGameMode = 'classic';
@@ -2270,25 +2799,56 @@ window.addEventListener('load', () => {
 
     // Start Game button
     startGameBtn.addEventListener('click', () => {
-        gameMenu.style.display = 'none';
-        gameScreen.style.display = 'block';
+        console.log('🎯 START GAME BUTTON CLICKED!');
+        console.log('Selected settings:', { gameMode: selectedGameMode, difficulty: selectedDifficulty, sound: soundEnabled });
         
-        // Initialize game with selected settings
-        game = new Game(canvas);
-        game.gameMode = selectedGameMode;
-        game.difficulty = selectedDifficulty;
-        game.soundEnabled = soundEnabled;
-        
-        // Set global reference for bubble wall collision detection
-        window.gameInstance = game;
-        
-        game.start(); // Start the game with the chosen settings
+        try {
+            gameMenu.style.display = 'none';
+            gameScreen.style.display = 'block';
+            
+            console.log('🎮 Creating game instance...');
+            
+            // Initialize game with selected settings
+            game = new Game(canvas);
+            console.log('✅ Game constructor completed');
+            
+            game.gameMode = selectedGameMode;
+            game.difficulty = selectedDifficulty;
+            game.soundEnabled = soundEnabled;
+            
+            console.log('✅ Game settings applied');
+            
+            // Set global reference for bubble wall collision detection
+            window.gameInstance = game;
+            
+            console.log('🚀 Starting game...');
+            game.start(); // Start the game with the chosen settings
+            console.log('✅ Game started successfully!');
+            
+        } catch (error) {
+            console.error('❌ Error in start game handler:', error);
+            console.error('Error stack:', error.stack);
+            
+            // Show error to user
+            alert(`Game failed to start: ${error.message}\nCheck console for details.`);
+            
+            // Restore menu
+            gameMenu.style.display = 'block';
+            gameScreen.style.display = 'none';
+        }
     });
 
     // Back to Menu button
     backToMenuBtn.addEventListener('click', () => {
+        // Cleanup 3D representations before returning to menu
+        if (game && game.shooter) {
+            game.shooter.cleanup3D();
+        }
+        
         gameScreen.style.display = 'none';
         gameMenu.style.display = 'block';
+        game = null; // Clear game reference
+        console.log('Returned to menu via Back button');
     });
 
     // Show Leaderboard button
@@ -2370,6 +2930,11 @@ window.addEventListener('load', () => {
                 // Return to menu
                 e.preventDefault();
                 
+                // Cleanup 3D representations before returning to menu
+                if (game && game.shooter) {
+                    game.shooter.cleanup3D();
+                }
+                
                 gameScreen.style.display = 'none';
                 gameMenu.style.display = 'block';
                 game = null;
@@ -2377,4 +2942,7 @@ window.addEventListener('load', () => {
             }
         }
     });
+    
+    console.log('✅ All event listeners attached successfully!');
+    console.log('🎮 Game initialization complete - Start Game button should be functional');
 });

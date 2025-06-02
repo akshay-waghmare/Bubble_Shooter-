@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Console Monitor</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #000; 
+            color: #0f0; 
+            margin: 20px; 
+            line-height: 1.4;
+        }
+        .console-output {
+            background: #111;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error { color: #f44; }
+        .warn { color: #fa4; }
+        .info { color: #4af; }
+        .log { color: #0f0; }
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: 2px solid #333;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Console Monitor for Bubble Shooter</h1>
+    <p>Monitoring console output from the main game...</p>
+    
+    <div>
+        <button onclick="reloadGame()">🔄 Reload Game</button>
+        <button onclick="clearConsole()">🧹 Clear Console</button>
+        <button onclick="testStartButton()">🎯 Test Start Button</button>
+    </div>
+    
+    <div id="consoleOutput" class="console-output">
+        Waiting for console output...
+    </div>
+    
+    <iframe id="gameFrame" src="index.html"></iframe>
+    
+    <script>
+        let consoleDiv = document.getElementById('consoleOutput');
+        let originalConsole = window.console;
+        let gameFrame = document.getElementById('gameFrame');
+        
+        function logToDiv(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            consoleDiv.appendChild(div);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        // Override console methods to capture output
+        window.console = {
+            log: function(...args) {
+                originalConsole.log(...args);
+                logToDiv(args.join(' '), 'log');
+            },
+            error: function(...args) {
+                originalConsole.error(...args);
+                logToDiv(args.join(' '), 'error');
+            },
+            warn: function(...args) {
+                originalConsole.warn(...args);
+                logToDiv(args.join(' '), 'warn');
+            },
+            info: function(...args) {
+                originalConsole.info(...args);
+                logToDiv(args.join(' '), 'info');
+            }
+        };
+        
+        function clearConsole() {
+            consoleDiv.innerHTML = 'Console cleared...';
+        }
+        
+        function reloadGame() {
+            gameFrame.src = gameFrame.src;
+            logToDiv('Game reloaded', 'info');
+        }
+        
+        function testStartButton() {
+            try {
+                const gameDoc = gameFrame.contentDocument || gameFrame.contentWindow.document;
+                const startBtn = gameDoc.getElementById('startGame');
+                
+                if (startBtn) {
+                    logToDiv('Found start button - simulating click', 'info');
+                    startBtn.click();
+                } else {
+                    logToDiv('Start button not found in game frame', 'error');
+                }
+            } catch (error) {
+                logToDiv(`Error accessing game frame: ${error.message}`, 'error');
+            }
+        }
+        
+        // Listen for messages from the iframe
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'console') {
+                logToDiv(event.data.message, event.data.level);
+            }
+        });
+        
+        // Capture iframe console output
+        gameFrame.onload = function() {
+            try {
+                const iframeWindow = gameFrame.contentWindow;
+                const iframeConsole = iframeWindow.console;
+                
+                // Override iframe console
+                iframeWindow.console = {
+                    log: function(...args) {
+                        iframeConsole.log(...args);
+                        logToDiv(`[GAME] ${args.join(' ')}`, 'log');
+                    },
+                    error: function(...args) {
+                        iframeConsole.error(...args);
+                        logToDiv(`[GAME] ${args.join(' ')}`, 'error');
+                    },
+                    warn: function(...args) {
+                        iframeConsole.warn(...args);
+                        logToDiv(`[GAME] ${args.join(' ')}`, 'warn');
+                    },
+                    info: function(...args) {
+                        iframeConsole.info(...args);
+                        logToDiv(`[GAME] ${args.join(' ')}`, 'info');
+                    }
+                };
+                
+                logToDiv('Console monitoring active for game frame', 'info');
+            } catch (error) {
+                logToDiv(`Cannot monitor iframe console due to CORS: ${error.message}`, 'warn');
+            }
+        };
+    </script>
+</body>
+</html>

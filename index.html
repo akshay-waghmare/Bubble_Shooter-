@@ -9,6 +9,13 @@
     <title>Bubble Shooter</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <!-- Three.js for 3D bubble rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/shaders/FXAAShader.js"></script>
 </head>
 <body>
     <div class="game-container">
@@ -67,7 +74,13 @@
             <button id="backToMenuFromLeaderboard" class="control-button">Back to Menu</button>
         </div>
     </div>
-    <script src="game.js?v=8"></script>
+    <!-- Load dependencies first -->
+    <script src="bubbleRenderer3D.js"></script>
+    <script src="bubbleTrailRenderer.js"></script>
+    <script src="bubbleRenderer.js"></script>
+    <!-- Main game script -->
+    <script src="game.js?v=10"></script>
+    <!-- Debug script (optional) -->
     <script src="debug_shooting.js"></script>
 </body>
 </html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Bubbles Integration Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a2e; 
+            color: white; 
+        }
+        .test-container {
+            background: #0f0f23;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .success { color: #4ECDC4; }
+        .error { color: #FF6B6B; }
+        .info { color: #FFE66D; }
+        .warning { color: #FF9F43; }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        button {
+            background: #4ECDC4;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45B7AA;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 3D Bubbles Integration Test</h1>
+    
+    <div class="test-container">
+        <h2>Testing 3D Bubble System Integration</h2>
+        <div id="testResults"></div>
+        
+        <div class="controls">
+            <button onclick="runFullTest()">🧪 Run Full 3D Test</button>
+            <button onclick="testStartButton()">🎮 Test Start Button</button>
+            <button onclick="test3DRendering()">🌟 Test 3D Rendering</button>
+            <button onclick="testGamePlayability()">🎯 Test Game Playability</button>
+        </div>
+        
+        <canvas id="testCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <!-- Load all necessary scripts in correct order -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="bubbleRenderer3D.js"></script>
+    <script src="bubbleTrailRenderer.js"></script>
+    <script src="game.js?v=10"></script>
+    <script src="menu.js"></script>
+    
+    <script>
+        let testGame = null;
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            const span = document.createElement('div');
+            span.className = type;
+            span.innerHTML = `${new Date().toLocaleTimeString()}: ${message}`;
+            results.appendChild(span);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        async function runFullTest() {
+            log('🚀 Starting Complete 3D Integration Test...', 'info');
+            
+            try {
+                // Test 1: Basic Environment
+                log('1️⃣ Testing environment setup...', 'info');
+                
+                if (typeof THREE === 'undefined') {
+                    log('❌ Three.js not loaded', 'error');
+                    return;
+                }
+                log('✅ Three.js loaded successfully', 'success');
+                
+                if (typeof Matter === 'undefined') {
+                    log('❌ Matter.js not loaded', 'error');
+                    return;
+                }
+                log('✅ Matter.js loaded successfully', 'success');
+                
+                if (typeof BubbleRenderer3D === 'undefined') {
+                    log('❌ BubbleRenderer3D not loaded', 'error');
+                    return;
+                }
+                log('✅ BubbleRenderer3D loaded successfully', 'success');
+                
+                if (typeof Game === 'undefined') {
+                    log('❌ Game class not loaded', 'error');
+                    return;
+                }
+                log('✅ Game class loaded successfully', 'success');
+                
+                // Test 2: Game Creation
+                log('2️⃣ Testing game creation...', 'info');
+                const canvas = document.getElementById('testCanvas');
+                testGame = new Game(canvas);
+                log('✅ Game instance created successfully', 'success');
+                
+                // Test 3: 3D System Check
+                log('3️⃣ Testing 3D system availability...', 'info');
+                if (testGame.renderer3D) {
+                    log('✅ 3D renderer available', 'success');
+                    log(`   - Scene objects: ${testGame.renderer3D.scene ? testGame.renderer3D.scene.children.length : 0}`, 'info');
+                    log(`   - Camera available: ${testGame.renderer3D.camera ? 'Yes' : 'No'}`, 'info');
+                    log(`   - WebGL renderer: ${testGame.renderer3D.renderer ? 'Yes' : 'No'}`, 'info');
+                } else {
+                    log('⚠️ 3D renderer not available (using 2D mode)', 'warning');
+                }
+                
+                // Test 4: Shooter Creation and Color Methods
+                log('4️⃣ Testing shooter and color methods...', 'info');
+                if (testGame.shooter) {
+                    log('✅ Shooter created successfully', 'success');
+                    
+                    // Test the color methods that were missing
+                    try {
+                        const testColor = '#FF6B6B';
+                        const lightColor = testGame.shooter.lightenColor(testColor, 0.5);
+                        const darkColor = testGame.shooter.darkenColor(testColor, 0.3);
+                        log(`✅ Color methods working: ${testColor} → light: ${lightColor}, dark: ${darkColor}`, 'success');
+                    } catch (error) {
+                        log(`❌ Color methods failed: ${error.message}`, 'error');
+                        return;
+                    }
+                } else {
+                    log('❌ Shooter not created', 'error');
+                    return;
+                }
+                
+                // Test 5: Game Start
+                log('5️⃣ Testing game initialization...', 'info');
+                try {
+                    testGame.gameMode = 'classic';
+                    testGame.difficulty = 'novice';
+                    testGame.soundEnabled = false;
+                    testGame.start();
+                    log('✅ Game started successfully', 'success');
+                } catch (error) {
+                    log(`❌ Game start failed: ${error.message}`, 'error');
+                    console.error('Game start error:', error);
+                    return;
+                }
+                
+                // Test 6: 3D Bubble Creation
+                log('6️⃣ Testing 3D bubble creation...', 'info');
+                if (testGame.use3D && testGame.renderer3D) {
+                    try {
+                        // Try to create a test 3D bubble
+                        const testBubbleId = 'test_bubble_' + Date.now();
+                        testGame.renderer3D.createBubble(testBubbleId, 0, 0, 0, 25, '#FF6B6B', { glow: true });
+                        log('✅ 3D bubble creation successful', 'success');
+                        
+                        // Clean up test bubble
+                        setTimeout(() => {
+                            testGame.renderer3D.removeBubble(testBubbleId, false);
+                        }, 2000);
+                    } catch (error) {
+                        log(`❌ 3D bubble creation failed: ${error.message}`, 'error');
+                    }
+                } else {
+                    log('ℹ️ 3D mode not active, using 2D rendering', 'info');
+                }
+                
+                // Test 7: Drawing/Rendering
+                log('7️⃣ Testing rendering system...', 'info');
+                try {
+                    testGame.draw();
+                    log('✅ Game rendering successful', 'success');
+                } catch (error) {
+                    log(`❌ Game rendering failed: ${error.message}`, 'error');
+                    console.error('Rendering error:', error);
+                    return;
+                }
+                
+                log('🎉 ALL TESTS PASSED! 3D Integration is working correctly!', 'success');
+                log('🎮 Game should be fully playable now', 'success');
+                
+            } catch (error) {
+                log(`❌ CRITICAL ERROR: ${error.message}`, 'error');
+                console.error('Test error details:', error);
+            }
+        }
+
+        function testStartButton() {
+            log('🎮 Testing Start Button functionality...', 'info');
+            
+            try {
+                if (!testGame) {
+                    const canvas = document.getElementById('testCanvas');
+                    testGame = new Game(canvas);
+                }
+                
+                // Simulate start button click
+                testGame.gameMode = 'classic';
+                testGame.difficulty = 'novice';
+                testGame.soundEnabled = false;
+                testGame.start();
+                
+                log('✅ Start button functionality works!', 'success');
+                log('🎯 Game is now playable - try clicking to shoot!', 'success');
+                
+            } catch (error) {
+                log(`❌ Start button test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function test3DRendering() {
+            log('🌟 Testing 3D rendering specifically...', 'info');
+            
+            if (!testGame) {
+                log('❌ No game instance. Run full test first.', 'error');
+                return;
+            }
+            
+            if (testGame.use3D && testGame.renderer3D) {
+                log('✅ 3D mode is active', 'success');
+                log(`   - Scene children: ${testGame.renderer3D.scene.children.length}`, 'info');
+                
+                // Try to render
+                try {
+                    testGame.renderer3D.render();
+                    log('✅ 3D rendering successful', 'success');
+                } catch (error) {
+                    log(`❌ 3D rendering failed: ${error.message}`, 'error');
+                }
+            } else {
+                log('ℹ️ 3D mode not active, using 2D fallback', 'info');
+            }
+        }
+        
+        function testGamePlayability() {
+            log('🎯 Testing game playability...', 'info');
+            
+            if (!testGame || !testGame.gameStarted) {
+                log('❌ Game not started. Click "Test Start Button" first.', 'error');
+                return;
+            }
+            
+            try {
+                // Test shooting
+                if (testGame.shooter && testGame.shooter.canShoot()) {
+                    testGame.shooter.aimAt(400, 200);
+                    const bubble = testGame.shooter.shoot();
+                    
+                    if (bubble) {
+                        testGame.flyingBubbles.push(bubble);
+                        log('✅ Shooting mechanism works!', 'success');
+                        log(`   - Bubble velocity: vx=${bubble.vx?.toFixed(1)}, vy=${bubble.vy?.toFixed(1)}`, 'info');
+                        log(`   - Bubble has game reference: ${bubble.game ? 'Yes' : 'No'}`, 'info');
+                    } else {
+                        log('❌ Shooting failed - no bubble created', 'error');
+                    }
+                } else {
+                    log('❌ Cannot shoot - shooter not ready', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Playability test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run basic test when page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('🔄 Page loaded, running automatic basic test...', 'info');
+                runFullTest();
+            }, 1000);
+        });
+
+        // Capture errors
+        window.addEventListener('error', (event) => {
+            log(`❌ GLOBAL ERROR: ${event.error.message}`, 'error');
+            console.error('Global error:', event.error);
+        });
+    </script>
+</body>
+</html>

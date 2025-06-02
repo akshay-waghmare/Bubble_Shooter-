@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flying Bubble Diagnostics</title>
+    <style>
+        body { 
+            margin: 0; 
+            font-family: 'Courier New', monospace; 
+            background: #0a0a0a; 
+            color: #00ff00;
+            padding: 20px;
+        }
+        canvas { 
+            border: 2px solid #00ff00; 
+            background: linear-gradient(180deg, #001122 0%, #003366 100%);
+            display: block;
+            margin: 20px auto;
+        }
+        .diagnostics {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #111;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        .panel {
+            margin: 15px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            border-left: 4px solid #00ff00;
+        }
+        .bubble-data {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 12px;
+            background: #222;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid #444;
+        }
+        .flying { border-color: #00ff00; background: #003300; }
+        .stuck { border-color: #ff0000; background: #330000; }
+        .animating { border-color: #ffff00; background: #333300; }
+        .descending { border-color: #0088ff; background: #001133; }
+        .critical { color: #ff4444; font-weight: bold; }
+        .warning { color: #ffaa00; }
+        .success { color: #44ff44; }
+        .info { color: #44aaff; }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #003366;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #004488; }
+        .log-entry {
+            margin: 2px 0;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .log-entry.frame { background: #1a1a2e; color: #cccccc; }
+        .log-entry.collision { background: #2e1a1a; color: #ffcccc; }
+        .log-entry.movement { background: #1a2e1a; color: #ccffcc; }
+        .log-entry.stuck { background: #2e2e1a; color: #ffffcc; }
+        #diagnosticLog {
+            height: 300px;
+            overflow-y: auto;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="diagnostics">
+        <h1>🔬 Flying Bubble Diagnostics System</h1>
+        
+        <div class="panel">
+            <h3>🎮 Test Controls</h3>
+            <button onclick="startDiagnostics()">Start Diagnostics</button>
+            <button onclick="triggerDescent()">Trigger Descent</button>
+            <button onclick="shootTestBubble()">Shoot Test Bubble</button>
+            <button onclick="pauseDiagnostics()">Pause/Resume</button>
+            <button onclick="clearDiagnosticLog()">Clear Log</button>
+        </div>
+        
+        <div class="panel">
+            <h3>📊 Real-time Bubble Status</h3>
+            <div id="bubbleStatus">No data</div>
+        </div>
+        
+        <div class="panel">
+            <h3>🔍 Detailed Diagnostics</h3>
+            <div id="diagnosticLog"></div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        let diagnosticGame = null;
+        let diagnosticsRunning = false;
+        let diagnosticInterval = null;
+        let frameCounter = 0;
+        let lastFrameTime = 0;
+        
+        function logDiagnostic(message, type = 'info') {
+            const logDiv = document.getElementById('diagnosticLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const frame = frameCounter;
+            const className = `log-entry ${type}`;
+            logDiv.innerHTML += `<div class="${className}">[F${frame}:${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearDiagnosticLog() {
+            document.getElementById('diagnosticLog').innerHTML = '';
+            frameCounter = 0;
+        }
+        
+        function updateBubbleStatus() {
+            if (!diagnosticGame) return;
+            
+            const statusDiv = document.getElementById('bubbleStatus');
+            let statusHTML = '<h4>Flying Bubbles:</h4>';
+            
+            // Detailed flying bubble analysis
+            diagnosticGame.flyingBubbles.forEach((bubble, i) => {
+                const velocity = Math.sqrt((bubble.vx || 0) ** 2 + (bubble.vy || 0) ** 2);
+                const isMoving = velocity > 0.01;
+                const className = bubble.stuck ? 'stuck' : isMoving ? 'flying' : 'critical';
+                
+                statusHTML += `<div class="bubble-data ${className}">
+                    B${i}: (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)}) 
+                    V:(${(bubble.vx || 0).toFixed(2)}, ${(bubble.vy || 0).toFixed(2)}) 
+                    Speed:${velocity.toFixed(2)}
+                    ${bubble.stuck ? ' STUCK' : ''}
+                    ${!isMoving && !bubble.stuck ? ' ZERO-VEL' : ''}
+                </div>`;
+                
+                // Log critical conditions
+                if (!bubble.stuck && velocity < 0.01) {
+                    logDiagnostic(`⚠️ Flying bubble ${i} has zero velocity at (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)})`, 'stuck');
+                }
+            });
+            
+            // Grid bubble animation status
+            let descendingCount = 0;
+            let animatingCount = 0;
+            let fadingCount = 0;
+            
+            for (let row = 0; row < diagnosticGame.gridBubbles.length; row++) {
+                for (let col = 0; col < diagnosticGame.gridBubbles[row].length; col++) {
+                    const bubble = diagnosticGame.gridBubbles[row][col];
+                    if (bubble) {
+                        if (bubble.isDescending) descendingCount++;
+                        if (bubble.isAnimating) animatingCount++;
+                        if (bubble.isFadingIn) fadingCount++;
+                    }
+                }
+            }
+            
+            statusHTML += `<h4>Grid Animations:</h4>`;
+            statusHTML += `<div class="bubble-data descending">Descending: ${descendingCount}</div>`;
+            statusHTML += `<div class="bubble-data animating">Animating: ${animatingCount}</div>`;
+            statusHTML += `<div class="bubble-data">Fading: ${fadingCount}</div>`;
+            
+            statusDiv.innerHTML = statusHTML;
+        }
+        
+        function diagnoseCollisionSystem() {
+            if (!diagnosticGame || diagnosticGame.flyingBubbles.length === 0) return;
+            
+            // For each flying bubble, check what would happen in collision detection
+            diagnosticGame.flyingBubbles.forEach((bubble, bubbleIndex) => {
+                let nearbyBubbles = [];
+                let collisionCandidates = [];
+                
+                // Replicate the collision detection logic from the game
+                const effectiveRows = diagnosticGame.gridBubbles.length;
+                
+                for (let row = 0; row < effectiveRows; row++) {
+                    for (let col = 0; col < GRID_COLS; col++) {
+                        if (diagnosticGame.gridBubbles[row] && diagnosticGame.gridBubbles[row][col]) {
+                            const gridBubble = diagnosticGame.gridBubbles[row][col];
+                            
+                            // Calculate distance to flying bubble
+                            let checkX = gridBubble.x;
+                            let checkY = gridBubble.y;
+                            
+                            // Use animation-aware position
+                            if (gridBubble.isDescending && gridBubble.descentStartTime) {
+                                const currentTime = Date.now();
+                                const elapsed = currentTime - gridBubble.descentStartTime;
+                                const progress = Math.min(elapsed / gridBubble.descentDuration, 1);
+                                
+                                checkX = gridBubble.startX + (gridBubble.targetX - gridBubble.startX) * progress;
+                                checkY = gridBubble.startY + (gridBubble.targetY - gridBubble.startY) * progress;
+                            }
+                            
+                            const distance = Math.sqrt(
+                                (bubble.x - checkX) ** 2 + 
+                                (bubble.y - checkY) ** 2
+                            );
+                            
+                            if (distance < 100) { // Within range
+                                nearbyBubbles.push({
+                                    row, col, distance: distance.toFixed(1),
+                                    isAnimating: gridBubble.isAnimating,
+                                    isDescending: gridBubble.isDescending,
+                                    isFadingIn: gridBubble.isFadingIn
+                                });
+                                
+                                if (distance < BUBBLE_RADIUS * 1.9) { // Collision threshold
+                                    collisionCandidates.push({
+                                        row, col, distance: distance.toFixed(1)
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (nearbyBubbles.length > 0) {
+                    logDiagnostic(`Bubble ${bubbleIndex} near ${nearbyBubbles.length} grid bubbles, ${collisionCandidates.length} collision candidates`, 'collision');
+                }
+                
+                if (collisionCandidates.length > 0) {
+                    logDiagnostic(`⚡ Bubble ${bubbleIndex} should collide with: ${collisionCandidates.map(c => `(${c.row},${c.col}):${c.distance}`).join(', ')}`, 'collision');
+                }
+            });
+        }
+        
+        function runDiagnosticFrame() {
+            if (!diagnosticsRunning || !diagnosticGame) return;
+            
+            frameCounter++;
+            const currentTime = performance.now();
+            const deltaTime = currentTime - lastFrameTime;
+            lastFrameTime = currentTime;
+            
+            // Log frame info
+            if (frameCounter % 60 === 0) { // Every second
+                logDiagnostic(`Frame ${frameCounter}, Delta: ${deltaTime.toFixed(2)}ms, Flying: ${diagnosticGame.flyingBubbles.length}`, 'frame');
+            }
+            
+            // Track flying bubble movement
+            diagnosticGame.flyingBubbles.forEach((bubble, i) => {
+                const oldPos = { x: bubble.x, y: bubble.y };
+                const oldVel = { vx: bubble.vx || 0, vy: bubble.vy || 0 };
+                
+                // Update the game (this will move bubbles)
+                // Note: We're calling bubble.update() directly to track individual bubble behavior
+                bubble.update();
+                
+                const newPos = { x: bubble.x, y: bubble.y };
+                const newVel = { vx: bubble.vx || 0, vy: bubble.vy || 0 };
+                
+                // Check for movement
+                const moved = Math.abs(newPos.x - oldPos.x) > 0.01 || Math.abs(newPos.y - oldPos.y) > 0.01;
+                const velChanged = Math.abs(newVel.vx - oldVel.vx) > 0.01 || Math.abs(newVel.vy - oldVel.vy) > 0.01;
+                
+                if (!moved && (Math.abs(newVel.vx) > 0.01 || Math.abs(newVel.vy) > 0.01)) {
+                    logDiagnostic(`🚨 CRITICAL: Bubble ${i} has velocity but didn't move! Vel:(${newVel.vx.toFixed(3)}, ${newVel.vy.toFixed(3)})`, 'stuck');
+                }
+                
+                if (velChanged) {
+                    logDiagnostic(`Bubble ${i} velocity changed: (${oldVel.vx.toFixed(2)}, ${oldVel.vy.toFixed(2)}) → (${newVel.vx.toFixed(2)}, ${newVel.vy.toFixed(2)})`, 'movement');
+                }
+            });
+            
+            // Run collision diagnostics every few frames
+            if (frameCounter % 10 === 0) {
+                diagnoseCollisionSystem();
+            }
+            
+            // Update game normally for other systems
+            diagnosticGame.update();
+            diagnosticGame.draw();
+            updateBubbleStatus();
+        }
+        
+        function startDiagnostics() {
+            clearDiagnosticLog();
+            logDiagnostic('🚀 Starting comprehensive bubble diagnostics...', 'info');
+            
+            const canvas = document.getElementById('gameCanvas');
+            diagnosticGame = new Game(canvas);
+            diagnosticGame.initGame();
+            diagnosticGame.startGame();
+            
+            // Create a simple test grid
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1'];
+            for (let row = 0; row < 2; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const x = diagnosticGame.getColPosition(row, col);
+                    const y = diagnosticGame.getRowPosition(row);
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    const bubble = new Bubble(x, y, color, row, col);
+                    bubble.game = diagnosticGame;
+                    bubble.stuck = true;
+                    diagnosticGame.gridBubbles[row][col] = bubble;
+                }
+            }
+            
+            diagnosticsRunning = true;
+            lastFrameTime = performance.now();
+            
+            // Start diagnostic loop
+            diagnosticInterval = setInterval(runDiagnosticFrame, 16); // ~60 FPS
+            
+            logDiagnostic('✅ Diagnostics started. Test grid created.', 'success');
+        }
+        
+        function pauseDiagnostics() {
+            if (diagnosticsRunning) {
+                diagnosticsRunning = false;
+                clearInterval(diagnosticInterval);
+                logDiagnostic('⏸️ Diagnostics paused', 'warning');
+            } else {
+                diagnosticsRunning = true;
+                diagnosticInterval = setInterval(runDiagnosticFrame, 16);
+                logDiagnostic('▶️ Diagnostics resumed', 'success');
+            }
+        }
+        
+        function triggerDescent() {
+            if (!diagnosticGame) return;
+            logDiagnostic('🔽 Triggering descent animation...', 'info');
+            diagnosticGame.addNewRow();
+        }
+        
+        function shootTestBubble() {
+            if (!diagnosticGame) return;
+            
+            logDiagnostic('🎯 Shooting test bubble...', 'info');
+            
+            // Set angle for predictable behavior
+            diagnosticGame.shooter.angle = -Math.PI / 2; // Straight up
+            const bubble = diagnosticGame.shooter.shoot();
+            
+            if (bubble) {
+                diagnosticGame.flyingBubbles.push(bubble);
+                logDiagnostic(`✅ Bubble shot: velocity (${bubble.vx.toFixed(2)}, ${bubble.vy.toFixed(2)}), stuck: ${bubble.stuck}`, 'success');
+            } else {
+                logDiagnostic('❌ Failed to shoot bubble', 'critical');
+            }
+        }
+        
+        // Auto-start after page load
+        window.addEventListener('load', () => {
+            setTimeout(startDiagnostics, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Integration Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/shaders/FXAAShader.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+        .test-section {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .success { color: #00FF88; }
+        .error { color: #FF6B6B; }
+        .info { color: #4ECDC4; }
+        .warning { color: #FECA57; }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45B7D1;
+        }
+        #output {
+            background: #0f0f23;
+            padding: 10px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>3D Integration Test</h1>
+    <p>Testing the 3D integration functionality for the Bubble Shooter game</p>
+    
+    <div class="controls">
+        <button onclick="testGameInitialization()">Test Game Initialization</button>
+        <button onclick="test3DRendererSetup()">Test 3D Renderer Setup</button>
+        <button onclick="testShooter3DBubbles()">Test Shooter 3D Bubbles</button>
+        <button onclick="testCleanup3DMethod()">Test cleanup3D Method</button>
+        <button onclick="testModeToggling()">Test 2D/3D Mode Toggle</button>
+        <button onclick="testFullGameplay()">Test Full Gameplay</button>
+        <button onclick="clearOutput()">Clear Output</button>
+    </div>
+    
+    <canvas id="testCanvas" width="400" height="600" style="display: none;"></canvas>
+    
+    <div id="output"></div>
+    
+    <script>
+        // Capture console output
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span><br>`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            log(args.join(' '), 'info');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            log('⚠️ ' + args.join(' '), 'warning');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            log('❌ ' + args.join(' '), 'error');
+        };
+        
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+        
+        let testGame = null;
+        
+        function testGameInitialization() {
+            log('=== Testing Game Initialization with 3D Support ===', 'info');
+            
+            try {
+                const canvas = document.getElementById('testCanvas');
+                
+                // Test Three.js availability
+                if (typeof THREE === 'undefined') {
+                    log('❌ Three.js not available', 'error');
+                    return;
+                } else {
+                    log('✅ Three.js loaded successfully', 'success');
+                }
+                
+                // Create game instance
+                testGame = new Game(canvas);
+                testGame.gameMode = 'classic';
+                testGame.difficulty = 'novice';
+                testGame.soundEnabled = false;
+                
+                log('✅ Game instance created', 'success');
+                
+                // Check 3D mode setting
+                if (testGame.use3D) {
+                    log('✅ Game initialized in 3D mode', 'success');
+                } else {
+                    log('⚠️ Game fell back to 2D mode', 'warning');
+                }
+                
+                // Check 3D renderer
+                if (testGame.renderer3D) {
+                    log('✅ 3D renderer initialized', 'success');
+                } else {
+                    log('❌ 3D renderer not initialized', 'error');
+                }
+                
+                // Check trail renderer
+                if (testGame.trailRenderer) {
+                    log('✅ Trail renderer initialized', 'success');
+                } else {
+                    log('❌ Trail renderer not initialized', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Game initialization failed: ${error.message}`, 'error');
+                console.error('Game initialization error:', error);
+            }
+        }
+        
+        function test3DRendererSetup() {
+            log('=== Testing 3D Renderer Setup ===', 'info');
+            
+            if (!testGame) {
+                log('❌ No test game instance. Run Game Initialization first.', 'error');
+                return;
+            }
+            
+            try {
+                if (testGame.renderer3D) {
+                    // Test basic renderer properties
+                    if (testGame.renderer3D.scene) {
+                        log('✅ 3D scene created', 'success');
+                    } else {
+                        log('❌ 3D scene missing', 'error');
+                    }
+                    
+                    if (testGame.renderer3D.camera) {
+                        log('✅ 3D camera created', 'success');
+                    } else {
+                        log('❌ 3D camera missing', 'error');
+                    }
+                    
+                    if (testGame.renderer3D.renderer) {
+                        log('✅ WebGL renderer created', 'success');
+                    } else {
+                        log('❌ WebGL renderer missing', 'error');
+                    }
+                    
+                    // Test if render method exists
+                    if (typeof testGame.renderer3D.render === 'function') {
+                        log('✅ Render method available', 'success');
+                    } else {
+                        log('❌ Render method missing', 'error');
+                    }
+                    
+                    // Test if bubble management methods exist
+                    if (typeof testGame.renderer3D.createBubble === 'function') {
+                        log('✅ createBubble method available', 'success');
+                    } else {
+                        log('❌ createBubble method missing', 'error');
+                    }
+                    
+                    if (typeof testGame.renderer3D.removeBubble === 'function') {
+                        log('✅ removeBubble method available', 'success');
+                    } else {
+                        log('❌ removeBubble method missing', 'error');
+                    }
+                    
+                } else {
+                    log('❌ No 3D renderer to test', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ 3D renderer test failed: ${error.message}`, 'error');
+                console.error('3D renderer test error:', error);
+            }
+        }
+        
+        function testShooter3DBubbles() {
+            log('=== Testing Shooter 3D Bubble Representations ===', 'info');
+            
+            if (!testGame || !testGame.shooter) {
+                log('❌ No test game or shooter. Run Game Initialization first.', 'error');
+                return;
+            }
+            
+            try {
+                const shooter = testGame.shooter;
+                
+                // Test initial state
+                log(`Current bubble color: ${shooter.currentColor}`, 'info');
+                log(`Next bubble color: ${shooter.nextColor}`, 'info');
+                
+                // Force a draw call to create 3D representations
+                const mockCtx = {
+                    save: () => {},
+                    restore: () => {},
+                    translate: () => {},
+                    beginPath: () => {},
+                    arc: () => {},
+                    fill: () => {},
+                    stroke: () => {},
+                    fillStyle: '',
+                    strokeStyle: '',
+                    lineWidth: 0,
+                    setLineDash: () => {},
+                    moveTo: () => {},
+                    lineTo: () => {},
+                    font: '',
+                    fillText: () => {}
+                };
+                
+                shooter.draw(mockCtx);
+                
+                // Check if 3D representations were created
+                if (shooter.currentBubble3D) {
+                    log('✅ Current bubble 3D representation created', 'success');
+                    log(`   ID: ${shooter.currentBubble3D}`, 'info');
+                } else {
+                    log('❌ Current bubble 3D representation not created', 'error');
+                }
+                
+                if (shooter.nextBubble3D) {
+                    log('✅ Next bubble 3D representation created', 'success');
+                    log(`   ID: ${shooter.nextBubble3D}`, 'info');
+                } else {
+                    log('❌ Next bubble 3D representation not created', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Shooter 3D bubble test failed: ${error.message}`, 'error');
+                console.error('Shooter 3D bubble test error:', error);
+            }
+        }
+        
+        function testCleanup3DMethod() {
+            log('=== Testing cleanup3D Method ===', 'info');
+            
+            if (!testGame || !testGame.shooter) {
+                log('❌ No test game or shooter. Run previous tests first.', 'error');
+                return;
+            }
+            
+            try {
+                const shooter = testGame.shooter;
+                
+                // Check if cleanup3D method exists
+                if (typeof shooter.cleanup3D === 'function') {
+                    log('✅ cleanup3D method exists', 'success');
+                } else {
+                    log('❌ cleanup3D method missing', 'error');
+                    return;
+                }
+                
+                // Store initial 3D bubble IDs
+                const initialCurrentBubble3D = shooter.currentBubble3D;
+                const initialNextBubble3D = shooter.nextBubble3D;
+                
+                log(`Before cleanup - Current: ${initialCurrentBubble3D}, Next: ${initialNextBubble3D}`, 'info');
+                
+                // Call cleanup3D
+                shooter.cleanup3D();
+                
+                // Check if 3D representations were cleaned up
+                if (shooter.currentBubble3D === null) {
+                    log('✅ Current bubble 3D representation cleaned up', 'success');
+                } else {
+                    log('❌ Current bubble 3D representation not cleaned up', 'error');
+                }
+                
+                if (shooter.nextBubble3D === null) {
+                    log('✅ Next bubble 3D representation cleaned up', 'success');
+                } else {
+                    log('❌ Next bubble 3D representation not cleaned up', 'error');
+                }
+                
+                log(`After cleanup - Current: ${shooter.currentBubble3D}, Next: ${shooter.nextBubble3D}`, 'info');
+                
+                // Test cleanup3D when no 3D representations exist (should not error)
+                shooter.cleanup3D();
+                log('✅ cleanup3D handles null representations gracefully', 'success');
+                
+            } catch (error) {
+                log(`❌ cleanup3D test failed: ${error.message}`, 'error');
+                console.error('cleanup3D test error:', error);
+            }
+        }
+        
+        function testModeToggling() {
+            log('=== Testing 2D/3D Mode Toggling ===', 'info');
+            
+            if (!testGame) {
+                log('❌ No test game. Run Game Initialization first.', 'error');
+                return;
+            }
+            
+            try {
+                // Store original mode
+                const originalUse3D = testGame.use3D;
+                const originalRenderer3D = testGame.renderer3D;
+                
+                log(`Original mode: ${originalUse3D ? '3D' : '2D'}`, 'info');
+                
+                // Test switching to 2D mode
+                testGame.use3D = false;
+                testGame.renderer3D = null;
+                
+                // Test draw method in 2D mode
+                testGame.draw();
+                log('✅ 2D rendering mode works', 'success');
+                
+                // Restore 3D mode
+                testGame.use3D = originalUse3D;
+                testGame.renderer3D = originalRenderer3D;
+                
+                if (testGame.use3D && testGame.renderer3D) {
+                    // Test draw method in 3D mode
+                    testGame.draw();
+                    log('✅ 3D rendering mode works', 'success');
+                } else {
+                    log('⚠️ Cannot test 3D mode (not available)', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ Mode toggling test failed: ${error.message}`, 'error');
+                console.error('Mode toggling test error:', error);
+            }
+        }
+        
+        function testFullGameplay() {
+            log('=== Testing Full Gameplay with 3D Integration ===', 'info');
+            
+            if (!testGame) {
+                log('❌ No test game. Run Game Initialization first.', 'error');
+                return;
+            }
+            
+            try {
+                // Start the game
+                testGame.start();
+                log('✅ Game started successfully', 'success');
+                
+                // Test shooting functionality
+                if (testGame.shooter && testGame.shooter.canShoot()) {
+                    // Aim at a target
+                    testGame.shooter.aimAt(200, 300);
+                    
+                    // Store pre-shoot state
+                    const preShootCurrentBubble3D = testGame.shooter.currentBubble3D;
+                    const preShootNextBubble3D = testGame.shooter.nextBubble3D;
+                    
+                    log(`Pre-shoot 3D bubbles - Current: ${preShootCurrentBubble3D}, Next: ${preShootNextBubble3D}`, 'info');
+                    
+                    // Shoot a bubble
+                    const shotBubble = testGame.shooter.shoot();
+                    
+                    if (shotBubble) {
+                        log('✅ Bubble shot successfully', 'success');
+                        
+                        // Check if shot bubble has 3D representation
+                        if (shotBubble.bubbleId) {
+                            log('✅ Shot bubble has unique ID for 3D tracking', 'success');
+                        }
+                        
+                        // Check if shooter's 3D representations updated
+                        const postShootCurrentBubble3D = testGame.shooter.currentBubble3D;
+                        const postShootNextBubble3D = testGame.shooter.nextBubble3D;
+                        
+                        log(`Post-shoot 3D bubbles - Current: ${postShootCurrentBubble3D}, Next: ${postShootNextBubble3D}`, 'info');
+                        
+                        // The current bubble 3D should be removed after shooting
+                        if (preShootCurrentBubble3D && !postShootCurrentBubble3D) {
+                            log('✅ Current bubble 3D representation properly removed after shooting', 'success');
+                        } else {
+                            log('⚠️ Current bubble 3D representation handling may need attention', 'warning');
+                        }
+                        
+                        // Test game loop for a few frames
+                        for (let i = 0; i < 5; i++) {
+                            testGame.update();
+                            testGame.draw();
+                        }
+                        
+                        log('✅ Game loop with 3D integration running successfully', 'success');
+                        
+                    } else {
+                        log('❌ Failed to shoot bubble', 'error');
+                    }
+                } else {
+                    log('❌ Shooter cannot shoot or is missing', 'error');
+                }
+                
+                // Test cleanup during game reset
+                if (typeof testGame.restart === 'function') {
+                    testGame.restart();
+                    log('✅ Game restart works with 3D integration', 'success');
+                }
+                
+            } catch (error) {
+                log(`❌ Full gameplay test failed: ${error.message}`, 'error');
+                console.error('Full gameplay test error:', error);
+            }
+        }
+        
+        // Auto-start basic test
+        window.addEventListener('load', () => {
+            log('3D Integration Test Environment Ready', 'info');
+            log('Click buttons above to run individual tests', 'info');
+        });
+    </script>
+    
+    <script src="bubbleRenderer3D.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

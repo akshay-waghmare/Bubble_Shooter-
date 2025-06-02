@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isolated Start Button Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a2e;
+            color: white;
+            line-height: 1.6;
+        }
+        .status {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success { background: #4ecdc4; color: white; }
+        .error { background: #ff6b6b; color: white; }
+        .info { background: #45b7d1; color: white; }
+        .warning { background: #feca57; color: black; }
+        button {
+            background: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 18px;
+        }
+        button:hover { background: #45B7B8; }
+        #gameCanvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Isolated Start Button Diagnostic</h1>
+    <p>This test recreates the exact structure from index.html to isolate the start button issue.</p>
+    
+    <!-- EXACT COPY of the essential elements from index.html -->
+    <div class="game-menu" id="gameMenu">
+        <h2>Game Mode</h2>
+        <div class="button-group">
+            <button class="game-button active" data-mode="classic">Classic Mode</button>
+        </div>
+        <h2>Difficulty</h2>
+        <div class="button-group">
+            <button class="game-button active" data-difficulty="novice">Novice</button>
+        </div>
+        <button id="startGame" class="start-button">Start Game</button>
+    </div>
+    
+    <div class="game-screen" id="gameScreen" style="display: none;">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="game-controls">
+            <button id="backToMenu" class="control-button">Menu</button>
+            <button id="toggleSound" class="control-button">Sound: On</button>
+        </div>
+    </div>
+    
+    <div id="statusLog"></div>
+    
+    <!-- Load EXACT same libraries as index.html -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+    
+    <script>
+        let logCount = 0;
+        function logStatus(message, type = 'info') {
+            const log = document.getElementById('statusLog');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = `${++logCount}. ${new Date().toLocaleTimeString()}: ${message}`;
+            log.appendChild(div);
+            console.log(message);
+        }
+
+        // Step 1: Basic element detection
+        document.addEventListener('DOMContentLoaded', () => {
+            logStatus('DOM Content Loaded', 'info');
+            
+            const elements = {
+                startGame: document.getElementById('startGame'),
+                gameMenu: document.getElementById('gameMenu'),
+                gameScreen: document.getElementById('gameScreen'),
+                gameCanvas: document.getElementById('gameCanvas')
+            };
+            
+            let allElementsFound = true;
+            for (const [name, element] of Object.entries(elements)) {
+                if (element) {
+                    logStatus(`✅ Found ${name} element`, 'success');
+                } else {
+                    logStatus(`❌ Missing ${name} element`, 'error');
+                    allElementsFound = false;
+                }
+            }
+            
+            if (!allElementsFound) {
+                logStatus('❌ Critical elements missing - cannot proceed', 'error');
+                return;
+            }
+            
+            // Step 2: Check library loading
+            if (typeof THREE !== 'undefined') {
+                logStatus('✅ Three.js loaded successfully', 'success');
+            } else {
+                logStatus('❌ Three.js not loaded', 'error');
+            }
+            
+            if (typeof Matter !== 'undefined') {
+                logStatus('✅ Matter.js loaded successfully', 'success');
+            } else {
+                logStatus('❌ Matter.js not loaded', 'error');
+            }
+            
+            // Step 3: Attach simple click handler first
+            const startBtn = elements.startGame;
+            startBtn.addEventListener('click', handleStartButtonClick);
+            logStatus('✅ Simple click handler attached to start button', 'success');
+        });
+
+        function handleStartButtonClick() {
+            logStatus('🎯 START BUTTON CLICKED! This proves the button is working.', 'success');
+            
+            const gameMenu = document.getElementById('gameMenu');
+            const gameScreen = document.getElementById('gameScreen');
+            
+            try {
+                // Hide menu, show game screen
+                gameMenu.style.display = 'none';
+                gameScreen.style.display = 'block';
+                logStatus('✅ Successfully switched to game screen', 'success');
+                
+                // Now test loading the game script
+                loadGameScript();
+                
+            } catch (error) {
+                logStatus(`❌ Error in click handler: ${error.message}`, 'error');
+            }
+        }
+
+        function loadGameScript() {
+            logStatus('📦 Loading game script...', 'info');
+            
+            // Load dependencies first
+            loadScript('bubbleRenderer3D.js')
+                .then(() => {
+                    logStatus('✅ bubbleRenderer3D.js loaded', 'success');
+                    return loadScript('bubbleTrailRenderer.js');
+                })
+                .then(() => {
+                    logStatus('✅ bubbleTrailRenderer.js loaded', 'success');
+                    return loadScript('bubbleRenderer.js');
+                })
+                .then(() => {
+                    logStatus('✅ bubbleRenderer.js loaded', 'success');
+                    return loadScript('game.js');
+                })
+                .then(() => {
+                    logStatus('✅ game.js loaded - testing Game class', 'success');
+                    testGameClass();
+                })
+                .catch(error => {
+                    logStatus(`❌ Script loading failed: ${error.message}`, 'error');
+                });
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`Failed to load ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        function testGameClass() {
+            try {
+                if (typeof Game === 'undefined') {
+                    logStatus('❌ Game class not available after loading game.js', 'error');
+                    return;
+                }
+                
+                logStatus('🎮 Creating Game instance...', 'info');
+                
+                const canvas = document.getElementById('gameCanvas');
+                const game = new Game(canvas);
+                
+                logStatus('✅ Game instance created successfully!', 'success');
+                
+                // Set up game
+                game.gameMode = 'classic';
+                game.difficulty = 'novice';
+                game.soundEnabled = true;
+                
+                logStatus('✅ Game configured', 'success');
+                
+                // Start the game
+                game.start();
+                
+                logStatus('🚀 GAME STARTED SUCCESSFULLY! The issue was in the original setup.', 'success');
+                
+            } catch (error) {
+                logStatus(`❌ Game creation failed: ${error.message}`, 'error');
+                logStatus(`Full error: ${error.stack}`, 'error');
+            }
+        }
+
+        // Add back to menu functionality
+        window.addEventListener('load', () => {
+            const backBtn = document.getElementById('backToMenu');
+            if (backBtn) {
+                backBtn.addEventListener('click', () => {
+                    document.getElementById('gameScreen').style.display = 'none';
+                    document.getElementById('gameMenu').style.display = 'block';
+                    logStatus('↩️ Returned to menu', 'info');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

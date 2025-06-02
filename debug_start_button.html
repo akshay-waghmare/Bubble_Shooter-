@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Start Button</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a2e;
+            color: white;
+        }
+        .debug-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 5px;
+            background: #16213e;
+        }
+        button {
+            background: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .error { color: #ff6b6b; }
+        .success { color: #4ecdc4; }
+        .warning { color: #feca57; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Start Button Debug</h1>
+    
+    <div class="debug-section">
+        <h3>Step 1: Test Element Selection</h3>
+        <div id="elementTest"></div>
+        <button onclick="testElementSelection()">Test Element Selection</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Step 2: Test Script Loading</h3>
+        <div id="scriptTest"></div>
+        <button onclick="testScriptLoading()">Test Script Loading</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Step 3: Test Game Class</h3>
+        <div id="gameTest"></div>
+        <button onclick="testGameClass()">Test Game Class</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Step 4: Test Start Button Handler</h3>
+        <div id="handlerTest"></div>
+        <button onclick="testStartHandler()">Test Start Handler</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Original Game Elements</h3>
+        <div id="originalTest"></div>
+        <button onclick="testOriginalElements()">Test Original Game Elements</button>
+    </div>
+
+    <script>
+        function log(sectionId, message, type = 'info') {
+            const section = document.getElementById(sectionId);
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            section.appendChild(div);
+        }
+
+        function clearLog(sectionId) {
+            document.getElementById(sectionId).innerHTML = '';
+        }
+
+        function testElementSelection() {
+            clearLog('elementTest');
+            
+            // Test if we can find the original index.html elements
+            const elements = {
+                'startGame': document.getElementById('startGame'),
+                'gameMenu': document.getElementById('gameMenu'),
+                'gameScreen': document.getElementById('gameScreen'),
+                'gameCanvas': document.getElementById('gameCanvas')
+            };
+            
+            for (const [name, element] of Object.entries(elements)) {
+                if (element) {
+                    log('elementTest', `✅ Found element: ${name}`, 'success');
+                } else {
+                    log('elementTest', `❌ Missing element: ${name}`, 'error');
+                }
+            }
+        }
+
+        function testScriptLoading() {
+            clearLog('scriptTest');
+            
+            // Check if our scripts are loaded
+            const checks = [
+                { name: 'Three.js', test: () => typeof THREE !== 'undefined' },
+                { name: 'Matter.js', test: () => typeof Matter !== 'undefined' },
+                { name: 'Game class', test: () => typeof Game !== 'undefined' },
+                { name: 'Bubble class', test: () => typeof Bubble !== 'undefined' },
+                { name: 'Shooter class', test: () => typeof Shooter !== 'undefined' }
+            ];
+            
+            checks.forEach(check => {
+                try {
+                    if (check.test()) {
+                        log('scriptTest', `✅ ${check.name} loaded`, 'success');
+                    } else {
+                        log('scriptTest', `❌ ${check.name} not loaded`, 'error');
+                    }
+                } catch (error) {
+                    log('scriptTest', `❌ ${check.name} error: ${error.message}`, 'error');
+                }
+            });
+        }
+
+        function testGameClass() {
+            clearLog('gameTest');
+            
+            try {
+                // Create a test canvas
+                const canvas = document.createElement('canvas');
+                canvas.width = 400;
+                canvas.height = 600;
+                
+                log('gameTest', '🔨 Creating test game instance...', 'info');
+                const game = new Game(canvas);
+                
+                log('gameTest', '✅ Game instance created successfully', 'success');
+                log('gameTest', `Game properties: use3D=${game.use3D}, gameStarted=${game.gameStarted}`, 'info');
+                
+                // Test start method
+                if (typeof game.start === 'function') {
+                    log('gameTest', '✅ Game.start() method exists', 'success');
+                } else {
+                    log('gameTest', '❌ Game.start() method missing', 'error');
+                }
+                
+            } catch (error) {
+                log('gameTest', `❌ Game class error: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+
+        function testStartHandler() {
+            clearLog('handlerTest');
+            
+            // Test the start button click handler logic
+            const canvas = document.getElementById('gameCanvas');
+            if (!canvas) {
+                log('handlerTest', '❌ No canvas found - creating test canvas', 'warning');
+                const testCanvas = document.createElement('canvas');
+                testCanvas.id = 'gameCanvas';
+                testCanvas.width = 400;
+                testCanvas.height = 600;
+                document.body.appendChild(testCanvas);
+            }
+            
+            try {
+                log('handlerTest', '🔨 Testing start button handler logic...', 'info');
+                
+                // Simulate the start button click handler
+                const gameMenu = document.getElementById('gameMenu');
+                const gameScreen = document.getElementById('gameScreen');
+                
+                if (gameMenu) gameMenu.style.display = 'none';
+                if (gameScreen) gameScreen.style.display = 'block';
+                
+                log('handlerTest', '✅ Menu hide/show logic works', 'success');
+                
+                // Test game creation
+                const testCanvas = document.getElementById('gameCanvas');
+                const game = new Game(testCanvas);
+                game.gameMode = 'classic';
+                game.difficulty = 'novice';
+                game.soundEnabled = true;
+                
+                log('handlerTest', '✅ Game creation and setup works', 'success');
+                
+                // Test start method
+                game.start();
+                log('handlerTest', '✅ Game.start() executed successfully', 'success');
+                
+            } catch (error) {
+                log('handlerTest', `❌ Start handler error: ${error.message}`, 'error');
+                console.error('Full error:', error);
+            }
+        }
+
+        function testOriginalElements() {
+            clearLog('originalTest');
+            
+            // Load and test the original index.html
+            fetch('index.html')
+                .then(response => response.text())
+                .then(html => {
+                    log('originalTest', '✅ index.html loaded successfully', 'success');
+                    
+                    // Check for required elements in HTML
+                    const requiredElements = ['startGame', 'gameMenu', 'gameScreen', 'gameCanvas'];
+                    requiredElements.forEach(id => {
+                        if (html.includes(`id="${id}"`)) {
+                            log('originalTest', `✅ Element with id="${id}" found in HTML`, 'success');
+                        } else {
+                            log('originalTest', `❌ Element with id="${id}" missing from HTML`, 'error');
+                        }
+                    });
+                })
+                .catch(error => {
+                    log('originalTest', `❌ Failed to load index.html: ${error.message}`, 'error');
+                });
+        }
+
+        // Load the game script to test
+        const script = document.createElement('script');
+        script.src = 'game.js';
+        script.onload = () => {
+            console.log('✅ game.js loaded successfully');
+        };
+        script.onerror = () => {
+            console.error('❌ Failed to load game.js');
+        };
+        document.head.appendChild(script);
+    </script>
+</body>
+</html>
