@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Lose Line Calculation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .debug-info {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        canvas {
+            border: 2px solid #333;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Lose Line Calculation</h1>
+    
+    <div id="debugInfo" class="debug-info">Initializing...</div>
+    
+    <canvas id="gameCanvas" width="400" height="640"></canvas>
+    
+    <script type="module">
+        const debugInfo = document.getElementById('debugInfo');
+        
+        try {
+            debugInfo.textContent = 'Loading gameConfig...\n';
+            
+            // Import gameConfig first
+            const { GAME_CONFIG } = await import('./config/gameConfig.js');
+            debugInfo.textContent += 'gameConfig loaded successfully\n';
+            debugInfo.textContent += 'GAME_CONFIG.DIFFICULTY: ' + JSON.stringify(GAME_CONFIG.DIFFICULTY, null, 2) + '\n';
+            
+            // Test lose line calculation with different values
+            const canvas = document.getElementById('gameCanvas');
+            const difficulty = 'novice';
+            const settings = GAME_CONFIG.DIFFICULTY[difficulty];
+            
+            debugInfo.textContent += '\nTesting lose line calculation:\n';
+            debugInfo.textContent += 'Canvas height: ' + canvas.height + '\n';
+            debugInfo.textContent += 'Difficulty: ' + difficulty + '\n';
+            debugInfo.textContent += 'Settings: ' + JSON.stringify(settings, null, 2) + '\n';
+            
+            // Simulate Game's calculateLoseLine method
+            const shooterY = canvas.height - 50;
+            const safeZone = 150;
+            const loseLineY = shooterY - safeZone;
+            
+            const loseLineRow = Math.floor((loseLineY - GAME_CONFIG.GRID.TOP_MARGIN) / GAME_CONFIG.GRID.ROW_HEIGHT);
+            const minLoseLineRow = Math.max(8, settings.rowsToStart + 5);
+            const finalLoseLineRow = Math.max(minLoseLineRow, loseLineRow);
+            
+            debugInfo.textContent += '\nCalculation details:\n';
+            debugInfo.textContent += 'shooterY: ' + shooterY + '\n';
+            debugInfo.textContent += 'safeZone: ' + safeZone + '\n';
+            debugInfo.textContent += 'loseLineY: ' + loseLineY + '\n';
+            debugInfo.textContent += 'GRID.TOP_MARGIN: ' + GAME_CONFIG.GRID.TOP_MARGIN + '\n';
+            debugInfo.textContent += 'GRID.ROW_HEIGHT: ' + GAME_CONFIG.GRID.ROW_HEIGHT + '\n';
+            debugInfo.textContent += 'calculated loseLineRow: ' + loseLineRow + '\n';
+            debugInfo.textContent += 'minLoseLineRow: ' + minLoseLineRow + '\n';
+            debugInfo.textContent += 'finalLoseLineRow: ' + finalLoseLineRow + '\n';
+            
+        } catch (error) {
+            debugInfo.textContent += 'ERROR: ' + error.message + '\n' + error.stack;
+        }
+    </script>
+</body>
+</html>

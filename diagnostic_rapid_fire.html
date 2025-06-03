@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flying Bubble Duplication Diagnostic</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: #1a1a1a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .panel {
+            background: #000;
+            border: 1px solid #333;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .stat-item {
+            background: #222;
+            padding: 10px;
+            border-radius: 3px;
+            text-align: center;
+        }
+        .log-container {
+            height: 300px;
+            overflow-y: auto;
+            background: #000;
+            border: 1px solid #333;
+            padding: 10px;
+            white-space: pre-wrap;
+        }
+        button {
+            background: #333;
+            color: #00ff00;
+            border: 1px solid #666;
+            padding: 5px 10px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        button:hover {
+            background: #444;
+        }
+        .error { color: #ff0000; }
+        .warning { color: #ffaa00; }
+        .success { color: #00ff00; }
+        .info { color: #00aaff; }
+        canvas {
+            border: 1px solid #333;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Flying Bubble Duplication Diagnostic Tool</h1>
+        
+        <div class="panel">
+            <h3>Game Control</h3>
+            <button onclick="initializeGame()">Initialize Game</button>
+            <button onclick="testRapidFire()">Test Rapid Fire (5x 20ms)</button>
+            <button onclick="testDoubleClick()">Test Double Click</button>
+            <button onclick="testNormalClick()">Test Normal Click</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+            <button onclick="exportResults()">Export Results</button>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-item">
+                <strong>Flying Bubbles</strong><br>
+                <span id="flyingCount">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>Total Shots Attempted</strong><br>
+                <span id="totalShots">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>Successful Shots</strong><br>
+                <span id="successfulShots">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>Blocked Shots</strong><br>
+                <span id="blockedShots">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>Duplicate IDs Detected</strong><br>
+                <span id="duplicateIds">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>Fix Effectiveness</strong><br>
+                <span id="fixEffectiveness">0%</span>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h3>🎯 Game Canvas</h3>
+            <canvas id="gameCanvas" width="400" height="300"></canvas>
+        </div>
+        
+        <div class="panel">
+            <h3>📊 Bubble Tracking</h3>
+            <div id="bubbleTracking"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>📝 Real-time Logs</h3>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+        
+        <div class="panel">
+            <h3>🔬 Test Results</h3>
+            <div id="testResults"></div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    
+    <script type="module">
+        import { BubbleShooterApp } from './src/main.js';
+        
+        let app = null;
+        let game = null;
+        let diagnosticData = {
+            totalShots: 0,
+            successfulShots: 0,
+            blockedShots: 0,
+            duplicateIds: 0,
+            bubbleIds: new Set(),
+            flyingBubbles: [],
+            testResults: []
+        };
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString() + '.' + String(Date.now()).slice(-3);
+            const logContainer = document.getElementById('logContainer');
+            const className = type;
+            logContainer.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function updateStats() {
+            document.getElementById('flyingCount').textContent = diagnosticData.flyingBubbles.length;
+            document.getElementById('totalShots').textContent = diagnosticData.totalShots;
+            document.getElementById('successfulShots').textContent = diagnosticData.successfulShots;
+            document.getElementById('blockedShots').textContent = diagnosticData.blockedShots;
+            document.getElementById('duplicateIds').textContent = diagnosticData.duplicateIds;
+            
+            const effectiveness = diagnosticData.totalShots > 0 ? 
+                ((diagnosticData.blockedShots / diagnosticData.totalShots) * 100).toFixed(1) : 0;
+            document.getElementById('fixEffectiveness').textContent = effectiveness + '%';
+        }
+        
+        function trackBubble(bubbleId, position) {
+            if (diagnosticData.bubbleIds.has(bubbleId)) {
+                diagnosticData.duplicateIds++;
+                log(`🚨 DUPLICATE BUBBLE ID DETECTED: ${bubbleId}`, 'error');
+            } else {
+                diagnosticData.bubbleIds.add(bubbleId);
+                log(`✅ New bubble created: ${bubbleId} at (${position.x}, ${position.y})`, 'success');
+            }
+            
+            diagnosticData.flyingBubbles.push({
+                id: bubbleId,
+                position: position,
+                timestamp: Date.now()
+            });
+            
+            updateBubbleTracking();
+        }
+        
+        function updateBubbleTracking() {
+            const container = document.getElementById('bubbleTracking');
+            const recent = diagnosticData.flyingBubbles.slice(-5);
+            container.innerHTML = recent.map(bubble => 
+                `<div>ID: ${bubble.id.slice(-8)} | Pos: (${bubble.position.x}, ${bubble.position.y}) | Time: ${new Date(bubble.timestamp).toLocaleTimeString()}</div>`
+            ).join('');
+        }
+        
+        // Override console.log to intercept game logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            const message = args.join(' ');
+            
+            if (message.includes('[EventManager] shoot() called')) {
+                diagnosticData.totalShots++;
+            }
+            
+            if (message.includes('[EventManager] shoot() blocked: too rapid')) {
+                diagnosticData.blockedShots++;
+                log('🛡️ Rapid fire blocked by prevention system', 'warning');
+            }
+            
+            if (message.includes('[Shooter] Created bubble with ID:')) {
+                diagnosticData.successfulShots++;
+                const idMatch = message.match(/ID: ([a-zA-Z0-9_]+)/);
+                const posMatch = message.match(/position \(([^,]+), ([^)]+)\)/);
+                
+                if (idMatch && posMatch) {
+                    trackBubble(idMatch[1], {
+                        x: parseFloat(posMatch[1]),
+                        y: parseFloat(posMatch[2])
+                    });
+                }
+            }
+            
+            if (message.includes('[EventManager]') || message.includes('[Shooter]') || message.includes('bubble')) {
+                log(message, message.includes('error') ? 'error' : 'info');
+            }
+            
+            updateStats();
+            originalLog.apply(console, args);
+        };
+        
+        window.initializeGame = async function() {
+            try {
+                log('🎮 Initializing diagnostic game...', 'info');
+                
+                if (app) {
+                    app.destroy();
+                }
+                
+                const canvas = document.getElementById('gameCanvas');
+                app = new BubbleShooterApp(canvas);
+                await app.initialize();
+                game = app.game;
+                
+                log('✅ Game initialized successfully', 'success');
+                
+                // Start monitoring
+                setInterval(() => {
+                    if (game && game.flyingBubbles) {
+                        diagnosticData.flyingBubbles = game.flyingBubbles.slice();
+                        updateStats();
+                    }
+                }, 100);
+                
+            } catch (error) {
+                log('❌ Failed to initialize: ' + error.message, 'error');
+                console.error(error);
+            }
+        };
+        
+        window.testRapidFire = function() {
+            if (!game) {
+                log('⚠️ Initialize game first!', 'warning');
+                return;
+            }
+            
+            log('🔥 RAPID FIRE TEST: 5 shots at 20ms intervals', 'info');
+            const testStart = Date.now();
+            
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    if (game.eventManager) {
+                        game.eventManager.shoot();
+                        log(`📍 Rapid shot ${i + 1}/5`, 'info');
+                    }
+                }, i * 20);
+            }
+            
+            setTimeout(() => {
+                const duration = Date.now() - testStart;
+                const result = {
+                    test: 'Rapid Fire',
+                    duration: duration,
+                    shotsAttempted: 5,
+                    successfulShots: diagnosticData.successfulShots,
+                    blockedShots: diagnosticData.blockedShots,
+                    duplicates: diagnosticData.duplicateIds
+                };
+                
+                diagnosticData.testResults.push(result);
+                log(`🏁 Rapid fire test completed in ${duration}ms`, 'success');
+                displayTestResults();
+            }, 200);
+        };
+        
+        window.testDoubleClick = function() {
+            if (!game) {
+                log('⚠️ Initialize game first!', 'warning');
+                return;
+            }
+            
+            log('👆 DOUBLE CLICK TEST: 2 shots at 5ms interval', 'info');
+            
+            if (game.eventManager) {
+                game.eventManager.shoot();
+                setTimeout(() => game.eventManager.shoot(), 5);
+            }
+            
+            setTimeout(() => {
+                log('🏁 Double click test completed', 'success');
+            }, 100);
+        };
+        
+        window.testNormalClick = function() {
+            if (!game) {
+                log('⚠️ Initialize game first!', 'warning');
+                return;
+            }
+            
+            log('👆 NORMAL CLICK TEST: Single shot', 'info');
+            
+            if (game.eventManager) {
+                game.eventManager.shoot();
+            }
+            
+            setTimeout(() => {
+                log('🏁 Normal click test completed', 'success');
+            }, 100);
+        };
+        
+        window.clearLogs = function() {
+            document.getElementById('logContainer').innerHTML = '';
+            diagnosticData = {
+                totalShots: 0,
+                successfulShots: 0,
+                blockedShots: 0,
+                duplicateIds: 0,
+                bubbleIds: new Set(),
+                flyingBubbles: [],
+                testResults: []
+            };
+            updateStats();
+            log('🧹 Logs and data cleared', 'info');
+        };
+        
+        function displayTestResults() {
+            const container = document.getElementById('testResults');
+            container.innerHTML = diagnosticData.testResults.map(result => 
+                `<div><strong>${result.test}:</strong> ${result.shotsAttempted} attempted, ${result.successfulShots} successful, ${result.blockedShots} blocked, ${result.duplicates} duplicates</div>`
+            ).join('');
+        }
+        
+        window.exportResults = function() {
+            const results = {
+                timestamp: new Date().toISOString(),
+                statistics: diagnosticData,
+                testResults: diagnosticData.testResults,
+                flyingBubblesSnapshot: diagnosticData.flyingBubbles
+            };
+            
+            const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bubble_diagnostic_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            log('📊 Results exported to JSON file', 'success');
+        };
+        
+        // Auto-initialize
+        setTimeout(() => {
+            initializeGame();
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modular Game - Simple Init</title>
+    <style>
+        body { 
+            margin: 20px; 
+            background: #222; 
+            color: white; 
+            font-family: monospace; 
+        }
+        
+        #gameCanvas {
+            border: 2px solid #666;
+            background: linear-gradient(to bottom, #87CEEB, #4682B4);
+            display: block;
+            margin: 20px 0;
+        }
+        
+        .log { 
+            background: #000; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+        }
+        
+        .error { color: #ff6b6b; }
+        .success { color: #4ecdc4; }
+        .warn { color: #ffa500; }
+    </style>
+</head>
+<body>
+    <h1>Simple Modular Game Test</h1>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="log" class="log"></div>
+    
+    <script type="module">
+        const log = document.getElementById('log');
+        
+        function addLog(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+        
+        // Override console for better visibility
+        const origLog = console.log;
+        const origError = console.error;
+        const origWarn = console.warn;
+        
+        console.log = (msg) => {
+            origLog(msg);
+            addLog(msg, 'log');
+        };
+        
+        console.error = (msg) => {
+            origError(msg);
+            addLog(msg, 'error');
+        };
+        
+        console.warn = (msg) => {
+            origWarn(msg);
+            addLog(msg, 'warn');
+        };
+        
+        async function initGame() {
+            try {
+                addLog('Starting initialization...');
+                
+                // Just try to create the Game directly
+                const { Game } = await import('./src/gameplay/game.js');
+                addLog('Game class imported', 'success');
+                
+                const canvas = document.getElementById('gameCanvas');
+                addLog('Canvas found: ' + canvas.width + 'x' + canvas.height);
+                
+                addLog('Creating Game instance...');
+                const game = new Game(canvas);
+                
+                addLog('Game created successfully!', 'success');
+                
+                // Wait for initialization to complete
+                setTimeout(() => {
+                    addLog('Testing game state...');
+                    
+                    if (game.shooter) {
+                        addLog('✅ Shooter: OK');
+                    } else {
+                        addLog('❌ Shooter: Missing', 'error');
+                    }
+                    
+                    if (game.gridBubbles) {
+                        const count = game.gridBubbles.flat().filter(b => b).length;
+                        addLog(`✅ Grid bubbles: ${count} bubbles`);
+                    } else {
+                        addLog('❌ Grid bubbles: Missing', 'error');
+                    }
+                    
+                    if (game.gameLoop) {
+                        addLog('✅ Game loop: OK');
+                    } else {
+                        addLog('❌ Game loop: Missing', 'error');
+                    }
+                    
+                    // Try to render
+                    try {
+                        game.render();
+                        addLog('✅ Render test: OK', 'success');
+                    } catch (e) {
+                        addLog('❌ Render test failed: ' + e.message, 'error');
+                    }
+                    
+                }, 2000);
+                
+            } catch (error) {
+                addLog('❌ FAILED: ' + error.message, 'error');
+                addLog('Stack: ' + error.stack, 'error');
+            }
+        }
+        
+        initGame();
+    </script>
+</body>
+</html>

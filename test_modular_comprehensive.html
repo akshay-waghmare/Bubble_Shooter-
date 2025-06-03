@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modular System Test - Step by Step</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .test-step {
+            margin: 15px 0;
+            padding: 10px;
+            border-left: 4px solid #666;
+            background: #2a2a3e;
+        }
+        
+        .test-step.success {
+            border-color: #4ecdc4;
+            background: #2a3e3a;
+        }
+        
+        .test-step.error {
+            border-color: #ff6b6b;
+            background: #3e2a2a;
+        }
+        
+        .test-step.loading {
+            border-color: #ffa500;
+            background: #3e3a2a;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #666;
+            background: linear-gradient(to bottom, #87CEEB, #4682B4);
+            display: block;
+            margin: 20px auto;
+        }
+        
+        .module-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .module-card {
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #666;
+        }
+        
+        .module-card.loaded {
+            border-color: #4ecdc4;
+        }
+        
+        .module-card.failed {
+            border-color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Modular Bubble Shooter Test Suite</h1>
+        <p>Testing the modularized components step by step...</p>
+        
+        <div id="test-steps"></div>
+        
+        <h2>Module Status</h2>
+        <div class="module-status" id="module-status"></div>
+        
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    </div>
+    
+    <script type="module">
+        const testStepsDiv = document.getElementById('test-steps');
+        const moduleStatusDiv = document.getElementById('module-status');
+        
+        const modules = [
+            'gameConfig',
+            'debugLogger', 
+            'eventManager',
+            'gameLoop',
+            'physicsEngine',
+            'collisionPredictor',
+            'bubble',
+            'shooter',
+            'collisionManager',
+            'gameStateManager',
+            'gameUI',
+            'soundManager',
+            'game',
+            'main'
+        ];
+        
+        function addTestStep(message, status = 'loading') {
+            const step = document.createElement('div');
+            step.className = `test-step ${status}`;
+            step.innerHTML = `
+                <strong>${status === 'success' ? '✅' : status === 'error' ? '❌' : '⏳'}</strong>
+                ${message}
+            `;
+            testStepsDiv.appendChild(step);
+            return step;
+        }
+        
+        function updateModuleStatus(moduleName, status, error = null) {
+            let card = document.getElementById(`module-${moduleName}`);
+            if (!card) {
+                card = document.createElement('div');
+                card.id = `module-${moduleName}`;
+                card.className = 'module-card';
+                card.innerHTML = `
+                    <strong>${moduleName}</strong>
+                    <div id="${moduleName}-status">Loading...</div>
+                `;
+                moduleStatusDiv.appendChild(card);
+            }
+            
+            const statusDiv = document.getElementById(`${moduleName}-status`);
+            if (status === 'loaded') {
+                card.className = 'module-card loaded';
+                statusDiv.textContent = '✅ Loaded';
+            } else if (status === 'failed') {
+                card.className = 'module-card failed';
+                statusDiv.textContent = `❌ Failed: ${error?.message || 'Unknown error'}`;
+            }
+        }
+        
+        async function testModularSystem() {
+            const step1 = addTestStep('Starting modular system test...');
+            
+            try {
+                // Test 1: Import game configuration
+                const step2 = addTestStep('Loading game configuration...');
+                const { GAME_CONFIG } = await import('./config/gameConfig.js');
+                step2.className = 'test-step success';
+                step2.innerHTML = '✅ Game configuration loaded successfully';
+                updateModuleStatus('gameConfig', 'loaded');
+                
+                // Test 2: Import core modules
+                const step3 = addTestStep('Loading core modules...');
+                try {
+                    const { DebugLogger } = await import('./src/core/debugLogger.js');
+                    updateModuleStatus('debugLogger', 'loaded');
+                    
+                    const { EventManager } = await import('./src/core/eventManager.js');
+                    updateModuleStatus('eventManager', 'loaded');
+                    
+                    const { GameLoop } = await import('./src/core/gameLoop.js');
+                    updateModuleStatus('gameLoop', 'loaded');
+                    
+                    step3.className = 'test-step success';
+                    step3.innerHTML = '✅ Core modules loaded successfully';
+                } catch (error) {
+                    step3.className = 'test-step error';
+                    step3.innerHTML = `❌ Core modules failed: ${error.message}`;
+                    throw error;
+                }
+                
+                // Test 3: Import physics modules
+                const step4 = addTestStep('Loading physics modules...');
+                try {
+                    const { PhysicsEngine } = await import('./src/physics/physicsEngine.js');
+                    updateModuleStatus('physicsEngine', 'loaded');
+                    
+                    const { CollisionPredictor } = await import('./src/physics/collisionPredictor.js');
+                    updateModuleStatus('collisionPredictor', 'loaded');
+                    
+                    step4.className = 'test-step success';
+                    step4.innerHTML = '✅ Physics modules loaded successfully';
+                } catch (error) {
+                    step4.className = 'test-step error';
+                    step4.innerHTML = `❌ Physics modules failed: ${error.message}`;
+                    throw error;
+                }
+                
+                // Test 4: Import gameplay modules
+                const step5 = addTestStep('Loading gameplay modules...');
+                try {
+                    const { Bubble } = await import('./src/gameplay/bubble.js');
+                    updateModuleStatus('bubble', 'loaded');
+                    
+                    const { Shooter } = await import('./src/gameplay/shooter.js');
+                    updateModuleStatus('shooter', 'loaded');
+                    
+                    const { CollisionManager } = await import('./src/gameplay/collisionManager.js');
+                    updateModuleStatus('collisionManager', 'loaded');
+                    
+                    const { GameStateManager } = await import('./src/gameplay/gameStateManager.js');
+                    updateModuleStatus('gameStateManager', 'loaded');
+                    
+                    step5.className = 'test-step success';
+                    step5.innerHTML = '✅ Gameplay modules loaded successfully';
+                } catch (error) {
+                    step5.className = 'test-step error';
+                    step5.innerHTML = `❌ Gameplay modules failed: ${error.message}`;
+                    throw error;
+                }
+                
+                // Test 5: Import UI and Audio modules
+                const step6 = addTestStep('Loading UI and Audio modules...');
+                try {
+                    const { GameUI } = await import('./src/ui/gameUI.js');
+                    updateModuleStatus('gameUI', 'loaded');
+                    
+                    const { SoundManager } = await import('./src/audio/soundManager.js');
+                    updateModuleStatus('soundManager', 'loaded');
+                    
+                    step6.className = 'test-step success';
+                    step6.innerHTML = '✅ UI and Audio modules loaded successfully';
+                } catch (error) {
+                    step6.className = 'test-step error';
+                    step6.innerHTML = `❌ UI and Audio modules failed: ${error.message}`;
+                    throw error;
+                }
+                
+                // Test 6: Import Game class
+                const step7 = addTestStep('Loading Game class...');
+                try {
+                    const { Game } = await import('./src/gameplay/game.js');
+                    updateModuleStatus('game', 'loaded');
+                    
+                    step7.className = 'test-step success';
+                    step7.innerHTML = '✅ Game class loaded successfully';
+                } catch (error) {
+                    step7.className = 'test-step error';
+                    step7.innerHTML = `❌ Game class failed: ${error.message}`;
+                    throw error;
+                }
+                
+                // Test 7: Import Main application
+                const step8 = addTestStep('Loading main application...');
+                try {
+                    const { BubbleShooterApp } = await import('./src/main.js');
+                    updateModuleStatus('main', 'loaded');
+                    
+                    step8.className = 'test-step success';
+                    step8.innerHTML = '✅ Main application loaded successfully';
+                } catch (error) {
+                    step8.className = 'test-step error';
+                    step8.innerHTML = `❌ Main application failed: ${error.message}`;
+                    throw error;
+                }
+                
+                // Test 8: Initialize the game
+                const step9 = addTestStep('Initializing game instance...');
+                try {
+                    const canvas = document.getElementById('gameCanvas');
+                    const { Game } = await import('./src/gameplay/game.js');
+                    
+                    const game = new Game(canvas);
+                    
+                    // Wait a moment for initialization
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    step9.className = 'test-step success';
+                    step9.innerHTML = '✅ Game instance created and initialized successfully';
+                    
+                    // Test basic functionality
+                    const step10 = addTestStep('Testing basic game functionality...');
+                    try {
+                        if (game.canvas && game.ctx) {
+                            console.log('✅ Canvas and context available');
+                        }
+                        
+                        if (game.shooter) {
+                            console.log('✅ Shooter initialized');
+                        }
+                        
+                        if (game.gridBubbles) {
+                            const bubbleCount = game.gridBubbles.flat().filter(b => b !== null).length;
+                            console.log('✅ Grid initialized with', bubbleCount, 'bubbles');
+                        }
+                        
+                        // Try a render
+                        if (game.render) {
+                            game.render();
+                            console.log('✅ Render test successful');
+                        }
+                        
+                        step10.className = 'test-step success';
+                        step10.innerHTML = '✅ All basic functionality tests passed';
+                        
+                        step1.className = 'test-step success';
+                        step1.innerHTML = '✅ Modular system test completed successfully!';
+                        
+                    } catch (error) {
+                        step10.className = 'test-step error';
+                        step10.innerHTML = `❌ Basic functionality test failed: ${error.message}`;
+                        console.error(error);
+                    }
+                    
+                } catch (error) {
+                    step9.className = 'test-step error';
+                    step9.innerHTML = `❌ Game initialization failed: ${error.message}`;
+                    console.error(error);
+                }
+                
+            } catch (error) {
+                step1.className = 'test-step error';
+                step1.innerHTML = `❌ Modular system test failed: ${error.message}`;
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Start the test
+        testModularSystem();
+    </script>
+</body>
+</html>

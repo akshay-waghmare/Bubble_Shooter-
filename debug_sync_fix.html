@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Sync Fix - Modular Bubble Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 20px;
+            max-width: 1200px;
+        }
+        
+        canvas {
+            border: 2px solid #fff;
+            background: linear-gradient(to bottom, #001122, #004455);
+            display: block;
+            margin: 20px auto;
+        }
+        
+        .debug-info {
+            background: rgba(0,0,0,0.8);
+            color: #00ff00;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Debug Sync Fix - Modular Bubble Shooter</h1>
+        <div class="debug-info" id="debugInfo">Debug info will appear here...</div>
+        <button id="startGame" onclick="startGame()">Start Game</button>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script type="module">
+        import { Game } from './src/gameplay/game.js';
+        
+        let game = null;
+        let debugInfo = document.getElementById('debugInfo');
+        
+        // Override console.log to capture debug messages
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            debugInfo.innerHTML += message + '<br>';
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        };
+        
+        // Override console.warn to capture warnings
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            const message = '[WARN] ' + args.join(' ');
+            debugInfo.innerHTML += '<span style="color: yellow;">' + message + '</span><br>';
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        };
+        
+        // Override console.error to capture errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const message = '[ERROR] ' + args.join(' ');
+            debugInfo.innerHTML += '<span style="color: red;">' + message + '</span><br>';
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        };
+        
+        window.startGame = function() {
+            try {
+                debugInfo.innerHTML = 'Starting game initialization...<br>';
+                const canvas = document.getElementById('gameCanvas');
+                
+                console.log('Creating Game instance...');
+                game = new Game(canvas);
+                
+                console.log('Game created successfully!');
+                console.log('Game state:', {
+                    initializing: game.initializing,
+                    gameOver: game.gameOver,
+                    loseLineRow: game.loseLineRow,
+                    gameStateManagerLoseLineRow: game.gameStateManager ? game.gameStateManager.loseLineRow : 'N/A'
+                });
+                
+                // Check bubble count
+                if (game.gridBubbles) {
+                    const bubbleCount = game.gridBubbles.flat().filter(b => b !== null).length;
+                    console.log('Initial bubble count:', bubbleCount);
+                }
+                
+                document.getElementById('startGame').disabled = true;
+                
+            } catch (error) {
+                console.error('Failed to start game:', error);
+                console.error('Stack trace:', error.stack);
+            }
+        };
+    </script>
+</body>
+</html>

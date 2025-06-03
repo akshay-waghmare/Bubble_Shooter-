@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Event Listeners</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #666;
+            background: linear-gradient(to bottom, #87CEEB, #4682B4);
+            display: block;
+            margin: 20px auto;
+        }
+        
+        .console-output {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        
+        .error {
+            color: #ff6b6b;
+        }
+        
+        .success {
+            color: #4ecdc4;
+        }
+        
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            background: #4ecdc4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 0 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #45b7d1;
+        }
+    </style>
+</head>
+<body>
+    <h1>Debug Event Listeners - Multiple Bubble Issue</h1>
+    <div class="status" id="status">Loading...</div>
+    
+    <div class="controls">
+        <button onclick="testSingleClick()">Test Single Click</button>
+        <button onclick="testRapidClicks()">Test Rapid Clicks</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div class="console-output" id="console"></div>
+    
+    <script type="module">
+        // Console capture for debugging
+        const consoleOutput = document.getElementById('console');
+        const statusDiv = document.getElementById('status');
+        let game = null;
+        
+        function logToPage(type, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? '#ff6b6b' : 
+                            type === 'warn' ? '#ffa500' : '#0f0';
+            div.textContent = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        // Override console methods
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            logToPage('log', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            logToPage('error', ...args);
+        };
+        
+        console.warn = (...args) => {
+            originalWarn(...args);
+            logToPage('warn', ...args);
+        };
+        
+        // Monitor event listener attachments
+        const originalAddEventListener = EventTarget.prototype.addEventListener;
+        let eventListenerCount = {};
+        
+        EventTarget.prototype.addEventListener = function(type, listener, options) {
+            if (this.id === 'gameCanvas' && type === 'click') {
+                eventListenerCount[type] = (eventListenerCount[type] || 0) + 1;
+                console.log(`🔍 EVENT LISTENER ATTACHED: ${type} (total: ${eventListenerCount[type]}) to canvas`);
+            }
+            return originalAddEventListener.call(this, type, listener, options);
+        };
+        
+        // Test functions
+        window.testSingleClick = function() {
+            if (!game) {
+                console.log('❌ Game not loaded yet');
+                return;
+            }
+            
+            console.log('🎯 Testing single click...');
+            const canvas = document.getElementById('gameCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const event = new MouseEvent('click', {
+                clientX: rect.left + rect.width / 2,
+                clientY: rect.top + rect.height / 2,
+                bubbles: true
+            });
+            
+            console.log('📍 Simulating click at canvas center');
+            canvas.dispatchEvent(event);
+        };
+        
+        window.testRapidClicks = function() {
+            if (!game) {
+                console.log('❌ Game not loaded yet');
+                return;
+            }
+            
+            console.log('🎯 Testing rapid clicks (3 clicks in 100ms)...');
+            const canvas = document.getElementById('gameCanvas');
+            const rect = canvas.getBoundingClientRect();
+            
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    const event = new MouseEvent('click', {
+                        clientX: rect.left + rect.width / 2 + (i * 10),
+                        clientY: rect.top + rect.height / 2,
+                        bubbles: true
+                    });
+                    
+                    console.log(`📍 Rapid click #${i + 1}`);
+                    canvas.dispatchEvent(event);
+                }, i * 30);
+            }
+        };
+        
+        window.clearLogs = function() {
+            consoleOutput.innerHTML = '';
+        };
+        
+        // Test the modular system
+        async function testModularSystem() {
+            try {
+                statusDiv.textContent = 'Initializing modular system...';
+                statusDiv.className = 'status';
+                
+                console.log('🚀 Starting modular system test...');
+                
+                // Import the main application
+                const { BubbleShooterApp } = await import('./src/main.js');
+                console.log('✅ Main module imported successfully');
+                
+                // Initialize the app
+                const app = new BubbleShooterApp();
+                console.log('✅ App instance created');
+                
+                game = await app.initialize();
+                console.log('✅ App initialized successfully');
+                
+                // Report initial event listener counts
+                console.log('📊 Initial event listener counts:', eventListenerCount);
+                
+                if (game && game.canvas && game.ctx) {
+                    console.log('✅ Game has canvas and context');
+                }
+                
+                if (game.shooter) {
+                    console.log('✅ Shooter initialized');
+                }
+                
+                if (game.eventManager) {
+                    console.log('✅ EventManager initialized');
+                    console.log('📈 EventManager shoot call count:', game.eventManager.shootCallCount);
+                }
+                
+                statusDiv.textContent = 'Ready for testing! Click the test buttons above.';
+                statusDiv.className = 'status success';
+                
+            } catch (error) {
+                console.error('❌ Failed to load modular system:', error);
+                statusDiv.textContent = 'Failed to load modular system: ' + error.message;
+                statusDiv.className = 'status error';
+            }
+        }
+        
+        // Start the test
+        testModularSystem();
+    </script>
+</body>
+</html>

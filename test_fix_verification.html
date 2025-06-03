@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Fix Test</title>
+    <style>
+        body { 
+            margin: 20px; 
+            background: #222; 
+            color: white; 
+            font-family: monospace; 
+        }
+        
+        #gameCanvas {
+            border: 2px solid #666;
+            background: linear-gradient(to bottom, #87CEEB, #4682B4);
+            display: block;
+            margin: 20px 0;
+        }
+        
+        .log { 
+            background: #000; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+        }
+        
+        .error { color: #ff6b6b; }
+        .success { color: #4ecdc4; }
+        .warn { color: #ffa500; }
+        
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .status.loading {
+            background: #333;
+            color: #ffa500;
+        }
+        
+        .status.success {
+            background: #2d5a2d;
+            color: #4ecdc4;
+        }
+        
+        .status.error {
+            background: #5a2d2d;
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Quick Fix Test - EventManager & SoundManager Initialize</h1>
+    <div id="status" class="status loading">Testing fixes...</div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="log" class="log"></div>
+    
+    <script type="module">
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        
+        function addLog(message, type = 'log') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+            console.log(message);
+        }
+        
+        function setStatus(message, type = 'loading') {
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        // Override console for better visibility
+        const origLog = console.log;
+        const origError = console.error;
+        const origWarn = console.warn;
+        
+        console.log = (msg) => {
+            origLog(msg);
+            if (typeof msg === 'string') {
+                addLog(msg, 'log');
+            }
+        };
+        
+        console.error = (msg) => {
+            origError(msg);
+            if (typeof msg === 'string') {
+                addLog(msg, 'error');
+            }
+        };
+        
+        console.warn = (msg) => {
+            origWarn(msg);
+            if (typeof msg === 'string') {
+                addLog(msg, 'warn');
+            }
+        };
+        
+        async function testFix() {
+            try {
+                setStatus('Testing EventManager and SoundManager fixes...', 'loading');
+                addLog('🧪 Starting fix test...');
+                
+                // Test EventManager import and initialize
+                addLog('Testing EventManager...');
+                const { EventManager } = await import('./src/core/eventManager.js');
+                addLog('✅ EventManager imported successfully');
+                
+                // Create a mock game object for testing
+                const mockGame = {
+                    canvas: document.getElementById('gameCanvas')
+                };
+                
+                const eventManager = new EventManager(mockGame);
+                addLog('✅ EventManager created');
+                
+                if (typeof eventManager.initialize === 'function') {
+                    eventManager.initialize();
+                    addLog('✅ EventManager.initialize() works!', 'success');
+                } else {
+                    addLog('❌ EventManager.initialize() missing!', 'error');
+                    throw new Error('EventManager.initialize method missing');
+                }
+                
+                // Test SoundManager import and initialize
+                addLog('Testing SoundManager...');
+                const { SoundManager } = await import('./src/audio/soundManager.js');
+                addLog('✅ SoundManager imported successfully');
+                
+                const soundManager = new SoundManager();
+                addLog('✅ SoundManager created');
+                
+                if (typeof soundManager.initialize === 'function') {
+                    soundManager.initialize();
+                    addLog('✅ SoundManager.initialize() works!', 'success');
+                } else {
+                    addLog('❌ SoundManager.initialize() missing!', 'error');
+                    throw new Error('SoundManager.initialize method missing');
+                }
+                
+                // Test Game class creation
+                addLog('Testing full Game class creation...');
+                const { Game } = await import('./src/gameplay/game.js');
+                addLog('✅ Game class imported successfully');
+                
+                const canvas = document.getElementById('gameCanvas');
+                addLog('Creating Game instance...');
+                
+                const game = new Game(canvas);
+                addLog('✅ Game instance created successfully!', 'success');
+                
+                // Wait a moment and check if everything is working
+                setTimeout(() => {
+                    if (game && game.eventManager && game.soundManager) {
+                        addLog('✅ All managers properly initialized!', 'success');
+                        setStatus('🎉 ALL FIXES WORKING! Game loads successfully!', 'success');
+                        
+                        // Test basic functionality
+                        if (game.shooter) {
+                            addLog('✅ Shooter: Ready');
+                        }
+                        
+                        if (game.gridBubbles) {
+                            const count = game.gridBubbles.flat().filter(b => b).length;
+                            addLog(`✅ Grid: ${count} bubbles loaded`);
+                        }
+                        
+                        if (game.gameLoop) {
+                            addLog('✅ Game loop: Running');
+                        }
+                        
+                    } else {
+                        addLog('⚠️ Game created but some managers missing', 'warn');
+                        setStatus('Partial success - some issues remain', 'warn');
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                addLog('❌ FAILED: ' + error.message, 'error');
+                setStatus('❌ Fixes failed: ' + error.message, 'error');
+                console.error('Full error:', error);
+            }
+        }
+        
+        testFix();
+    </script>
+</body>
+</html>

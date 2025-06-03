@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Modular Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #666;
+            background: linear-gradient(to bottom, #87CEEB, #4682B4);
+            display: block;
+            margin: 20px auto;
+        }
+        
+        .console-output {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18px;
+        }
+        
+        .error {
+            color: #ff6b6b;
+        }
+        
+        .success {
+            color: #4ecdc4;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Modular Bubble Shooter Test</h1>
+    <div class="status" id="status">Loading...</div>
+    
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div class="console-output" id="console"></div>
+    
+    <script type="module">
+        // Console capture for debugging
+        const consoleOutput = document.getElementById('console');
+        const statusDiv = document.getElementById('status');
+        
+        function logToPage(type, ...args) {
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? '#ff6b6b' : 
+                            type === 'warn' ? '#ffa500' : '#0f0';
+            div.textContent = `[${type.toUpperCase()}] ${message}`;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        // Override console methods
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        console.log = (...args) => {
+            originalLog(...args);
+            logToPage('log', ...args);
+        };
+        
+        console.error = (...args) => {
+            originalError(...args);
+            logToPage('error', ...args);
+        };
+        
+        console.warn = (...args) => {
+            originalWarn(...args);
+            logToPage('warn', ...args);
+        };
+        
+        // Test the modular system
+        async function testModularSystem() {
+            try {
+                statusDiv.textContent = 'Initializing modular system...';
+                statusDiv.className = 'status';
+                
+                console.log('Starting modular system test...');
+                
+                // Import the main application
+                const { BubbleShooterApp } = await import('./src/main.js');
+                console.log('✅ Main module imported successfully');
+                
+                // Initialize the app
+                const app = new BubbleShooterApp();
+                console.log('✅ App instance created');
+                
+                const game = await app.initialize();
+                console.log('✅ App initialized successfully');
+                
+                // Test basic functionality
+                if (game && game.canvas && game.ctx) {
+                    console.log('✅ Game has canvas and context');
+                    console.log('Canvas dimensions:', game.canvas.width, 'x', game.canvas.height);
+                }
+                
+                if (game.shooter) {
+                    console.log('✅ Shooter initialized');
+                }
+                
+                if (game.gridBubbles) {
+                    const bubbleCount = game.gridBubbles.flat().filter(b => b !== null).length;
+                    console.log('✅ Grid bubbles initialized:', bubbleCount, 'bubbles');
+                }
+                
+                statusDiv.textContent = 'Modular system loaded successfully!';
+                statusDiv.className = 'status success';
+                
+                // Try a test render
+                setTimeout(() => {
+                    if (game.render) {
+                        game.render();
+                        console.log('✅ Test render completed');
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.error('❌ Failed to load modular system:', error);
+                statusDiv.textContent = 'Failed to load modular system: ' + error.message;
+                statusDiv.className = 'status error';
+            }
+        }
+        
+        // Start the test
+        testModularSystem();
+    </script>
+</body>
+</html>

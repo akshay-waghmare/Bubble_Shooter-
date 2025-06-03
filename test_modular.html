@@ -1,0 +1,58 @@
+// filepath: /workspaces/Bubble_Shooter-/test_modular.html
+// Simple test page to verify modular structure
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Modular Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #222; color: white; }
+        .log { background: #111; padding: 10px; margin: 5px 0; border-left: 3px solid #4ECDC4; }
+        .error { border-left-color: #ff4444; }
+        canvas { border: 1px solid #666; display: block; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h1>Bubble Shooter Modular Test</h1>
+    <div id="logs"></div>
+    <canvas id="testCanvas" width="400" height="600"></canvas>
+    
+    <script type="module">
+        const logs = document.getElementById('logs');
+        
+        function log(message, isError = false) {
+            const div = document.createElement('div');
+            div.className = 'log' + (isError ? ' error' : '');
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            logs.appendChild(div);
+            console.log(message);
+        }
+        
+        async function testModules() {
+            try {
+                log('Testing module imports...');
+                
+                // Test config import
+                const { GAME_CONFIG } = await import('./config/gameConfig.js');
+                log('✅ Game config loaded: ' + JSON.stringify(Object.keys(GAME_CONFIG)));
+                
+                // Test main module import
+                const { initializeBubbleShooter } = await import('./src/main.js');
+                log('✅ Main module loaded');
+                
+                // Try to initialize
+                log('Attempting to initialize game...');
+                const game = await initializeBubbleShooter();
+                log('✅ Game initialized successfully!');
+                
+                log('Game object keys: ' + Object.keys(game).slice(0, 10).join(', ') + '...');
+                
+            } catch (error) {
+                log('❌ Error: ' + error.message, true);
+                log('Stack: ' + error.stack, true);
+            }
+        }
+        
+        testModules();
+    </script>
+</body>
+</html>

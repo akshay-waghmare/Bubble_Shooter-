@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Fix Verification</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .status-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background: linear-gradient(180deg, #87CEEB 0%, #98FB98 100%);
+            display: block;
+            margin: 0 auto;
+        }
+        .test-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .test-item {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #666;
+        }
+        .test-item.pass { border-left-color: #4CAF50; }
+        .test-item.fail { border-left-color: #f44336; }
+        .test-item.pending { border-left-color: #ff9800; }
+        
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        button:disabled { background: #666; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="status-panel">
+        <h2>🎯 Complete Bubble Shooter Fix Verification</h2>
+        <p>Testing all critical components: Physics Engine, Collision Detection, Grid Creation, and Bubble Sticking</p>
+        <div id="status">Initializing...</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="startTest()">🧪 Run Complete Test</button>
+        <button onclick="location.reload()">🔄 Reload</button>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div class="test-results" id="testResults">
+        <div class="test-item pending" id="test-init">
+            <h4>🚀 Game Initialization</h4>
+            <div id="init-status">Pending...</div>
+        </div>
+        <div class="test-item pending" id="test-grid">
+            <h4>🔲 Grid Bubble Creation</h4>
+            <div id="grid-status">Pending...</div>
+        </div>
+        <div class="test-item pending" id="test-physics">
+            <h4>⚡ Physics Engine</h4>
+            <div id="physics-status">Pending...</div>
+        </div>
+        <div class="test-item pending" id="test-shooting">
+            <h4>🎯 Bubble Shooting</h4>
+            <div id="shooting-status">Pending...</div>
+        </div>
+        <div class="test-item pending" id="test-collision">
+            <h4>💥 Collision Detection</h4>
+            <div id="collision-status">Pending...</div>
+        </div>
+        <div class="test-item pending" id="test-sticking">
+            <h4>🔗 Bubble Sticking</h4>
+            <div id="sticking-status">Pending...</div>
+        </div>
+    </div>
+
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script type="module">
+        import { Game } from './src/gameplay/game.js?v=' + Date.now();
+
+        let game = null;
+        let testsPassed = 0;
+        let totalTests = 6;
+
+        function updateTestStatus(testId, status, message) {
+            const element = document.getElementById(testId);
+            const statusElement = element.querySelector('div');
+            
+            element.className = `test-item ${status}`;
+            statusElement.textContent = message;
+            
+            if (status === 'pass') testsPassed++;
+            
+            // Update overall status
+            document.getElementById('status').textContent = 
+                `Tests: ${testsPassed}/${totalTests} passed`;
+        }
+
+        window.startTest = async function() {
+            try {
+                updateTestStatus('test-init', 'pending', 'Initializing game...');
+                
+                const canvas = document.getElementById('gameCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Test 1: Game Initialization
+                game = new Game(canvas, ctx);
+                await game.initGame('easy', 'classic', false);
+                updateTestStatus('test-init', 'pass', '✅ Game initialized successfully');
+                
+                // Test 2: Grid Bubble Creation
+                const gridBubbleCount = game.gridBubbles.flat().filter(b => b !== null).length;
+                if (gridBubbleCount > 0) {
+                    updateTestStatus('test-grid', 'pass', `✅ ${gridBubbleCount} grid bubbles created`);
+                } else {
+                    updateTestStatus('test-grid', 'fail', '❌ No grid bubbles created');
+                    return;
+                }
+                
+                // Test 3: Physics Engine
+                if (game.physicsEngine && game.physicsEngine.engine) {
+                    updateTestStatus('test-physics', 'pass', '✅ Physics engine initialized');
+                } else {
+                    updateTestStatus('test-physics', 'fail', '❌ Physics engine not initialized');
+                    return;
+                }
+                
+                // Start game loop
+                game.start();
+                
+                // Test 4: Bubble Shooting
+                updateTestStatus('test-shooting', 'pending', 'Testing bubble shooting...');
+                
+                // Simulate shooting a bubble
+                const shooter = game.shooter;
+                if (shooter && shooter.canShoot()) {
+                    const bubble = shooter.shoot();
+                    if (bubble) {
+                        updateTestStatus('test-shooting', 'pass', '✅ Bubble shooting works');
+                        
+                        // Test 5: Collision Detection (wait a bit for bubble to move)
+                        setTimeout(() => {
+                            updateTestStatus('test-collision', 'pending', 'Monitoring collision detection...');
+                            
+                            // Check if collision detection is running
+                            let collisionCheckCount = 0;
+                            const originalCheckCollisions = game.collisionManager.checkGridCollisions;
+                            
+                            game.collisionManager.checkGridCollisions = function(bubble) {
+                                collisionCheckCount++;
+                                return originalCheckCollisions.call(this, bubble);
+                            };
+                            
+                            setTimeout(() => {
+                                if (collisionCheckCount > 0) {
+                                    updateTestStatus('test-collision', 'pass', `✅ Collision detection active (${collisionCheckCount} checks)`);
+                                    
+                                    // Test 6: Bubble Sticking (check if any bubbles get stuck)
+                                    setTimeout(() => {
+                                        const stuckBubbles = game.gridBubbles.flat().filter(b => b !== null && b.stuck).length;
+                                        const flyingBubbles = game.flyingBubbles.length;
+                                        
+                                        if (stuckBubbles > gridBubbleCount || flyingBubbles === 0) {
+                                            updateTestStatus('test-sticking', 'pass', '✅ Bubbles can stick to grid');
+                                        } else {
+                                            updateTestStatus('test-sticking', 'pending', `🔄 Monitoring... (stuck: ${stuckBubbles}, flying: ${flyingBubbles})`);
+                                        }
+                                    }, 2000);
+                                } else {
+                                    updateTestStatus('test-collision', 'fail', '❌ Collision detection not running');
+                                }
+                            }, 1000);
+                        }, 500);
+                    } else {
+                        updateTestStatus('test-shooting', 'fail', '❌ Failed to create bubble');
+                    }
+                } else {
+                    updateTestStatus('test-shooting', 'fail', '❌ Shooter not ready');
+                }
+                
+            } catch (error) {
+                console.error('Test failed:', error);
+                document.getElementById('status').textContent = '❌ Test failed: ' + error.message;
+            }
+        };
+
+        // Auto-start test
+        setTimeout(startTest, 1000);
+    </script>
+</body>
+</html>

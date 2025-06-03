@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Game State</title>
+    <style>
+        body { font-family: monospace; background: #111; color: #fff; margin: 20px; }
+        .debug-section { background: #222; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { color: #ff6666; }
+        .success { color: #66ff66; }
+        .warning { color: #ffff66; }
+        canvas { border: 1px solid #444; display: block; margin: 10px auto; }
+        button { background: #333; color: #fff; border: 1px solid #666; padding: 10px; margin: 5px; cursor: pointer; }
+        button:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Game State</h1>
+    
+    <div class="debug-section">
+        <h2>Game Status</h2>
+        <div id="gameStatus">Loading...</div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Game State Details</h2>
+        <div id="gameDetails">Loading...</div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Grid Status</h2>
+        <div id="gridStatus">Loading...</div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Bubble Counts</h2>
+        <div id="bubbleCounts">Loading...</div>
+    </div>
+    
+    <div class="debug-section">
+        <h2>Actions</h2>
+        <button onclick="debugGame()">🔍 Debug Game</button>
+        <button onclick="forceStart()">▶️ Force Start Game</button>
+        <button onclick="shootTest()">🎯 Test Shooting</button>
+        <button onclick="checkBubbles()">🟢 Check Bubbles</button>
+    </div>
+    
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <script type="module">
+        import { initializeBubbleShooter } from './src/main.js';
+        
+        let game = null;
+        
+        // Initialize game
+        async function init() {
+            try {
+                console.log('🚀 Initializing modular game...');
+                game = await initializeBubbleShooter();
+                
+                // Initial debug
+                setTimeout(() => {
+                    debugGame();
+                    checkBubbles();
+                }, 1000);
+                
+                console.log('✅ Game initialized:', game);
+            } catch (error) {
+                console.error('❌ Init failed:', error);
+                document.getElementById('gameStatus').innerHTML = 
+                    '<span class="error">FAILED: ' + error.message + '</span>';
+            }
+        }
+        
+        // Debug functions available globally
+        window.debugGame = () => {
+            if (!game) {
+                document.getElementById('gameStatus').innerHTML = '<span class="error">No game instance</span>';
+                return;
+            }
+            
+            // Game status
+            const status = {
+                gameStarted: game.gameStarted,
+                gameOver: game.gameOver,
+                gameWon: game.gameWon,
+                initializing: game.initializing,
+                paused: game.paused,
+                gameMode: game.gameMode,
+                difficulty: game.difficulty,
+                score: game.score
+            };
+            
+            document.getElementById('gameStatus').innerHTML = 
+                Object.entries(status).map(([key, value]) => 
+                    `<strong>${key}:</strong> <span class="${value === true ? 'success' : value === false ? 'warning' : ''}">${value}</span>`
+                ).join('<br>');
+            
+            // Game details
+            const details = {
+                shotCount: game.shotCount,
+                shotsLeft: game.shotsLeft,
+                missedShots: game.missedShots,
+                totalBubbles: game.totalBubbles,
+                timeLeft: game.timeLeft,
+                lastDescentTime: new Date(game.lastDescentTime).toLocaleTimeString()
+            };
+            
+            document.getElementById('gameDetails').innerHTML = 
+                Object.entries(details).map(([key, value]) => 
+                    `<strong>${key}:</strong> ${value}`
+                ).join('<br>');
+        };
+        
+        window.forceStart = () => {
+            if (game) {
+                console.log('🔧 Force starting game...');
+                game.gameStarted = true;
+                game.gameOver = false;
+                game.gameWon = false;
+                game.initializing = false;
+                game.start();
+                debugGame();
+            }
+        };
+        
+        window.shootTest = () => {
+            if (game && game.shooter) {
+                console.log('🎯 Testing shooting...');
+                const bubble = game.shooter.shoot();
+                if (bubble) {
+                    game.flyingBubbles.push(bubble);
+                    console.log('✅ Bubble shot:', bubble);
+                } else {
+                    console.log('❌ Failed to shoot bubble');
+                }
+            }
+        };
+        
+        window.checkBubbles = () => {
+            if (!game) return;
+            
+            // Count bubbles in grid
+            let gridBubbleCount = 0;
+            let rows = game.gridBubbles ? game.gridBubbles.length : 0;
+            
+            if (game.gridBubbles) {
+                for (let row = 0; row < game.gridBubbles.length; row++) {
+                    if (game.gridBubbles[row]) {
+                        for (let col = 0; col < game.gridBubbles[row].length; col++) {
+                            if (game.gridBubbles[row][col]) {
+                                gridBubbleCount++;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            const counts = {
+                gridBubbles: gridBubbleCount,
+                flyingBubbles: game.flyingBubbles ? game.flyingBubbles.length : 0,
+                fallingBubbles: game.fallingBubbles ? game.fallingBubbles.length : 0,
+                removingBubbles: game.removingBubbles ? game.removingBubbles.length : 0,
+                gridRows: rows,
+                totalBubbles: game.totalBubbles
+            };
+            
+            document.getElementById('bubbleCounts').innerHTML = 
+                Object.entries(counts).map(([key, value]) => 
+                    `<strong>${key}:</strong> <span class="${value > 0 ? 'success' : 'warning'}">${value}</span>`
+                ).join('<br>');
+            
+            // Grid status
+            let gridInfo = `Grid exists: ${game.gridBubbles ? 'YES' : 'NO'}<br>`;
+            if (game.gridBubbles) {
+                gridInfo += `Grid rows: ${game.gridBubbles.length}<br>`;
+                gridInfo += `First row cols: ${game.gridBubbles[0] ? game.gridBubbles[0].length : 'N/A'}<br>`;
+                
+                // Check first few positions
+                for (let row = 0; row < Math.min(3, game.gridBubbles.length); row++) {
+                    if (game.gridBubbles[row]) {
+                        let rowBubbles = 0;
+                        for (let col = 0; col < game.gridBubbles[row].length; col++) {
+                            if (game.gridBubbles[row][col]) rowBubbles++;
+                        }
+                        gridInfo += `Row ${row}: ${rowBubbles} bubbles<br>`;
+                    }
+                }
+            }
+            
+            document.getElementById('gridStatus').innerHTML = gridInfo;
+        };
+        
+        // Start the initialization
+        init();
+    </script>
+</body>
+</html>

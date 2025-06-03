@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Shooter - Modular Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        .game-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .game-header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #4ECDC4, #FF6B6B);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .game-subtitle {
+            margin: 5px 0;
+            color: #aaa;
+            font-size: 1em;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            background: linear-gradient(180deg, #0f0f23, #1a1a2e);
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .game-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .game-controls button {
+            background: linear-gradient(45deg, #4ECDC4, #45B7D1);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+        }
+        
+        .game-controls button:hover {
+            background: linear-gradient(45deg, #45B7D1, #4ECDC4);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
+        }
+        
+        .game-controls button:active {
+            transform: translateY(0);
+        }
+        
+        .game-info {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .info-card {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .info-card h3 {
+            margin: 0 0 5px 0;
+            color: #4ECDC4;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .info-card .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .instructions {
+            margin-top: 30px;
+            max-width: 500px;
+            text-align: center;
+            color: #ccc;
+            line-height: 1.6;
+        }
+        
+        .instructions h3 {
+            color: #4ECDC4;
+            margin-bottom: 15px;
+        }
+        
+        .instructions ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .instructions li {
+            margin: 8px 0;
+            padding: 5px 0;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            font-size: 1.2em;
+            z-index: 1000;
+        }
+        
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .game-header h1 {
+                font-size: 2em;
+            }
+            
+            .game-controls button {
+                padding: 10px 20px;
+                font-size: 0.9em;
+            }
+            
+            .info-card {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1>Bubble Shooter</h1>
+            <div class="game-subtitle">Modular Edition</div>
+        </div>
+        
+        <div id="loading" class="loading">
+            Loading game...
+        </div>
+        
+        <div id="error" class="error">
+            <strong>Error:</strong> <span id="error-message"></span>
+        </div>
+        
+        <canvas id="gameCanvas" width="400" height="640"></canvas>
+        
+        <div class="game-controls">
+            <button onclick="restartGame()">New Game</button>
+            <button onclick="togglePause()">Pause</button>
+            <button onclick="toggleSound()">Toggle Sound</button>
+            <button onclick="toggleDebug()">Debug Info</button>
+        </div>
+        
+        <div class="game-info">
+            <div class="info-card">
+                <h3>Score</h3>
+                <div id="score" class="value">0</div>
+            </div>
+            <div class="info-card">
+                <h3>Level</h3>
+                <div id="level" class="value">1</div>
+            </div>
+            <div class="info-card">
+                <h3>Shots</h3>
+                <div id="shots" class="value">0</div>
+            </div>
+            <div class="info-card">
+                <h3>Bubbles</h3>
+                <div id="bubbles" class="value">0</div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>How to Play</h3>
+            <ul>
+                <li>🎯 <strong>Aim and Shoot:</strong> Click or tap to aim and shoot bubbles</li>
+                <li>🎨 <strong>Match Colors:</strong> Connect 3 or more bubbles of the same color</li>
+                <li>💥 <strong>Clear Groups:</strong> Matching bubbles will pop and disappear</li>
+                <li>🏆 <strong>Strategic Play:</strong> Create chain reactions for bonus points</li>
+                <li>⚠️ <strong>Don't Let Them Fall:</strong> Game ends if bubbles reach the bottom</li>
+            </ul>
+            
+            <h3>Controls</h3>
+            <ul>
+                <li>🖱️ <strong>Mouse/Touch:</strong> Aim and shoot</li>
+                <li>⌨️ <strong>D Key:</strong> Toggle debug information</li>
+                <li>⌨️ <strong>I Key:</strong> Toggle performance info</li>
+                <li>⌨️ <strong>R Key:</strong> Restart game</li>
+                <li>⌨️ <strong>Space:</strong> Pause/Resume</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Load Three.js for 3D effects (optional) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Load Matter.js for physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    
+    <!-- Main game module -->
+    <script type="module">
+        // Import the main game modules
+        import { BubbleShooterApp } from './src/main.js';
+        
+        let app = null;
+        let game = null;
+        let isPaused = false;
+        let soundEnabled = true;
+        
+        // Global functions for buttons
+        window.restartGame = function() {
+            if (game) {
+                game.resetGame();
+                updateUI();
+            }
+        };
+        
+        window.togglePause = function() {
+            if (game) {
+                game.togglePause();
+                isPaused = !isPaused;
+                document.querySelector('button[onclick="togglePause()"]').textContent = 
+                    isPaused ? 'Resume' : 'Pause';
+            }
+        };
+        
+        window.toggleSound = function() {
+            if (game && game.soundManager) {
+                soundEnabled = !soundEnabled;
+                game.soundManager.setEnabled(soundEnabled);
+                document.querySelector('button[onclick="toggleSound()"]').textContent = 
+                    soundEnabled ? 'Sound: On' : 'Sound: Off';
+            }
+        };
+        
+        window.toggleDebug = function() {
+            if (game) {
+                game.toggleDebug();
+                const button = document.querySelector('button[onclick="toggleDebug()"]');
+                button.textContent = game.showDebugInfo ? 'Debug: On' : 'Debug: Off';
+            }
+        };
+        
+        // Update UI elements
+        function updateUI() {
+            if (!game) return;
+            
+            try {
+                document.getElementById('score').textContent = game.score || 0;
+                document.getElementById('level').textContent = game.level || 1;
+                document.getElementById('shots').textContent = game.shotCount || 0;
+                
+                // Count remaining bubbles
+                const bubbleCount = game.gridBubbles ? 
+                    game.gridBubbles.flat().filter(b => b !== null).length : 0;
+                document.getElementById('bubbles').textContent = bubbleCount;
+            } catch (error) {
+                console.error('UI update error:', error);
+            }
+        }
+        
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Initialize the game when page loads
+        async function init() {
+            const loadingDiv = document.getElementById('loading');
+            
+            try {
+                console.log('Initializing Bubble Shooter App...');
+                
+                // Create the app instance
+                app = new BubbleShooterApp();
+                
+                // Initialize the game
+                game = await app.initialize();
+                
+                console.log('Game initialized, setting up UI...');
+                
+                // Set up UI update interval
+                setInterval(updateUI, 500); // Update every 500ms to reduce overhead
+                
+                // Initial UI update
+                updateUI();
+                
+                // Hide loading
+                loadingDiv.style.display = 'none';
+                
+                console.log('✅ Game initialized successfully!');
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize game:', error);
+                showError('Failed to load game: ' + error.message);
+                loadingDiv.style.display = 'none';
+            }
+        }
+        
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (game) {
+                game.destroy();
+            }
+        });
+    </script>
+</body>
+</html>

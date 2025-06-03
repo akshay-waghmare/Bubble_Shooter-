@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Final Modular Fix Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+        }
+        
+        .test-panel {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .game-container {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .status-panel {
+            width: 400px;
+            background: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+        
+        canvas {
+            border: 3px solid #fff;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #87CEEB 0%, #4682B4 100%);
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        button:hover { background: #45a049; }
+        button.danger { background: #f44336; }
+        button.danger:hover { background: #da190b; }
+        
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .pass { background: rgba(76, 175, 80, 0.3); border-left: 4px solid #4CAF50; }
+        .fail { background: rgba(244, 67, 54, 0.3); border-left: 4px solid #f44336; }
+        .info { background: rgba(33, 150, 243, 0.3); border-left: 4px solid #2196F3; }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .status {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Final Modular Bubble Shooter Fix Test</h1>
+            <p>Comprehensive test to verify that the modular version works exactly like the non-modular version</p>
+        </div>
+        
+        <div class="test-panel">
+            <div class="game-container">
+                <canvas id="gameCanvas" width="400" height="600"></canvas>
+                <div class="controls">
+                    <button onclick="startTest()">🚀 Start Test</button>
+                    <button onclick="shootTestBubbles()" id="shootBtn" disabled>🎯 Shoot Test Bubbles</button>
+                    <button onclick="triggerDescent()" id="descentBtn" disabled>⬇️ Trigger Descent</button>
+                    <button onclick="resetTest()" class="danger">🔄 Reset</button>
+                </div>
+            </div>
+            
+            <div class="status-panel">
+                <div class="status" id="gameStatus">🔴 Not Started</div>
+                
+                <h3>🧪 Test Results</h3>
+                <div id="testResults"></div>
+                
+                <h3>📊 Live Metrics</h3>
+                <div id="liveMetrics"></div>
+                
+                <h3>🎮 Game State</h3>
+                <div id="gameState"></div>
+                
+                <h3>📝 Event Log</h3>
+                <div id="eventLog" style="height: 200px; overflow-y: auto; font-size: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Game } from './src/gameplay/game.js';
+        import { Bubble } from './src/gameplay/bubble.js';
+        import { GAME_CONFIG } from './config/gameConfig.js';
+
+        let testGame = null;
+        let monitoringInterval = null;
+        let testsPassed = 0;
+        let testsTotal = 0;
+
+        // Test logging
+        function logEvent(message, type = 'info') {
+            const log = document.getElementById('eventLog');
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `<div style="color: ${type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74c0fc'}">[${timestamp}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('gameStatus');
+            status.textContent = message;
+            status.style.color = isError ? '#ff6b6b' : '#51cf66';
+        }
+
+        function addTestResult(name, passed, details = '') {
+            testsTotal++;
+            if (passed) testsPassed++;
+            
+            const results = document.getElementById('testResults');
+            results.innerHTML += `
+                <div class="test-result ${passed ? 'pass' : 'fail'}">
+                    ${passed ? '✅' : '❌'} ${name}
+                    ${details ? `<br><small>${details}</small>` : ''}
+                </div>
+            `;
+        }
+
+        function runComprehensiveTests() {
+            logEvent('🧪 Running comprehensive tests...', 'info');
+            
+            // Test 1: Game initialization
+            const initTest = testGame && testGame.canvas && testGame.ctx;
+            addTestResult('Game Initialization', initTest, 
+                initTest ? 'Canvas and context ready' : 'Failed to initialize canvas');
+
+            // Test 2: Physics engine
+            const physicsTest = testGame.physicsEngine && testGame.physicsEngine.engine;
+            addTestResult('Physics Engine', physicsTest,
+                physicsTest ? 'Matter.js engine initialized' : 'Physics engine missing');
+
+            // Test 3: Grid creation
+            const gridTest = testGame.gridBubbles && testGame.gridBubbles.length > 0;
+            const gridBubbleCount = gridTest ? testGame.gridBubbles.flat().filter(b => b !== null).length : 0;
+            addTestResult('Grid Creation', gridTest && gridBubbleCount > 0,
+                `${gridBubbleCount} bubbles in grid`);
+
+            // Test 4: Shooter initialization
+            const shooterTest = testGame.shooter && typeof testGame.shooter.shoot === 'function';
+            addTestResult('Shooter System', shooterTest,
+                shooterTest ? 'Shooter ready' : 'Shooter not initialized');
+
+            // Test 5: Event management
+            const eventTest = testGame.eventManager;
+            addTestResult('Event Management', !!eventTest,
+                eventTest ? 'Event manager active' : 'Event manager missing');
+
+            // Test 6: Required methods
+            const requiredMethods = [
+                'wouldOverlapPrecise', 'findBestGridPosition', 'checkMatches', 
+                'getNeighbors', 'checkFloatingBubbles', 'addNewRow',
+                'getColPosition', 'getRowPosition', 'snapBubbleToGrid'
+            ];
+            
+            const methodTests = requiredMethods.map(method => {
+                const exists = typeof testGame[method] === 'function';
+                return { method, exists };
+            });
+            
+            const methodsPassed = methodTests.filter(t => t.exists).length;
+            addTestResult('Required Methods', methodsPassed === requiredMethods.length,
+                `${methodsPassed}/${requiredMethods.length} methods found`);
+
+            // Test 7: Configuration
+            const configTest = GAME_CONFIG && GAME_CONFIG.BUBBLE && GAME_CONFIG.GRID;
+            addTestResult('Configuration', !!configTest,
+                configTest ? 'Game config loaded' : 'Config missing');
+
+            logEvent(`Tests completed: ${testsPassed}/${testsTotal} passed`, 
+                testsPassed === testsTotal ? 'success' : 'error');
+        }
+
+        function updateLiveMetrics() {
+            if (!testGame) return;
+            
+            const metrics = document.getElementById('liveMetrics');
+            metrics.innerHTML = `
+                <div class="metric"><span>Flying Bubbles:</span><span>${testGame.flyingBubbles?.length || 0}</span></div>
+                <div class="metric"><span>Grid Bubbles:</span><span>${testGame.gridBubbles ? testGame.gridBubbles.flat().filter(b => b).length : 0}</span></div>
+                <div class="metric"><span>Game State:</span><span>${testGame.gameState || 'unknown'}</span></div>
+                <div class="metric"><span>Score:</span><span>${testGame.gameStateManager?.score || 0}</span></div>
+                <div class="metric"><span>Physics Bodies:</span><span>${testGame.physicsEngine?.engine?.world?.bodies?.length || 0}</span></div>
+            `;
+        }
+
+        function updateGameState() {
+            if (!testGame) return;
+            
+            const state = document.getElementById('gameState');
+            state.innerHTML = `
+                <div class="metric"><span>Canvas Size:</span><span>${testGame.canvas.width}x${testGame.canvas.height}</span></div>
+                <div class="metric"><span>Grid Rows:</span><span>${testGame.gridBubbles?.length || 0}</span></div>
+                <div class="metric"><span>Grid Cols:</span><span>${GAME_CONFIG.GRID.COLS}</span></div>
+                <div class="metric"><span>Bubble Radius:</span><span>${GAME_CONFIG.BUBBLE.RADIUS}</span></div>
+                <div class="metric"><span>Difficulty:</span><span>${testGame.difficulty || 'normal'}</span></div>
+            `;
+        }
+
+        window.startTest = async function() {
+            try {
+                updateStatus('🔄 Initializing test...', false);
+                logEvent('🚀 Starting comprehensive modular test...', 'info');
+                
+                // Clear previous results
+                document.getElementById('testResults').innerHTML = '';
+                testsPassed = 0;
+                testsTotal = 0;
+                
+                const canvas = document.getElementById('gameCanvas');
+                testGame = new Game(canvas);
+                
+                logEvent('✅ Game instance created', 'success');
+                
+                // Initialize the game
+                await testGame.initializeGame();
+                
+                logEvent('✅ Game initialized', 'success');
+                
+                // Start the game
+                testGame.startGame();
+                
+                logEvent('✅ Game started', 'success');
+                updateStatus('🟢 Game Running', false);
+                
+                // Run comprehensive tests
+                setTimeout(() => {
+                    runComprehensiveTests();
+                    
+                    // Enable controls
+                    document.getElementById('shootBtn').disabled = false;
+                    document.getElementById('descentBtn').disabled = false;
+                    
+                    // Start monitoring
+                    monitoringInterval = setInterval(() => {
+                        updateLiveMetrics();
+                        updateGameState();
+                    }, 1000);
+                }, 1000);
+                
+            } catch (error) {
+                logEvent(`❌ Error: ${error.message}`, 'error');
+                updateStatus(`🔴 Error: ${error.message}`, true);
+                console.error('Test failed:', error);
+            }
+        };
+
+        window.shootTestBubbles = function() {
+            if (!testGame || !testGame.shooter) {
+                logEvent('❌ Cannot shoot: game or shooter not ready', 'error');
+                return;
+            }
+            
+            logEvent('🎯 Shooting test bubbles...', 'info');
+            
+            const angles = [-Math.PI/2, -Math.PI/3, -Math.PI/1.5];
+            angles.forEach((angle, i) => {
+                setTimeout(() => {
+                    testGame.shooter.angle = angle;
+                    const bubble = testGame.shooter.shoot();
+                    if (bubble) {
+                        testGame.flyingBubbles.push(bubble);
+                        logEvent(`🔮 Shot bubble ${i+1} at angle ${(angle * 180 / Math.PI).toFixed(1)}°`, 'success');
+                    }
+                }, i * 500);
+            });
+        };
+
+        window.triggerDescent = function() {
+            if (!testGame) {
+                logEvent('❌ Cannot trigger descent: game not ready', 'error');
+                return;
+            }
+            
+            logEvent('⬇️ Triggering descent...', 'info');
+            
+            try {
+                testGame.addNewRow();
+                logEvent('✅ Descent triggered successfully', 'success');
+            } catch (error) {
+                logEvent(`❌ Descent failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.resetTest = function() {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+            }
+            
+            testGame = null;
+            updateStatus('🔴 Not Started', false);
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('liveMetrics').innerHTML = '';
+            document.getElementById('gameState').innerHTML = '';
+            document.getElementById('eventLog').innerHTML = '';
+            document.getElementById('shootBtn').disabled = true;
+            document.getElementById('descentBtn').disabled = true;
+            
+            logEvent('🔄 Test reset', 'info');
+        };
+    </script>
+</body>
+</html>

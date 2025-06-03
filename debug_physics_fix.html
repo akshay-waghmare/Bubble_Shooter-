@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Physics Fix</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .debug-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 2px solid #fff;
+            background: linear-gradient(180deg, #87CEEB 0%, #98FB98 100%);
+            display: block;
+            margin: 0 auto;
+        }
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .console-output {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-panel">
+        <h2>🔧 Physics Engine Fix Debug</h2>
+        <p>Testing physics engine initialization and bubble collision fixes</p>
+        <div id="status" class="status">Loading...</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="startGame()">🎮 Start Game</button>
+        <button onclick="clearConsole()">🧹 Clear Console</button>
+        <button onclick="location.reload()">🔄 Reload Page</button>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div class="debug-panel">
+        <h3>Console Output:</h3>
+        <div id="consoleOutput" class="console-output"></div>
+    </div>
+
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    
+    <!-- Three.js for 3D rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script type="module">
+        import { Game } from './src/gameplay/game.js?v=' + Date.now();
+
+        let game = null;
+        let consoleDiv = document.getElementById('consoleOutput');
+        let statusDiv = document.getElementById('status');
+
+        // Capture console output
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addToConsole(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'warn' ? 'warn' : 'log';
+            consoleDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole('ERROR: ' + args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole('WARN: ' + args.join(' '), 'warn');
+        };
+
+        window.clearConsole = function() {
+            consoleDiv.innerHTML = '';
+        };
+
+        window.startGame = async function() {
+            try {
+                statusDiv.textContent = "🎮 Starting Game...";
+                
+                const canvas = document.getElementById('gameCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                console.log('=== PHYSICS FIX DEBUG START ===');
+                console.log('Canvas initialized:', { width: canvas.width, height: canvas.height });
+                
+                // Create game instance
+                game = new Game(canvas, ctx);
+                console.log('Game instance created');
+                
+                // Initialize game
+                await game.initGame('easy', 'classic', false); // No 3D for debugging
+                console.log('Game initialized');
+                
+                // Start game loop
+                game.start();
+                console.log('Game loop started');
+                
+                statusDiv.textContent = "🎮 Game Running - Try clicking to shoot!";
+                
+            } catch (error) {
+                console.error('Failed to start game:', error);
+                statusDiv.textContent = "❌ Failed to start game - check console";
+            }
+        };
+
+        // Auto-start game
+        window.addEventListener('load', () => {
+            setTimeout(startGame, 500);
+        });
+    </script>
+
+    <style>
+        .error { color: #ff4444; }
+        .warn { color: #ffaa00; }
+        .log { color: #00ff00; }
+    </style>
+</body>
+</html>

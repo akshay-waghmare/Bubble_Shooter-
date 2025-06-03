@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapid Fire Fix Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        canvas {
+            border: 2px solid #ffffff;
+            margin: 20px 0;
+            background: #000;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .test-buttons {
+            margin: 20px 0;
+        }
+        .test-buttons button {
+            background: #ff9800;
+        }
+        .test-buttons button:hover {
+            background: #e68900;
+        }
+        .log-area {
+            background: #000;
+            color: #00ff00;
+            padding: 10px;
+            margin: 20px 0;
+            height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #333;
+        }
+        .stats {
+            background: #333;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Flying Bubble Duplication Fix Test</h1>
+        <p>Testing the rapid-fire prevention fix for bubble duplication</p>
+        
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        
+        <div class="controls">
+            <button onclick="startGame()">Start Game</button>
+            <button onclick="pauseGame()">Pause/Resume</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="test-buttons">
+            <h3>Rapid Fire Tests</h3>
+            <button onclick="rapidClickTest()">Rapid Click Test (10 clicks in 100ms)</button>
+            <button onclick="doubleClickTest()">Double Click Test</button>
+            <button onclick="tripleClickTest()">Triple Click Test</button>
+        </div>
+        
+        <div class="stats">
+            <h3>Flying Bubbles Stats</h3>
+            <div>Current Flying Bubbles: <span id="flyingCount">0</span></div>
+            <div>Total Bubbles Created: <span id="totalCreated">0</span></div>
+            <div>Successful Shots: <span id="successfulShots">0</span></div>
+            <div>Blocked Shots (Rapid Fire): <span id="blockedShots">0</span></div>
+            <div>Last Update: <span id="lastUpdate">Never</span></div>
+        </div>
+        
+        <div class="log-area" id="logArea"></div>
+    </div>
+
+    <!-- Load Three.js for 3D effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Load Matter.js for physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    
+    <script type="module">
+        import { BubbleShooterApp } from './src/main.js';
+        
+        let app = null;
+        let game = null;
+        let stats = {
+            totalCreated: 0,
+            successfulShots: 0,
+            blockedShots: 0
+        };
+        
+        // Enhanced logging
+        function log(message) {
+            const logArea = document.getElementById('logArea');
+            const timestamp = new Date().toLocaleTimeString() + '.' + String(Date.now()).slice(-3);
+            logArea.innerHTML += `[${timestamp}] ${message}\n`;
+            logArea.scrollTop = logArea.scrollTop + 1000;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        // Override console.log to capture game logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            const message = args.join(' ');
+            if (message.includes('[EventManager]') || message.includes('[Shooter]') || message.includes('bubble')) {
+                log(message);
+                
+                // Track statistics
+                if (message.includes('shoot() blocked: too rapid')) {
+                    stats.blockedShots++;
+                    updateStats();
+                }
+                if (message.includes('Created bubble with ID:')) {
+                    stats.totalCreated++;
+                    stats.successfulShots++;
+                    updateStats();
+                }
+            }
+            originalLog.apply(console, args);
+        };
+        
+        function updateStats() {
+            if (game && game.flyingBubbles) {
+                document.getElementById('flyingCount').textContent = game.flyingBubbles.length;
+            }
+            document.getElementById('totalCreated').textContent = stats.totalCreated;
+            document.getElementById('successfulShots').textContent = stats.successfulShots;
+            document.getElementById('blockedShots').textContent = stats.blockedShots;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+        
+        window.startGame = async function() {
+            try {
+                log('🎮 Starting game...');
+                
+                if (app) {
+                    app.destroy();
+                }
+                
+                const canvas = document.getElementById('gameCanvas');
+                app = new BubbleShooterApp(canvas);
+                await app.initialize();
+                game = app.game;
+                
+                log('✅ Game started successfully');
+                
+                // Monitor flying bubbles periodically
+                setInterval(() => {
+                    updateStats();
+                }, 100);
+                
+            } catch (error) {
+                log('❌ Failed to start game: ' + error.message);
+                console.error(error);
+            }
+        };
+        
+        window.pauseGame = function() {
+            if (game) {
+                game.togglePause();
+                log('⏸️ Game paused/resumed');
+            }
+        };
+        
+        window.clearLog = function() {
+            document.getElementById('logArea').innerHTML = '';
+        };
+        
+        // Test functions for rapid fire
+        window.rapidClickTest = function() {
+            if (!game) {
+                log('⚠️ Start game first!');
+                return;
+            }
+            
+            log('🔥 Starting rapid click test (10 clicks in 100ms)...');
+            const startTime = Date.now();
+            
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    if (game.eventManager) {
+                        game.eventManager.shoot();
+                        log(`📍 Rapid click ${i + 1}/10`);
+                    }
+                }, i * 10); // 10ms apart
+            }
+            
+            setTimeout(() => {
+                const duration = Date.now() - startTime;
+                log(`🏁 Rapid click test completed in ${duration}ms`);
+                updateStats();
+            }, 150);
+        };
+        
+        window.doubleClickTest = function() {
+            if (!game) {
+                log('⚠️ Start game first!');
+                return;
+            }
+            
+            log('👆 Double click test...');
+            if (game.eventManager) {
+                game.eventManager.shoot();
+                setTimeout(() => game.eventManager.shoot(), 10); // 10ms apart
+            }
+            
+            setTimeout(() => {
+                log('🏁 Double click test completed');
+                updateStats();
+            }, 100);
+        };
+        
+        window.tripleClickTest = function() {
+            if (!game) {
+                log('⚠️ Start game first!');
+                return;
+            }
+            
+            log('👆👆👆 Triple click test...');
+            if (game.eventManager) {
+                game.eventManager.shoot();
+                setTimeout(() => game.eventManager.shoot(), 5);  // 5ms apart
+                setTimeout(() => game.eventManager.shoot(), 10); // 10ms apart
+            }
+            
+            setTimeout(() => {
+                log('🏁 Triple click test completed');
+                updateStats();
+            }, 100);
+        };
+        
+        // Auto-start on load
+        setTimeout(startGame, 500);
+    </script>
+</body>
+</html>

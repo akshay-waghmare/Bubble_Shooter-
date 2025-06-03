@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Modular Loading</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .debug-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #44ff44;
+            color: black;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .log {
+            background: #333;
+            color: #ccc;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        canvas {
+            border: 2px solid #333;
+            background: black;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bubble Shooter Modular Debug</h1>
+    
+    <div class="debug-panel">
+        <h2>Loading Status</h2>
+        <div id="loadingStatus">Initializing...</div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>Module Loading</h2>
+        <div id="moduleStatus"></div>
+    </div>
+    
+    <div class="debug-panel">
+        <h2>Error Log</h2>
+        <div id="errorLog" class="log"></div>
+    </div>
+    
+    <div class="debug-panel"> 
+        <h2>Console Log</h2>
+        <div id="consoleLog" class="log"></div>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="640"></canvas>
+    
+    <!-- Load Matter.js for physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    
+    <!-- Debug script -->
+    <script type="module">
+        const loadingStatus = document.getElementById('loadingStatus');
+        const moduleStatus = document.getElementById('moduleStatus');
+        const errorLog = document.getElementById('errorLog');
+        const consoleLog = document.getElementById('consoleLog');
+        
+        // Override console methods to capture output
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+        
+        function logToDiv(message, isError = false) {
+            const div = isError ? errorLog : consoleLog;
+            div.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+            div.scrollTop = div.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            logToDiv(args.join(' '));
+        };
+        
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            logToDiv('ERROR: ' + args.join(' '), true);
+        };
+        
+        console.warn = function(...args) {
+            originalConsoleWarn.apply(console, args);
+            logToDiv('WARN: ' + args.join(' '), true);
+        };
+        
+        // Test module loading step by step
+        async function debugModularLoading() {
+            try {
+                loadingStatus.innerHTML = '<div class="success">Starting debug process...</div>';
+                console.log('=== DEBUG MODULAR LOADING START ===');
+                
+                // Test 1: Load main.js
+                console.log('Step 1: Loading main.js...');
+                moduleStatus.innerHTML += '<div>Loading main.js...</div>';
+                
+                const { BubbleShooterApp } = await import('./src/main.js');
+                console.log('✅ main.js loaded successfully');
+                moduleStatus.innerHTML += '<div class="success">✅ main.js loaded</div>';
+                
+                // Test 2: Create app instance
+                console.log('Step 2: Creating BubbleShooterApp instance...');
+                moduleStatus.innerHTML += '<div>Creating app instance...</div>';
+                
+                const app = new BubbleShooterApp();
+                console.log('✅ BubbleShooterApp instance created');
+                moduleStatus.innerHTML += '<div class="success">✅ App instance created</div>';
+                
+                // Test 3: Initialize the app
+                console.log('Step 3: Initializing app...');
+                moduleStatus.innerHTML += '<div>Initializing app...</div>';
+                
+                const game = await app.initialize();
+                console.log('✅ App initialized successfully');
+                moduleStatus.innerHTML += '<div class="success">✅ App initialized</div>';
+                
+                loadingStatus.innerHTML = '<div class="success">✅ All modules loaded successfully!</div>';
+                console.log('=== DEBUG COMPLETED SUCCESSFULLY ===');
+                
+            } catch (error) {
+                console.error('❌ DEBUG FAILED:', error);
+                loadingStatus.innerHTML = '<div class="error">❌ Loading failed: ' + error.message + '</div>';
+                moduleStatus.innerHTML += '<div class="error">❌ Failed at: ' + error.message + '</div>';
+                
+                // Show detailed error info
+                errorLog.textContent += '\n=== DETAILED ERROR INFO ===\n';
+                errorLog.textContent += 'Message: ' + error.message + '\n';
+                errorLog.textContent += 'Stack: ' + error.stack + '\n';
+            }
+        }
+        
+        // Handle global errors
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+        });
+        
+        // Start the debug process
+        debugModularLoading();
+    </script>
+</body>
+</html>
