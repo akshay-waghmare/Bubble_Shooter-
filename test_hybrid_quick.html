@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Hybrid Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        button {
+            background: #4ECDC4;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #45B7D1;
+        }
+        
+        #gameContainer {
+            border: 2px solid #4ECDC4;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            height: 150px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Quick Hybrid Renderer Test</h1>
+        
+        <div class="status">
+            <h3>Status: <span id="status">Initializing...</span></h3>
+        </div>
+        
+        <div>
+            <button onclick="runQuickTest()">Run Quick Test</button>
+            <button onclick="clearTest()">Clear</button>
+        </div>
+        
+        <div id="gameContainer"></div>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- Load libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <script src="hybridRenderer.js"></script>
+    
+    <script>
+        let renderer = null;
+        
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const colorMap = {
+                info: '#0f0',
+                success: '#4ECDC4',
+                error: '#FF6B6B',
+                warning: '#FECA57'
+            };
+            
+            logElement.innerHTML += `<div style="color: ${colorMap[type]}">[${time}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(status) {
+            document.getElementById('status').textContent = status;
+        }
+        
+        async function runQuickTest() {
+            try {
+                updateStatus('Running...');
+                log('🚀 Starting quick hybrid renderer test...', 'info');
+                
+                // Clean up previous test
+                if (renderer) {
+                    renderer.destroy();
+                    renderer = null;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                // Clear container
+                document.getElementById('gameContainer').innerHTML = '';
+                
+                // Test 1: Basic initialization
+                log('📦 Testing basic initialization...', 'info');
+                renderer = new HybridRenderer('gameContainer', {
+                    width: 400,
+                    height: 300,
+                    use3D: false,
+                    quality: 'medium'
+                });
+                
+                // Wait for initialization
+                let attempts = 0;
+                while (!renderer.initialized && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!renderer.initialized) {
+                    throw new Error('Renderer failed to initialize');
+                }
+                
+                log('✅ Basic initialization successful', 'success');
+                
+                // Test 2: Bubble creation
+                log('🫧 Testing bubble creation...', 'info');
+                const bubbleId = renderer.createBubble(200, 150, 0, { scale: 0.8 });
+                
+                if (!bubbleId) {
+                    throw new Error('Bubble creation returned null');
+                }
+                
+                if (!renderer.bubbles.has(bubbleId)) {
+                    throw new Error('Bubble not stored in bubbles map');
+                }
+                
+                const bubbleData = renderer.bubbles.get(bubbleId);
+                if (!bubbleData.sprite) {
+                    throw new Error('Bubble sprite not created');
+                }
+                
+                log('✅ Bubble creation successful', 'success');
+                
+                // Test 3: Pop effect
+                log('💥 Testing pop effect...', 'info');
+                renderer.createPopEffect(100, 100, '#FF6B6B');
+                log('✅ Pop effect created', 'success');
+                
+                updateStatus('Test Passed ✅');
+                log('🎉 All tests passed successfully!', 'success');
+                
+            } catch (error) {
+                updateStatus('Test Failed ❌');
+                log(`❌ Test failed: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+        
+        function clearTest() {
+            if (renderer) {
+                renderer.destroy();
+                renderer = null;
+            }
+            document.getElementById('gameContainer').innerHTML = '';
+            document.getElementById('log').innerHTML = '';
+            updateStatus('Ready');
+        }
+        
+        // Auto-run test on load
+        window.addEventListener('load', () => {
+            log('🎯 Page loaded, ready for testing', 'info');
+            updateStatus('Ready');
+        });
+    </script>
+</body>
+</html>

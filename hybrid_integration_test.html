@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Integration Validation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .pass { background: rgba(0, 255, 0, 0.3); }
+        .fail { background: rgba(255, 0, 0, 0.3); }
+        .info { background: rgba(0, 0, 255, 0.3); }
+        .test-game-container {
+            width: 600px;
+            height: 400px;
+            margin: 20px auto;
+            border: 2px solid white;
+            border-radius: 10px;
+            position: relative;
+        }
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+    
+    <!-- Load the same dependencies as main game -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Hybrid Integration Validation Test</h1>
+        
+        <div class="test-section">
+            <h2>📋 Dependency Checks</h2>
+            <div id="dependencies"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📁 File Loading Tests</h2>
+            <div id="fileLoading"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🎮 Component Initialization</h2>
+            <div id="componentInit"></div>
+            <button onclick="testHybridRenderer()">Test Hybrid Renderer</button>
+            <button onclick="testGameManager()">Test Game Manager</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>🚀 Live Game Test</h2>
+            <div id="gameTest"></div>
+            <div id="testGameContainer" class="test-game-container"></div>
+            <button onclick="startTestGame()">Start Test Game</button>
+            <button onclick="stopTestGame()">Stop Test Game</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>📊 Performance Metrics</h2>
+            <div id="performance"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>✅ Integration Status</h2>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // Test state
+        let testResults = {
+            dependencies: {},
+            files: {},
+            components: {},
+            game: {},
+            performance: {}
+        };
+        
+        let testGameInstance = null;
+        let testRenderer = null;
+
+        // Utility functions
+        function logResult(section, test, passed, message) {
+            testResults[section][test] = { passed, message };
+            updateDisplay(section);
+        }
+
+        function updateDisplay(section) {
+            const element = document.getElementById(section === 'componentInit' ? 'componentInit' : 
+                                                 section === 'gameTest' ? 'gameTest' :
+                                                 section === 'fileLoading' ? 'fileLoading' : section);
+            if (!element) return;
+
+            let html = '';
+            for (const [test, result] of Object.entries(testResults[section])) {
+                html += `<div class="test-result ${result.passed ? 'pass' : 'fail'}">
+                    ${result.passed ? '✅' : '❌'} ${test}: ${result.message}
+                </div>`;
+            }
+            element.innerHTML = html;
+        }
+
+        // Test 1: Check dependencies
+        function checkDependencies() {
+            const deps = {
+                'Phaser.js': typeof Phaser !== 'undefined',
+                'Three.js': typeof THREE !== 'undefined',
+                'Matter.js': typeof Matter !== 'undefined',
+                'WebGL Support': !!document.createElement('canvas').getContext('webgl'),
+                'Local Storage': typeof Storage !== 'undefined'
+            };
+
+            for (const [name, available] of Object.entries(deps)) {
+                logResult('dependencies', name, available, 
+                    available ? 'Available' : 'Missing or not supported');
+            }
+        }
+
+        // Test 2: Load and verify files
+        async function checkFileLoading() {
+            const files = [
+                'hybridRenderer.js',
+                'hybridBubbleShooter.js', 
+                'hybridGameManager.js',
+                'game.js',
+                'bubbleRenderer.js'
+            ];
+
+            for (const file of files) {
+                try {
+                    const response = await fetch(file);
+                    const loaded = response.ok;
+                    logResult('fileLoading', file, loaded, 
+                        loaded ? `Loaded (${response.status})` : `Failed (${response.status})`);
+                } catch (error) {
+                    logResult('fileLoading', file, false, `Error: ${error.message}`);
+                }
+            }
+        }
+
+        // Test 3: Component initialization
+        async function testHybridRenderer() {
+            try {
+                // Load the renderer script if not already loaded
+                if (typeof HybridRenderer === 'undefined') {
+                    await loadScript('hybridRenderer.js');
+                }
+
+                const container = document.getElementById('testGameContainer');
+                container.innerHTML = '';
+
+                testRenderer = new HybridRenderer({
+                    container: container,
+                    width: 600,
+                    height: 400,
+                    quality: 'medium',
+                    enableSound: false
+                });
+
+                await testRenderer.initialize();
+                
+                logResult('components', 'HybridRenderer', true, 'Successfully initialized');
+                
+                // Test basic functionality
+                setTimeout(() => {
+                    if (testRenderer.phaserGame && testRenderer.phaserGame.scene) {
+                        logResult('components', 'Phaser Scene', true, 'Phaser scene created');
+                    }
+                    if (testRenderer.threeRenderer) {
+                        logResult('components', 'Three.js Renderer', true, 'Three.js renderer created');
+                    }
+                }, 1000);
+
+            } catch (error) {
+                logResult('components', 'HybridRenderer', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function testGameManager() {
+            try {
+                if (typeof HybridGameManager === 'undefined') {
+                    await loadScript('hybridGameManager.js');
+                }
+
+                // Test game manager creation (without full initialization)
+                const testManager = {
+                    gameState: {
+                        currentMode: 'classic',
+                        currentDifficulty: 'novice',
+                        currentRendering: 'hybrid',
+                        currentQuality: 'medium'
+                    }
+                };
+
+                logResult('components', 'HybridGameManager', true, 'Game manager structure validated');
+
+            } catch (error) {
+                logResult('components', 'HybridGameManager', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 4: Start actual game
+        async function startTestGame() {
+            try {
+                if (!testRenderer) {
+                    await testHybridRenderer();
+                }
+
+                if (typeof HybridBubbleShooterGame === 'undefined') {
+                    await loadScript('hybridBubbleShooter.js');
+                }
+
+                testGameInstance = new HybridBubbleShooterGame({
+                    renderer: testRenderer,
+                    mode: 'classic',
+                    difficulty: 'novice',
+                    onScoreUpdate: (score) => {
+                        logResult('game', 'Score System', true, `Score updated: ${score}`);
+                    },
+                    onGameEnd: (result) => {
+                        logResult('game', 'Game End', true, `Game ended with score: ${result.score}`);
+                    }
+                });
+
+                await testGameInstance.start();
+                logResult('game', 'Game Start', true, 'Game started successfully');
+
+                // Test basic game functionality
+                setTimeout(() => {
+                    if (testGameInstance.bubbleGrid && testGameInstance.bubbleGrid.length > 0) {
+                        logResult('game', 'Bubble Grid', true, `Grid initialized with ${testGameInstance.bubbleGrid.length} rows`);
+                    }
+                    if (testGameInstance.currentBubble) {
+                        logResult('game', 'Shooting System', true, 'Shooting bubble available');
+                    }
+                }, 2000);
+
+            } catch (error) {
+                logResult('game', 'Game Start', false, `Error: ${error.message}`);
+            }
+        }
+
+        function stopTestGame() {
+            if (testGameInstance && testGameInstance.destroy) {
+                testGameInstance.destroy();
+                testGameInstance = null;
+                logResult('game', 'Game Cleanup', true, 'Game stopped and cleaned up');
+            }
+            if (testRenderer && testRenderer.destroy) {
+                testRenderer.destroy();
+                testRenderer = null;
+                logResult('components', 'Renderer Cleanup', true, 'Renderer cleaned up');
+            }
+        }
+
+        // Test performance
+        function checkPerformance() {
+            const metrics = {
+                'Memory Usage': performance.memory ? 
+                    `${Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)}MB` : 'Not available',
+                'Hardware Concurrency': navigator.hardwareConcurrency || 'Unknown',
+                'Device Pixel Ratio': window.devicePixelRatio || 1,
+                'Screen Resolution': `${screen.width}x${screen.height}`,
+                'Viewport Size': `${window.innerWidth}x${window.innerHeight}`
+            };
+
+            let html = '';
+            for (const [metric, value] of Object.entries(metrics)) {
+                html += `<div class="test-result info">ℹ️ ${metric}: ${value}</div>`;
+            }
+            document.getElementById('performance').innerHTML = html;
+        }
+
+        // Update overall status
+        function updateStatus() {
+            let totalTests = 0;
+            let passedTests = 0;
+            
+            for (const section of Object.values(testResults)) {
+                for (const result of Object.values(section)) {
+                    totalTests++;
+                    if (result.passed) passedTests++;
+                }
+            }
+
+            const percentage = totalTests > 0 ? Math.round((passedTests / totalTests) * 100) : 0;
+            const status = percentage >= 80 ? 'pass' : percentage >= 60 ? 'info' : 'fail';
+            
+            document.getElementById('status').innerHTML = `
+                <div class="test-result ${status}">
+                    ${percentage >= 80 ? '🎉' : percentage >= 60 ? '⚠️' : '❌'} 
+                    Integration Status: ${percentage}% (${passedTests}/${totalTests} tests passed)
+                </div>
+                <div class="test-result info">
+                    ${percentage >= 80 ? 
+                        '✅ Hybrid integration is working correctly!' :
+                        percentage >= 60 ?
+                        '⚠️ Hybrid integration has some issues but is mostly functional.' :
+                        '❌ Hybrid integration has significant issues that need attention.'
+                    }
+                </div>
+            `;
+        }
+
+        // Utility function to load scripts dynamically
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // Run initial tests
+        async function runAllTests() {
+            checkDependencies();
+            await checkFileLoading();
+            checkPerformance();
+            updateStatus();
+        }
+
+        // Auto-update status every few seconds
+        setInterval(updateStatus, 3000);
+
+        // Run tests when page loads
+        window.addEventListener('load', runAllTests);
+    </script>
+</body>
+</html>

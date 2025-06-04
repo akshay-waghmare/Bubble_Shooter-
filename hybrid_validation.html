@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Renderer Validation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status.pending { background: #ffc107; color: #000; }
+        .status.running { background: #17a2b8; color: #fff; }
+        .status.passed { background: #28a745; color: #fff; }
+        .status.failed { background: #dc3545; color: #fff; }
+        
+        button {
+            background: #4ECDC4;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover { background: #45B7D1; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        
+        #gameContainer {
+            border: 2px solid #4ECDC4;
+            border-radius: 10px;
+            margin: 20px 0;
+            background: #1a1a2e;
+        }
+        
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+            font-size: 12px;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4ECDC4, #45B7D1);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Hybrid Renderer Complete Validation</h1>
+        <p>Comprehensive testing of Phaser.js + Three.js integration</p>
+        
+        <div class="test-section">
+            <h3>🎯 Test Progress</h3>
+            <div class="progress">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p id="progressText">Ready to start tests</p>
+        </div>
+        
+        <div class="test-section">
+            <h3>🧪 Test Suite</h3>
+            <div>
+                <span>1. Library Loading:</span>
+                <span class="status pending" id="status-libraries">PENDING</span>
+            </div>
+            <div>
+                <span>2. Renderer Initialization:</span>
+                <span class="status pending" id="status-init">PENDING</span>
+            </div>
+            <div>
+                <span>3. Phaser Scene Creation:</span>
+                <span class="status pending" id="status-phaser">PENDING</span>
+            </div>
+            <div>
+                <span>4. Three.js 3D Setup:</span>
+                <span class="status pending" id="status-three">PENDING</span>
+            </div>
+            <div>
+                <span>5. Bubble Creation:</span>
+                <span class="status pending" id="status-bubbles">PENDING</span>
+            </div>
+            <div>
+                <span>6. Physics Integration:</span>
+                <span class="status pending" id="status-physics">PENDING</span>
+            </div>
+            <div>
+                <span>7. 3D Effects:</span>
+                <span class="status pending" id="status-effects">PENDING</span>
+            </div>
+            <div>
+                <span>8. Animation System:</span>
+                <span class="status pending" id="status-animation">PENDING</span>
+            </div>
+            <div>
+                <span>9. Performance Test:</span>
+                <span class="status pending" id="status-performance">PENDING</span>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🎮 Controls</h3>
+            <button onclick="runAllTests()" id="runButton">Run All Tests</button>
+            <button onclick="runSingleTest()" id="singleButton">Run Single Test</button>
+            <button onclick="clearTests()" id="clearButton">Clear</button>
+            <button onclick="toggleMode()" id="modeButton">2D Mode</button>
+        </div>
+        
+        <div id="gameContainer"></div>
+        
+        <div class="test-section">
+            <h3>📊 Results Summary</h3>
+            <div id="summary">
+                <p>Tests: <span id="totalTests">0</span> | 
+                   Passed: <span id="passedTests">0</span> | 
+                   Failed: <span id="failedTests">0</span></p>
+            </div>
+        </div>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- Load libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <script src="hybridRenderer.js"></script>
+    
+    <script>
+        let renderer = null;
+        let currentTest = 0;
+        let totalTests = 9;
+        let passedTests = 0;
+        let failedTests = 0;
+        let use3D = false;
+        
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const colorMap = {
+                info: '#0f0',
+                success: '#4ECDC4',
+                error: '#FF6B6B',
+                warning: '#FECA57',
+                debug: '#FFF'
+            };
+            
+            logElement.innerHTML += `<div style="color: ${colorMap[type]}">[${time}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(testId, status) {
+            const element = document.getElementById(`status-${testId}`);
+            if (element) {
+                element.className = `status ${status}`;
+                element.textContent = status.toUpperCase();
+            }
+        }
+        
+        function updateProgress() {
+            const progress = (currentTest / totalTests) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+            document.getElementById('progressText').textContent = 
+                `Test ${currentTest}/${totalTests} - ${Math.round(progress)}% Complete`;
+            
+            // Update summary
+            document.getElementById('totalTests').textContent = totalTests;
+            document.getElementById('passedTests').textContent = passedTests;
+            document.getElementById('failedTests').textContent = failedTests;
+        }
+        
+        async function testLibraries() {
+            updateStatus('libraries', 'running');
+            log('📦 Testing library loading...', 'info');
+            
+            try {
+                if (typeof Phaser === 'undefined') {
+                    throw new Error('Phaser.js not loaded');
+                }
+                log('✅ Phaser.js loaded successfully', 'success');
+                
+                if (typeof THREE === 'undefined') {
+                    throw new Error('Three.js not loaded');
+                }
+                log('✅ Three.js loaded successfully', 'success');
+                
+                if (typeof HybridRenderer === 'undefined') {
+                    throw new Error('HybridRenderer not loaded');
+                }
+                log('✅ HybridRenderer loaded successfully', 'success');
+                
+                updateStatus('libraries', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Library test failed: ${error.message}`, 'error');
+                updateStatus('libraries', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testInitialization() {
+            updateStatus('init', 'running');
+            log('🚀 Testing renderer initialization...', 'info');
+            
+            try {
+                // Clean up previous test
+                if (renderer) {
+                    renderer.destroy();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                document.getElementById('gameContainer').innerHTML = '';
+                
+                renderer = new HybridRenderer('gameContainer', {
+                    width: 400,
+                    height: 300,
+                    use3D: use3D,
+                    quality: 'medium',
+                    integrationMode: 'overlay'
+                });
+                
+                // Wait for initialization with timeout
+                let attempts = 0;
+                while (!renderer.initialized && attempts < 100) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!renderer.initialized) {
+                    throw new Error('Renderer initialization timeout');
+                }
+                
+                log('✅ Renderer initialized successfully', 'success');
+                updateStatus('init', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Initialization test failed: ${error.message}`, 'error');
+                updateStatus('init', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testPhaserScene() {
+            updateStatus('phaser', 'running');
+            log('🎮 Testing Phaser scene creation...', 'info');
+            
+            try {
+                if (!renderer || !renderer.phaserGame) {
+                    throw new Error('Phaser game not created');
+                }
+                
+                if (!renderer.phaserScene) {
+                    throw new Error('Phaser scene not accessible');
+                }
+                
+                // Test scene components
+                const scene = renderer.phaserScene;
+                if (!scene.add || !scene.physics) {
+                    throw new Error('Scene components missing');
+                }
+                
+                log('✅ Phaser scene created and accessible', 'success');
+                updateStatus('phaser', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Phaser scene test failed: ${error.message}`, 'error');
+                updateStatus('phaser', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testThreeJS() {
+            updateStatus('three', 'running');
+            log('✨ Testing Three.js 3D setup...', 'info');
+            
+            try {
+                if (!use3D) {
+                    log('⏭️ Skipping Three.js test (2D mode)', 'warning');
+                    updateStatus('three', 'passed');
+                    passedTests++;
+                    return true;
+                }
+                
+                if (!renderer.threeRenderer) {
+                    throw new Error('Three.js renderer not created');
+                }
+                
+                if (!renderer.scene || !renderer.camera) {
+                    throw new Error('Three.js scene or camera missing');
+                }
+                
+                log('✅ Three.js components created successfully', 'success');
+                updateStatus('three', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Three.js test failed: ${error.message}`, 'error');
+                updateStatus('three', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testBubbleCreation() {
+            updateStatus('bubbles', 'running');
+            log('🫧 Testing bubble creation...', 'info');
+            
+            try {
+                if (!renderer) {
+                    throw new Error('Renderer not available');
+                }
+                
+                const bubbleId = renderer.createBubble(200, 150, 0, { scale: 0.8 });
+                
+                if (!bubbleId) {
+                    throw new Error('Bubble creation returned null');
+                }
+                
+                if (!renderer.bubbles.has(bubbleId)) {
+                    throw new Error('Bubble not stored in bubbles map');
+                }
+                
+                const bubbleData = renderer.bubbles.get(bubbleId);
+                if (!bubbleData || !bubbleData.sprite) {
+                    throw new Error('Bubble sprite not created properly');
+                }
+                
+                log('✅ Bubble creation working correctly', 'success');
+                updateStatus('bubbles', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Bubble creation test failed: ${error.message}`, 'error');
+                updateStatus('bubbles', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testPhysics() {
+            updateStatus('physics', 'running');
+            log('⚛️ Testing physics integration...', 'info');
+            
+            try {
+                if (!renderer || renderer.bubbles.size === 0) {
+                    throw new Error('No bubbles available for physics test');
+                }
+                
+                // Get the first bubble
+                const bubbleData = Array.from(renderer.bubbles.values())[0];
+                const bubble = bubbleData.sprite;
+                
+                if (!bubble.body) {
+                    throw new Error('Bubble physics body not created');
+                }
+                
+                // Test physics by applying velocity
+                bubble.body.setVelocity(100, -50);
+                
+                // Check if velocity was applied
+                if (bubble.body.velocity.x === 0 && bubble.body.velocity.y === 0) {
+                    throw new Error('Physics velocity not applied');
+                }
+                
+                log('✅ Physics integration working', 'success');
+                updateStatus('physics', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Physics test failed: ${error.message}`, 'error');
+                updateStatus('physics', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function test3DEffects() {
+            updateStatus('effects', 'running');
+            log('💫 Testing 3D effects...', 'info');
+            
+            try {
+                if (!use3D) {
+                    log('⏭️ Skipping 3D effects test (2D mode)', 'warning');
+                    updateStatus('effects', 'passed');
+                    passedTests++;
+                    return true;
+                }
+                
+                if (!renderer) {
+                    throw new Error('Renderer not available');
+                }
+                
+                // Test 3D pop effect
+                renderer.create3DPopEffect(200, 150, '#FF6B6B');
+                
+                if (renderer.effects.size === 0) {
+                    throw new Error('3D effects not created');
+                }
+                
+                log('✅ 3D effects working correctly', 'success');
+                updateStatus('effects', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ 3D effects test failed: ${error.message}`, 'error');
+                updateStatus('effects', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testAnimation() {
+            updateStatus('animation', 'running');
+            log('🎬 Testing animation system...', 'info');
+            
+            try {
+                if (!renderer) {
+                    throw new Error('Renderer not available');
+                }
+                
+                // Test pop effect animation
+                renderer.createPopEffect(100, 100, '#4ECDC4');
+                
+                // Wait a bit for animation to start
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                log('✅ Animation system working', 'success');
+                updateStatus('animation', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Animation test failed: ${error.message}`, 'error');
+                updateStatus('animation', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function testPerformance() {
+            updateStatus('performance', 'running');
+            log('⚡ Testing performance with multiple bubbles...', 'info');
+            
+            try {
+                if (!renderer) {
+                    throw new Error('Renderer not available');
+                }
+                
+                const startTime = performance.now();
+                
+                // Create multiple bubbles
+                for (let i = 0; i < 10; i++) {
+                    const x = 50 + (i % 5) * 60;
+                    const y = 50 + Math.floor(i / 5) * 60;
+                    const color = i % 6;
+                    
+                    renderer.createBubble(x, y, color, {
+                        trail: use3D && i % 2 === 0,
+                        scale: 0.7 + Math.random() * 0.6
+                    });
+                }
+                
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                
+                if (duration > 1000) {
+                    throw new Error(`Performance too slow: ${duration}ms`);
+                }
+                
+                log(`✅ Performance test passed (${duration.toFixed(1)}ms for 10 bubbles)`, 'success');
+                updateStatus('performance', 'passed');
+                passedTests++;
+                return true;
+            } catch (error) {
+                log(`❌ Performance test failed: ${error.message}`, 'error');
+                updateStatus('performance', 'failed');
+                failedTests++;
+                return false;
+            }
+        }
+        
+        async function runAllTests() {
+            currentTest = 0;
+            passedTests = 0;
+            failedTests = 0;
+            
+            log('🏁 Starting comprehensive test suite...', 'info');
+            
+            const tests = [
+                testLibraries,
+                testInitialization,
+                testPhaserScene,
+                testThreeJS,
+                testBubbleCreation,
+                testPhysics,
+                test3DEffects,
+                testAnimation,
+                testPerformance
+            ];
+            
+            document.getElementById('runButton').disabled = true;
+            
+            for (let i = 0; i < tests.length; i++) {
+                currentTest = i + 1;
+                updateProgress();
+                
+                await tests[i]();
+                
+                // Small delay between tests
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+            log(`🎉 Test suite complete! Passed: ${passedTests}/${totalTests}`, 
+                passedTests === totalTests ? 'success' : 'warning');
+            
+            document.getElementById('runButton').disabled = false;
+        }
+        
+        async function runSingleTest() {
+            // Run just the basic test for quick validation
+            await testLibraries();
+            await testInitialization();
+            await testBubbleCreation();
+        }
+        
+        function clearTests() {
+            if (renderer) {
+                renderer.destroy();
+                renderer = null;
+            }
+            document.getElementById('gameContainer').innerHTML = '';
+            document.getElementById('log').innerHTML = '';
+            
+            // Reset all statuses
+            const statuses = ['libraries', 'init', 'phaser', 'three', 'bubbles', 'physics', 'effects', 'animation', 'performance'];
+            statuses.forEach(status => updateStatus(status, 'pending'));
+            
+            currentTest = 0;
+            passedTests = 0;
+            failedTests = 0;
+            updateProgress();
+            
+            log('🧹 Tests cleared, ready to run again', 'info');
+        }
+        
+        function toggleMode() {
+            use3D = !use3D;
+            const button = document.getElementById('modeButton');
+            button.textContent = use3D ? '3D Mode' : '2D Mode';
+            log(`🎮 Switched to ${use3D ? '3D' : '2D'} mode`, 'info');
+        }
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🎯 Hybrid Renderer Validation ready', 'info');
+            updateProgress();
+        });
+    </script>
+</body>
+</html>

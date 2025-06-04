@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Renderer Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .test-status {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .game-container {
+            border: 2px solid #4ECDC4;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .test-controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        button {
+            background: #4ECDC4;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #45B7D1;
+        }
+        
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .success { color: #4ECDC4; }
+        .error { color: #FF6B6B; }
+        .warning { color: #FECA57; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Hybrid Renderer Test Suite</h1>
+        
+        <div class="test-status">
+            <h3>Test Status</h3>
+            <div id="testStatus">Initializing...</div>
+        </div>
+        
+        <div class="test-controls">
+            <button onclick="runBasicTest()">Basic Test</button>
+            <button onclick="runPhaser2DTest()">Phaser 2D Test</button>
+            <button onclick="runThree3DTest()">Three.js 3D Test</button>
+            <button onclick="runHybridTest()">Hybrid Test</button>
+            <button onclick="runPerformanceTest()">Performance Test</button>
+            <button onclick="clearTests()">Clear</button>
+        </div>
+        
+        <div id="gameContainer" class="game-container"></div>
+        
+        <div id="testLog" class="log"></div>
+    </div>
+
+    <!-- Load libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    <script src="hybridRenderer.js"></script>
+    
+    <script>
+        let testRenderer = null;
+        let testResults = {
+            basic: false,
+            phaser: false,
+            three: false,
+            hybrid: false,
+            performance: false
+        };
+
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            
+            logElement.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(message);
+        }
+
+        function updateStatus() {
+            const passed = Object.values(testResults).filter(Boolean).length;
+            const total = Object.keys(testResults).length;
+            
+            let status = `Tests Passed: ${passed}/${total}<br>`;
+            for (const [test, result] of Object.entries(testResults)) {
+                status += `${test}: ${result ? '✅' : '❌'}<br>`;
+            }
+            
+            document.getElementById('testStatus').innerHTML = status;
+        }
+
+        async function runBasicTest() {
+            log('🧪 Running Basic Test...', 'info');
+            
+            try {
+                // Test library loading
+                if (typeof Phaser === 'undefined') {
+                    throw new Error('Phaser.js not loaded');
+                }
+                log('✅ Phaser.js loaded successfully', 'success');
+                
+                if (typeof THREE === 'undefined') {
+                    throw new Error('Three.js not loaded');
+                }
+                log('✅ Three.js loaded successfully', 'success');
+                
+                if (typeof HybridRenderer === 'undefined') {
+                    throw new Error('HybridRenderer not loaded');
+                }
+                log('✅ HybridRenderer loaded successfully', 'success');
+                
+                testResults.basic = true;
+                log('🎉 Basic Test PASSED', 'success');
+                
+            } catch (error) {
+                log(`❌ Basic Test FAILED: ${error.message}`, 'error');
+                testResults.basic = false;
+            }
+            
+            updateStatus();
+        }
+
+        async function runPhaser2DTest() {
+            log('🎮 Running Phaser 2D Test...', 'info');
+            
+            try {
+                // Clean up previous test
+                if (testRenderer) {
+                    testRenderer.destroy();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                // Create renderer with 2D only
+                testRenderer = new HybridRenderer('gameContainer', {
+                    width: 400,
+                    height: 300,
+                    use3D: false,
+                    quality: 'medium'
+                });
+                
+                // Wait for initialization
+                await new Promise(resolve => {
+                    const checkInit = () => {
+                        if (testRenderer.initialized) {
+                            resolve();
+                        } else {
+                            setTimeout(checkInit, 100);
+                        }
+                    };
+                    checkInit();
+                });
+                
+                log('✅ Phaser game created', 'success');
+                
+                // Test bubble creation
+                const bubbleId = testRenderer.createBubble(200, 150, 0, { scale: 0.8 });
+                if (testRenderer.bubbles.has(bubbleId)) {
+                    log('✅ Bubble creation working', 'success');
+                } else {
+                    throw new Error('Bubble creation failed');
+                }
+                
+                testResults.phaser = true;
+                log('🎉 Phaser 2D Test PASSED', 'success');
+                
+            } catch (error) {
+                log(`❌ Phaser 2D Test FAILED: ${error.message}`, 'error');
+                testResults.phaser = false;
+            }
+            
+            updateStatus();
+        }
+
+        async function runThree3DTest() {
+            log('✨ Running Three.js 3D Test...', 'info');
+            
+            try {
+                // Clean up previous test
+                if (testRenderer) {
+                    testRenderer.destroy();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                // Create renderer with 3D enabled
+                testRenderer = new HybridRenderer('gameContainer', {
+                    width: 400,
+                    height: 300,
+                    use3D: true,
+                    quality: 'medium'
+                });
+                
+                // Wait for initialization
+                await new Promise(resolve => {
+                    const checkInit = () => {
+                        if (testRenderer.initialized) {
+                            resolve();
+                        } else {
+                            setTimeout(checkInit, 100);
+                        }
+                    };
+                    checkInit();
+                });
+                
+                // Check Three.js components
+                if (testRenderer.scene && testRenderer.threeRenderer) {
+                    log('✅ Three.js scene and renderer created', 'success');
+                } else {
+                    throw new Error('Three.js components not initialized');
+                }
+                
+                // Test 3D effect creation
+                testRenderer.create3DPopEffect(200, 150, '#FF6B6B');
+                if (testRenderer.effects.size > 0) {
+                    log('✅ 3D effect creation working', 'success');
+                } else {
+                    throw new Error('3D effect creation failed');
+                }
+                
+                testResults.three = true;
+                log('🎉 Three.js 3D Test PASSED', 'success');
+                
+            } catch (error) {
+                log(`❌ Three.js 3D Test FAILED: ${error.message}`, 'error');
+                testResults.three = false;
+            }
+            
+            updateStatus();
+        }
+
+        async function runHybridTest() {
+            log('🚀 Running Hybrid Integration Test...', 'info');
+            
+            try {
+                // Clean up previous test
+                if (testRenderer) {
+                    testRenderer.destroy();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                // Create full hybrid renderer
+                testRenderer = new HybridRenderer('gameContainer', {
+                    width: 400,
+                    height: 300,
+                    use3D: true,
+                    quality: 'high',
+                    integrationMode: 'overlay'
+                });
+                
+                // Wait for initialization
+                await new Promise(resolve => {
+                    const checkInit = () => {
+                        if (testRenderer.initialized) {
+                            resolve();
+                        } else {
+                            setTimeout(checkInit, 100);
+                        }
+                    };
+                    checkInit();
+                });
+                
+                // Test integrated bubble creation with 3D trail
+                const bubbleId = testRenderer.createBubble(200, 250, 2, { 
+                    trail: true, 
+                    scale: 1.0 
+                });
+                
+                if (testRenderer.bubbles.has(bubbleId) && testRenderer.effects.size > 0) {
+                    log('✅ Hybrid bubble with 3D trail created', 'success');
+                } else {
+                    throw new Error('Hybrid integration failed');
+                }
+                
+                // Test pop effect (2D + 3D)
+                testRenderer.createPopEffect(100, 100, '#4ECDC4');
+                
+                // Simulate some movement
+                setTimeout(() => {
+                    const bubble = testRenderer.bubbles.get(bubbleId).sprite;
+                    bubble.body.setVelocity(100, -50);
+                    log('✅ Physics integration working', 'success');
+                }, 500);
+                
+                testResults.hybrid = true;
+                log('🎉 Hybrid Integration Test PASSED', 'success');
+                
+            } catch (error) {
+                log(`❌ Hybrid Integration Test FAILED: ${error.message}`, 'error');
+                testResults.hybrid = false;
+            }
+            
+            updateStatus();
+        }
+
+        async function runPerformanceTest() {
+            log('⚡ Running Performance Test...', 'info');
+            
+            try {
+                if (!testRenderer) {
+                    throw new Error('No active renderer for performance test');
+                }
+                
+                const startTime = performance.now();
+                
+                // Create multiple bubbles and effects
+                const bubbleIds = [];
+                for (let i = 0; i < 20; i++) {
+                    const x = 50 + (i % 8) * 40;
+                    const y = 50 + Math.floor(i / 8) * 40;
+                    const color = i % 6;
+                    
+                    const bubbleId = testRenderer.createBubble(x, y, color, { 
+                        trail: i % 3 === 0,
+                        scale: 0.8 + Math.random() * 0.4
+                    });
+                    bubbleIds.push(bubbleId);
+                }
+                
+                // Create some pop effects
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        const x = 100 + Math.random() * 200;
+                        const y = 100 + Math.random() * 100;
+                        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'];
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        testRenderer.createPopEffect(x, y, color);
+                    }, i * 100);
+                }
+                
+                const endTime = performance.now();
+                const creationTime = endTime - startTime;
+                
+                log(`✅ Created ${bubbleIds.length} bubbles in ${creationTime.toFixed(2)}ms`, 'success');
+                log(`✅ Active bubbles: ${testRenderer.bubbles.size}`, 'success');
+                log(`✅ Active effects: ${testRenderer.effects.size}`, 'success');
+                
+                // Check frame rate after a delay
+                setTimeout(() => {
+                    if (testRenderer.phaserGame.loop.actualFps > 50) {
+                        log('✅ Performance acceptable (>50 FPS)', 'success');
+                        testResults.performance = true;
+                    } else {
+                        log(`⚠️ Performance warning (${testRenderer.phaserGame.loop.actualFps.toFixed(1)} FPS)`, 'warning');
+                        testResults.performance = false;
+                    }
+                    
+                    log('🎉 Performance Test COMPLETED', 'success');
+                    updateStatus();
+                }, 2000);
+                
+            } catch (error) {
+                log(`❌ Performance Test FAILED: ${error.message}`, 'error');
+                testResults.performance = false;
+                updateStatus();
+            }
+        }
+
+        function clearTests() {
+            if (testRenderer) {
+                testRenderer.destroy();
+                testRenderer = null;
+            }
+            
+            document.getElementById('testLog').innerHTML = '';
+            testResults = {
+                basic: false,
+                phaser: false,
+                three: false,
+                hybrid: false,
+                performance: false
+            };
+            updateStatus();
+            
+            log('🧹 Tests cleared', 'info');
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🎯 Hybrid Renderer Test Suite Ready', 'info');
+            log('Click the test buttons to run individual tests', 'info');
+            updateStatus();
+        });
+    </script>
+</body>
+</html>

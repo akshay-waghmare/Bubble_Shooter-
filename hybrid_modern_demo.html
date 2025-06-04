@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern ES Modules Hybrid Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            margin: 10px 0;
+            opacity: 0.9;
+        }
+
+        .game-container {
+            position: relative;
+            margin: 0 auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+        }
+
+        button {
+            background: linear-gradient(45deg, #4ECDC4, #44A08D);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .status {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #4ECDC4;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        .status-value {
+            color: #4ECDC4;
+            font-weight: bold;
+        }
+
+        .info-banner {
+            background: linear-gradient(45deg, #4ECDC4, #44A08D);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Modern ES Modules Hybrid Demo</h1>
+            <p>Phaser.js + Three.js with ES Modules</p>
+        </div>
+
+        <div class="info-banner">
+            ✅ This demo uses ES Modules for modern JavaScript import/export
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <h3>🎮 Game Controls</h3>
+                <button onclick="startGame()">Start Game</button>
+                <button onclick="pauseGame()">Pause/Resume</button>
+                <button onclick="resetGame()">Reset</button>
+            </div>
+
+            <div class="control-group">
+                <h3>🎨 Rendering Mode</h3>
+                <button id="mode2D" onclick="setRenderMode('2D')" class="active">2D Only</button>
+                <button id="mode3D" onclick="setRenderMode('3D')">3D Effects</button>
+                <button id="modeHybrid" onclick="setRenderMode('hybrid')">Hybrid Mode</button>
+            </div>
+
+            <div class="control-group">
+                <h3>⚡ Quality</h3>
+                <button onclick="setQuality('low')">Low</button>
+                <button onclick="setQuality('medium')" class="active">Medium</button>
+                <button onclick="setQuality('high')">High</button>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <div id="gameContainer"></div>
+        </div>
+
+        <div class="status">
+            <h3>📊 Performance Monitor</h3>
+            <div class="status-item">
+                <span>FPS:</span>
+                <span class="status-value" id="fpsCounter">--</span>
+            </div>
+            <div class="status-item">
+                <span>Render Time:</span>
+                <span class="status-value" id="renderTime">-- ms</span>
+            </div>
+            <div class="status-item">
+                <span>Active Bubbles:</span>
+                <span class="status-value" id="bubbleCount">0</span>
+            </div>
+            <div class="status-item">
+                <span>Active Effects:</span>
+                <span class="status-value" id="effectCount">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modern ES Modules approach -->
+    <script type="module">
+        // Import libraries using ES modules
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js';
+        
+        // Make THREE available globally for the hybrid renderer
+        window.THREE = THREE;
+        
+        // Load Phaser using dynamic import or script tag
+        const phaserScript = document.createElement('script');
+        phaserScript.src = 'https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js';
+        document.head.appendChild(phaserScript);
+        
+        // Wait for Phaser to load
+        phaserScript.onload = async () => {
+            // Load the hybrid renderer
+            const hybridRendererScript = document.createElement('script');
+            hybridRendererScript.src = 'hybridRenderer.js';
+            document.head.appendChild(hybridRendererScript);
+            
+            hybridRendererScript.onload = () => {
+                console.log('🚀 All modules loaded, initializing demo...');
+                initializeModernDemo();
+            };
+        };
+        
+        // Global variables
+        let hybridRenderer = null;
+        let gameRunning = false;
+        let currentQuality = 'medium';
+        let currentMode = '2D';
+        
+        // Performance monitoring
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        window.startGame = startGame;
+        window.pauseGame = pauseGame;
+        window.resetGame = resetGame;
+        window.setRenderMode = setRenderMode;
+        window.setQuality = setQuality;
+        
+        async function initializeModernDemo() {
+            try {
+                console.log('🎮 Initializing Modern Hybrid Renderer Demo...');
+                
+                // Initialize with current settings
+                hybridRenderer = new HybridRenderer('gameContainer', {
+                    width: 800,
+                    height: 600,
+                    use3D: currentMode !== '2D',
+                    quality: currentQuality,
+                    integrationMode: 'overlay'
+                });
+
+                // Wait for initialization
+                await new Promise(resolve => {
+                    const checkInit = () => {
+                        if (hybridRenderer.initialized) {
+                            resolve();
+                        } else {
+                            setTimeout(checkInit, 100);
+                        }
+                    };
+                    checkInit();
+                });
+
+                gameRunning = true;
+                startPerformanceMonitoring();
+                
+                // Add some demo bubbles
+                setTimeout(() => {
+                    addDemoBubbles();
+                }, 1000);
+                
+                console.log('✅ Modern demo initialized successfully');
+            } catch (error) {
+                console.error('❌ Failed to initialize modern demo:', error);
+                alert('Failed to initialize the hybrid renderer. Please check the console for details.');
+            }
+        }
+        
+        function addDemoBubbles() {
+            if (!hybridRenderer) return;
+            
+            // Create some demo bubbles with effects
+            const colors = [0, 1, 2, 3, 4, 5];
+            for (let i = 0; i < 10; i++) {
+                const x = 100 + (i % 5) * 120;
+                const y = 100 + Math.floor(i / 5) * 80;
+                const color = colors[i % colors.length];
+                
+                hybridRenderer.createBubble(x, y, color, {
+                    scale: 0.8 + Math.random() * 0.4,
+                    trail: currentMode === '3D' || currentMode === 'hybrid'
+                });
+            }
+        }
+
+        function startGame() {
+            if (!hybridRenderer) {
+                initializeModernDemo();
+            } else if (!gameRunning) {
+                gameRunning = true;
+                if (hybridRenderer.phaserGame.scene.scenes[0]) {
+                    hybridRenderer.phaserGame.scene.scenes[0].scene.resume();
+                }
+            }
+        }
+
+        function pauseGame() {
+            if (hybridRenderer) {
+                hybridRenderer.handlePause();
+            }
+        }
+
+        function resetGame() {
+            if (hybridRenderer) {
+                hybridRenderer.destroy();
+                hybridRenderer = null;
+                gameRunning = false;
+            }
+            
+            document.getElementById('gameContainer').innerHTML = '';
+            
+            setTimeout(() => {
+                initializeModernDemo();
+            }, 100);
+        }
+
+        function setRenderMode(mode) {
+            currentMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('[id^="mode"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`mode${mode}`).classList.add('active');
+            
+            if (hybridRenderer) {
+                const use3D = mode !== '2D';
+                hybridRenderer.toggle3D(use3D);
+            }
+            
+            console.log(`🎮 Render mode changed to: ${mode}`);
+        }
+
+        function setQuality(quality) {
+            currentQuality = quality;
+            
+            if (hybridRenderer) {
+                hybridRenderer.setQuality(quality);
+            }
+            
+            console.log(`⚡ Quality changed to: ${quality}`);
+        }
+
+        function startPerformanceMonitoring() {
+            function updateStats() {
+                const currentTime = performance.now();
+                frameCount++;
+                
+                if (currentTime - lastTime >= 1000) { // Update every second
+                    const fps = Math.round(frameCount * 1000 / (currentTime - lastTime));
+                    const renderTime = (currentTime - lastTime) / frameCount;
+                    
+                    document.getElementById('fpsCounter').textContent = fps;
+                    document.getElementById('renderTime').textContent = renderTime.toFixed(1);
+                    
+                    if (hybridRenderer) {
+                        document.getElementById('bubbleCount').textContent = hybridRenderer.bubbles.size;
+                        document.getElementById('effectCount').textContent = hybridRenderer.effects.size;
+                    }
+                    
+                    frameCount = 0;
+                    lastTime = currentTime;
+                }
+                
+                if (gameRunning) {
+                    requestAnimationFrame(updateStats);
+                }
+            }
+            
+            requestAnimationFrame(updateStats);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (hybridRenderer && hybridRenderer.phaserGame) {
+                console.log('📱 Window resized');
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            switch(event.key) {
+                case ' ':
+                    event.preventDefault();
+                    pauseGame();
+                    break;
+                case 'r':
+                    event.preventDefault();
+                    resetGame();
+                    break;
+                case '1':
+                    setRenderMode('2D');
+                    break;
+                case '2':
+                    setRenderMode('3D');
+                    break;
+                case '3':
+                    setRenderMode('hybrid');
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -6,31 +6,32 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Bubble Shooter</title>
+    <title>Bubble Shooter - Hybrid Edition</title>
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Modern Phaser.js and Three.js libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+    
+    <!-- Matter.js for legacy compatibility (if needed) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
-    <!-- Three.js for 3D bubble rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/EffectComposer.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/RenderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/ShaderPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/postprocessing/UnrealBloomPass.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/shaders/FXAAShader.js"></script>
 </head>
 <body>
     <div class="game-container">
-        <h1>Bubble Shooter</h1>
+        <h1>🎮 Bubble Shooter - Hybrid Edition</h1>
+        
         <div class="game-menu" id="gameMenu">
             <div class="menu-section">
-                <h2>Game Mode</h2>
+                <h2>🎯 Game Mode</h2>
                 <div class="button-group">
                     <button class="game-button active" data-mode="classic">Classic Mode</button>
                     <button class="game-button" data-mode="arcade">Arcade Mode</button>
                     <button class="game-button" data-mode="strategy">Strategy Mode</button>
                 </div>
             </div>
+            
             <div class="menu-section">
-                <h2>Difficulty</h2>
+                <h2>⚡ Difficulty</h2>
                 <div class="button-group">
                     <button class="game-button active" data-difficulty="novice">Novice</button>
                     <button class="game-button" data-difficulty="easy">Easy</button>
@@ -39,24 +40,65 @@
                     <button class="game-button" data-difficulty="master">Master</button>
                 </div>
             </div>
-            <button id="startGame" class="start-button">Start Game</button>
-            <button id="showLeaderboard" class="leaderboard-button">Leaderboard</button>
+            
+            <div class="menu-section">
+                <h2>🎨 Rendering Mode</h2>
+                <div class="button-group">
+                    <button class="game-button active" data-rendering="hybrid">Hybrid (2D+3D)</button>
+                    <button class="game-button" data-rendering="2d">2D Only</button>
+                    <button class="game-button" data-rendering="legacy">Legacy Canvas</button>
+                    <button class="game-button" data-rendering="compare">Comparison Mode</button>
+                </div>
+            </div>
+            
+            <div class="menu-section">
+                <h2>🔧 Quality</h2>
+                <div class="button-group">
+                    <button class="game-button" data-quality="low">Low</button>
+                    <button class="game-button" data-quality="medium">Medium</button>
+                    <button class="game-button active" data-quality="high">High</button>
+                    <button class="game-button" data-quality="ultra">Ultra</button>
+                </div>
+            </div>
+            
+            <button id="startGame" class="start-button">🚀 Start Game</button>
+            <button id="showLeaderboard" class="leaderboard-button">🏆 Leaderboard</button>
         </div>
         
         <div class="game-screen" id="gameScreen" style="display: none;">
-            <canvas id="gameCanvas" width="800" height="600"></canvas>
-            <div class="game-controls">
-                <button id="backToMenu" class="control-button">Menu</button>
-                <button id="toggleSound" class="control-button">Sound: On</button>
+            <!-- Hybrid renderer will be created here -->
+            <div id="gameContainer" class="hybrid-game-container"></div>
+            <!-- Comparison mode container (hidden by default) -->
+            <div id="comparisonContainer" style="display:none; width:100%; justify-content:center; gap:24px; align-items:flex-start; flex-wrap:wrap;">
+                <div style="flex:1; min-width:350px; max-width:420px;">
+                    <h3 style="color:white;">Legacy Canvas</h3>
+                    <canvas id="gameCanvasCompare" width="800" height="600" style="border:2px solid #fff; border-radius:10px; background:#1a1a2e;"></canvas>
+                </div>
+                <div style="flex:1; min-width:350px; max-width:420px;">
+                    <h3 style="color:white;">Hybrid (Phaser/Three.js)</h3>
+                    <div id="gameContainerCompare" class="hybrid-game-container"></div>
+                </div>
             </div>
+            
+            <!-- Legacy canvas (hidden by default) -->
+            <canvas id="gameCanvas" width="800" height="600" style="display: none;"></canvas>
+            
+            <div class="game-controls">
+                <button id="backToMenu" class="control-button">📱 Menu</button>
+                <button id="toggleSound" class="control-button">🔊 Sound: On</button>
+                <button id="toggleRendering" class="control-button">🎨 Toggle 3D</button>
+                <button id="pauseGame" class="control-button">⏸️ Pause</button>
+            </div>
+            
             <div class="instructions">
-                <p>Click to shoot bubbles! Match 3 or more of the same color to pop them.</p>
-                <p>Use the walls to reach difficult spots. Clear all bubbles to win!</p>
+                <p>🎯 Click to shoot bubbles! Match 3 or more of the same color to pop them.</p>
+                <p>🎱 Use the walls to reach difficult spots. Clear all bubbles to win!</p>
+                <p>⌨️ Press SPACE to pause, R to restart</p>
             </div>
         </div>
         
         <div class="leaderboard" id="leaderboard" style="display: none;">
-            <h2>High Scores</h2>
+            <h2>🏆 High Scores</h2>
             <table id="scoresTable">
                 <thead>
                     <tr>
@@ -64,6 +106,7 @@
                         <th>Score</th>
                         <th>Mode</th>
                         <th>Difficulty</th>
+                        <th>Rendering</th>
                         <th>Date</th>
                     </tr>
                 </thead>
@@ -71,16 +114,21 @@
                     <!-- Scores will be inserted here by JavaScript -->
                 </tbody>
             </table>
-            <button id="backToMenuFromLeaderboard" class="control-button">Back to Menu</button>
+            <button id="backToMenuFromLeaderboard" class="control-button">📱 Back to Menu</button>
         </div>
     </div>
-    <!-- Load dependencies first -->
+    
+    <!-- Load hybrid renderer and game classes -->
+    <script src="hybridRenderer.js"></script>
+    <script src="hybridBubbleShooter.js"></script>
+    
+    <!-- Load legacy scripts for fallback -->
     <script src="bubbleRenderer3D.js"></script>
     <script src="bubbleTrailRenderer.js"></script>
     <script src="bubbleRenderer.js"></script>
-    <!-- Main game script -->
-    <script src="game.js?v=11"></script>
-    <!-- Debug script (optional) -->
-    <script src="debug_shooting.js"></script>
+    <script src="game.js"></script>
+    
+    <!-- Updated main script -->
+    <script src="hybridGameManager.js"></script>
 </body>
 </html>
