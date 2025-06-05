@@ -1341,7 +1341,6 @@ class Game {
         
         // Infinite Stack System
         this.infiniteStack = []; // Pre-generated rows waiting to descend
-        this.shotCount = 0; // Track shots fired for descent triggers
         this.lastDescentTime = 0; // Track time since last descent
         this.loseLineRow = 0; // Row index that defines the lose line (calculated dynamically)
         
@@ -1369,6 +1368,11 @@ class Game {
             { x: 0, width: 0, score: 300, color: '#FF6B6B', label: '300' }
         ];
         this.finishLineY = 0; // Will be set in resizeCanvas
+        
+        // Smooth grid descent system
+        this.gridYOffset = 0; // Current vertical offset of the entire grid
+        this.descentSpeed = 0.05; // Pixels per frame (at 60 FPS = ~3 pixels per second)
+        this.isAddingNewRow = false; // Flag to control grid movement during row transitions
     
         console.log('=== CALLING setupEventListeners ===');
         this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
@@ -1444,9 +1448,12 @@ class Game {
         this.pendingNewRow = false;
         
         // Reset infinite stack system
-        this.shotCount = 0;
         this.lastDescentTime = Date.now();
         this.infiniteStack = [];
+        
+        // Reset grid descent system
+        this.gridYOffset = 0;
+        this.isAddingNewRow = false;
         
         // Initialize grid
         for (let row = 0; row < GRID_ROWS; row++) {
@@ -1613,6 +1620,10 @@ class Game {
         // This is the core mechanic: shift all bubbles down and add a new row from infinite stack
         console.log('=== ADDING NEW ROW ===');
         
+        // Start the grid transition animation
+        this.isAddingNewRow = true;
+        this.gridYOffset = 0; // Reset offset for new transition
+        
         if (this.infiniteStack.length === 0) {
             console.warn('Infinite stack is empty! Regenerating...');
             this.generateInfiniteStack();
@@ -1639,38 +1650,22 @@ class Game {
             this.gridBubbles.push(new Array(GRID_COLS).fill(null));
         }
         
-        // Start descent animation for all existing bubbles simultaneously with new row creation
-        const descentDurationMs = 300; // Fixed duration for smooth, synchronized animation
-        const fadeDurationMs = 300; // Same duration for perfect sync
-        const animationStartTime = Date.now(); // Single timestamp for perfect synchronization
+        // Move existing bubbles to new grid positions
+        // With smooth grid descent, bubbles automatically slide down via gridYOffset
+        // No separate animation needed - they move continuously with the grid
+        const fadeDurationMs = 300; // Duration for fade-in animation of new bubbles
+        const animationStartTime = Date.now(); // Timestamp for fade-in synchronization
         
         for (let row = this.gridBubbles.length - 1; row >= 1; row--) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row - 1][col]) {
                     const bubble = this.gridBubbles[row - 1][col];
                     
-                    // Store starting position for smooth animation
-                    bubble.startX = bubble.x;
-                    bubble.startY = bubble.y;
-                    
-                    // Calculate target position for smooth animation
-                    const targetX = this.getColPosition(row, col);
-                    const targetY = this.getRowPosition(row);
-                    
-                    // Set up time-based descent animation
-                    bubble.targetRow = row;
-                    bubble.targetCol = col;
-                    bubble.targetX = targetX;
-                    bubble.targetY = targetY;
-                    bubble.isDescending = true;
-                    bubble.descentStartTime = animationStartTime;
-                    bubble.descentDuration = descentDurationMs;
-                    
-                    // Move bubble to new grid position but keep visual position for animation
+                    // Move bubble to new grid position
                     this.gridBubbles[row][col] = bubble;
                     this.gridBubbles[row - 1][col] = null;
                     
-                    // Update logical position
+                    // Update logical position - physical position updates automatically via gridYOffset
                     bubble.row = row;
                     bubble.col = col;
                 }
@@ -1696,14 +1691,15 @@ class Game {
                 console.warn(`Missing color at col ${col}, using fallback: ${color}`);
             }
             
-            // Calculate final position
+            // Calculate final position (this includes current gridYOffset)
             const finalX = this.getColPosition(0, col);
             const finalY = this.getRowPosition(0);
             
-            // Start position (above visible area for smooth entry)
-            const startY = finalY - GRID_ROW_HEIGHT;
+            // Start new bubbles completely off-screen above visible area
+            // Position them exactly one row height above their final position
+            const startY = this.getRowPosition(0) - GRID_ROW_HEIGHT; // Start one row above final position
             
-            // Create bubble starting above the grid
+            // Create bubble starting above the grid, coordinated with grid descent
             const bubble = new Bubble(finalX, startY, color, 0, col);
             // CRITICAL: Set game reference for wall bounce detection
             bubble.game = this;
@@ -1711,18 +1707,9 @@ class Game {
             bubble.vx = 0;
             bubble.vy = 0;
             
-            // Store starting position for smooth animation
-            bubble.startX = finalX;
-            bubble.startY = startY;
-            
-            // Add synchronized time-based descent animation (same as existing bubbles)
-            bubble.targetX = finalX;
-            bubble.targetY = finalY;
-            bubble.isDescending = true;
-            bubble.descentStartTime = animationStartTime;
-            bubble.descentDuration = descentDurationMs;
-            
-            // Add fade-in animation properties (perfectly synchronized with descent)
+            // For smooth grid descent, new bubbles don't need separate descent animation
+            // They will automatically move down with the grid via gridYOffset
+            // Just add a fade-in animation for visual appeal
             bubble.isFadingIn = true;
             bubble.fadeInStartTime = animationStartTime;
             bubble.fadeInDuration = fadeDurationMs;
@@ -1752,50 +1739,42 @@ class Game {
 
     checkLoseCondition() {
         // Check if any bubble has reached or crossed the lose line
-        for (let row = this.loseLineRow; row < this.gridBubbles.length; row++) {
+        // Use actual visual positions rather than logical row numbers
+        const loseLineY = this.loseLineRow * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
+        
+        for (let row = 0; row < this.gridBubbles.length; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
-                    console.log('LOSE CONDITION MET: Bubble found at row', row, 'which is at/below lose line row', this.loseLineRow);
-                    this.gameOver = true;
-                    this.gameWon = false;
-                    // Cleanup 3D representations on lose line condition
-                    if (this.shooter) {
-                        this.shooter.cleanup3D();
+                    const bubbleVisualY = this.getRowPosition(row);
+                    if (bubbleVisualY >= loseLineY) {
+                        console.log('LOSE CONDITION MET: Bubble at visual Y', bubbleVisualY, 'crossed lose line at Y', loseLineY);
+                        this.gameOver = true;
+                        this.gameWon = false;
+                        // Cleanup 3D representations on lose line condition
+                        if (this.shooter) {
+                            this.shooter.cleanup3D();
+                        }
+                        this.playSound('lose');
+                        this.saveHighScore(this.score);
+                        return true;
                     }
-                    this.playSound('lose');
-                    this.saveHighScore(this.score);
-                    return true;
                 }
             }
         }
         return false;
     }
 
-    checkDescentTriggers() {
-        // Check if it's time for a new row to descend based on shot count or time
+    checkTimeBasedDescentTrigger() {
+        // Check if it's time for a new row to descend based on time only
         const settings = this.difficultySettings[this.difficulty];
         const now = Date.now();
-        
-        let shouldDescend = false;
-        let reason = '';
-        
-        // Check shot-based trigger
-        if (this.shotCount >= settings.addRowFrequency) {
-            shouldDescend = true;
-            reason = `shot count (${this.shotCount}/${settings.addRowFrequency})`;
-            this.shotCount = 0; // Reset shot count
-        }
         
         // Check time-based trigger
         const timeSinceLastDescent = now - this.lastDescentTime;
         if (timeSinceLastDescent >= settings.timeBasedDescent) {
-            shouldDescend = true;
-            reason = `time elapsed (${(timeSinceLastDescent/1000).toFixed(1)}s/${settings.timeBasedDescent/1000}s)`;
-            this.lastDescentTime = now;
-        }
-        
-        if (shouldDescend) {
+            const reason = `time elapsed (${(timeSinceLastDescent/1000).toFixed(1)}s/${settings.timeBasedDescent/1000}s)`;
             console.log(`Triggering descent due to: ${reason}`);
+            this.lastDescentTime = now;
             // Use the pending flag to avoid calling addNewRow during bubble processing
             this.pendingNewRow = true;
         }
@@ -1814,7 +1793,8 @@ class Game {
 
     getRowPosition(row) {
         // Perfect vertical spacing using √3 * radius for true hexagonal geometry
-        return row * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
+        // Include the grid Y offset for smooth downward transition
+        return row * GRID_ROW_HEIGHT + GRID_TOP_MARGIN + this.gridYOffset;
     }
 
     createWalls() {
@@ -1947,17 +1927,11 @@ class Game {
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
                     
-                    // Increment shot count for descent tracking
-                    this.shotCount++;
-                    
                     // Decrement shots for strategy mode
                     if (this.gameMode === "strategy") {
                         this.shotsLeft--;
                         console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
                     }
-                    
-                    // Check if it's time for a new row to descend
-                    this.checkDescentTriggers();
                 }
             }
         });
@@ -1986,17 +1960,11 @@ class Game {
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
                     
-                    // Increment shot count for descent tracking
-                    this.shotCount++;
-                    
                     // Decrement shots for strategy mode
                     if (this.gameMode === "strategy") {
                         this.shotsLeft--;
                         console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
                     }
-                    
-                    // Check if it's time for a new row to descend
-                    this.checkDescentTriggers();
                 }
             }
         });
@@ -2070,7 +2038,7 @@ class Game {
         // Allow bubbles to get very close to danger zone (only 5px buffer instead of full radius)
         const maxAllowedY = dangerZoneY - 5; // Much closer to danger zone
         
-        // Calculate maximum row that fits before danger zone
+        // Calculate maximum row that fits before danger zone - use fixed positioning for danger zone
         const maxRow = Math.floor((maxAllowedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
         const effectiveMaxRows = Math.max(GRID_ROWS, maxRow); // Use at least original GRID_ROWS
         
@@ -2102,6 +2070,7 @@ class Game {
                     const gridY = this.getRowPosition(row);
                     
                     // Only consider positions that don't exceed danger zone
+                    // gridY already includes gridYOffset, so compare directly with maxAllowedY
                     if (gridY <= maxAllowedY) {
                         const distance = Math.sqrt((x - gridX) ** 2 + (y - gridY) ** 2);
                         
@@ -2265,6 +2234,25 @@ class Game {
             if (this.timeLeft < 0) this.timeLeft = 0;
         }
         
+        // Grid descent system - only move grid during new row transitions
+        // Remove continuous drift, only descend when new rows are added
+        if (this.gameStarted && !this.gameOver && !this.gameWon && this.isAddingNewRow) {
+            this.gridYOffset += this.descentSpeed * 20; // Fast discrete movement during row addition
+            
+            // Check if new row has fully descended into position
+            if (this.gridYOffset >= GRID_ROW_HEIGHT) {
+                // Reset offset and integrate new row into normal grid
+                this.gridYOffset = 0;
+                this.isAddingNewRow = false;
+                console.log('Row transition completed, grid reset to normal position');
+            }
+        }
+        
+        // Check time-based descent trigger (independent of shots)
+        if (this.gameStarted && !this.gameOver && !this.gameWon && !this.pendingNewRow) {
+            this.checkTimeBasedDescentTrigger();
+        }
+        
         // Update Matter.js physics
         Engine.update(this.engine);
         
@@ -2336,30 +2324,6 @@ class Game {
                 if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
                     const bubble = this.gridBubbles[row][col];
                     
-                    // Handle descent animation
-                    if (bubble.isDescending) {
-                        const currentTime = Date.now();
-                        const elapsed = currentTime - bubble.descentStartTime;
-                        const progress = Math.min(elapsed / bubble.descentDuration, 1);
-                        
-                        if (progress < 1) {
-                            // Smooth interpolation from start to target position
-                            bubble.x = bubble.startX + (bubble.targetX - bubble.startX) * progress;
-                            bubble.y = bubble.startY + (bubble.targetY - bubble.startY) * progress;
-                        } else {
-                            // Animation complete - snap to final position
-                            bubble.x = bubble.targetX;
-                            bubble.y = bubble.targetY;
-                            bubble.isDescending = false;
-                            bubble.startX = undefined;
-                            bubble.startY = undefined;
-                            bubble.targetX = undefined;
-                            bubble.targetY = undefined;
-                            bubble.descentStartTime = undefined;
-                            bubble.descentDuration = undefined;
-                        }
-                    }
-                    
                     // Handle fade-in animation for new bubbles
                     if (bubble.isFadingIn) {
                         const currentTime = Date.now();
@@ -2375,6 +2339,11 @@ class Game {
                             bubble.fadeInDuration = undefined;
                         }
                     }
+                    
+                    // Update bubble position to reflect current grid offset
+                    // All bubbles move smoothly with the grid via gridYOffset
+                    bubble.x = this.getColPosition(row, col);
+                    bubble.y = this.getRowPosition(row);
                 }
             }
         }
@@ -2548,8 +2517,8 @@ class Game {
     }
 
     drawDangerZone() {
-        // Draw the lose line based on the calculated lose line row
-        const loseLineY = this.getRowPosition(this.loseLineRow);
+        // Draw the lose line at a fixed position - don't include gridYOffset
+        const loseLineY = this.loseLineRow * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
         
         // Find current lowest bubble position using extended grid
         let lowestBubbleRow = 0;
@@ -2678,15 +2647,11 @@ class Game {
         this.ctx.font = '12px Arial';
         this.ctx.fillStyle = '#CCCCCC';
         
-        // Show shots until next descent
-        const shotsUntilDescent = settings.addRowFrequency - this.shotCount;
-        this.ctx.fillText(`Next descent: ${shotsUntilDescent} shots`, 10, 140);
-        
         // Show time until next descent
         const timeSinceLastDescent = Date.now() - this.lastDescentTime;
         const timeUntilDescent = Math.max(0, settings.timeBasedDescent - timeSinceLastDescent);
         const secondsUntilDescent = Math.ceil(timeUntilDescent / 1000);
-        this.ctx.fillText(`or ${secondsUntilDescent}s`, 10, 155);
+        this.ctx.fillText(`Next descent: ${secondsUntilDescent}s`, 10, 140);
         
         // Danger level indicator
         this.drawDangerLevelIndicator();
@@ -2760,7 +2725,6 @@ class Game {
         this.pendingNewRow = false;
         
         // Reset infinite stack system
-        this.shotCount = 0;
         this.lastDescentTime = Date.now();
         this.infiniteStack = [];
         

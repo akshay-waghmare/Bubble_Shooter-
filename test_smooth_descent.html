@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smooth Grid Descent Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        #output {
+            background: #0f0f23;
+            padding: 10px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        canvas {
+            border: 2px solid #4ECDC4;
+            margin: 10px 0;
+        }
+        .test-info {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .metrics {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .metric {
+            text-align: center;
+            padding: 10px;
+            background: #3d3d3d;
+            border-radius: 3px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4ECDC4;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #ccc;
+        }
+        button {
+            background: #4ECDC4;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45b7b8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌊 Smooth Grid Descent Test</h1>
+    
+    <div class="test-info">
+        <h3>📋 Test Description</h3>
+        <p>This test verifies the new smooth grid descent system where the entire grid moves down continuously.</p>
+        <ul>
+            <li><strong>Expected:</strong> Grid should move down smoothly at ~3 pixels per second</li>
+            <li><strong>Expected:</strong> Bubbles should maintain their positions within the grid</li>
+            <li><strong>Expected:</strong> Shooting and collision should work normally during movement</li>
+        </ul>
+    </div>
+    
+    <button onclick="startTest()">Start Test</button>
+    <button onclick="stopTest()">Stop Test</button>
+    <button onclick="addTestBubbles()">Add Test Bubbles</button>
+    <button onclick="testShooting()">Test Shooting</button>
+    <button onclick="location.href='index.html'">Back to Main Game</button>
+    
+    <div class="metrics" id="metrics">
+        <div class="metric">
+            <div class="metric-value" id="gridOffset">0.0</div>
+            <div class="metric-label">Grid Y Offset</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value" id="frameCount">0</div>
+            <div class="metric-label">Frames Processed</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value" id="bubbleCount">0</div>
+            <div class="metric-label">Grid Bubbles</div>
+        </div>
+    </div>
+    
+    <canvas id="testCanvas" width="800" height="600"></canvas>
+    
+    <div id="output"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+    <script src="bubbleRenderer3D.js"></script>
+    <script src="bubbleTrailRenderer.js"></script>
+    <script src="bubbleRenderer.js"></script>
+    <script src="game.js"></script>
+    <script>
+        let testGame = null;
+        let testStartTime = 0;
+        let isRunning = false;
+        let monitorInterval = null;
+        let frameCount = 0;
+        
+        function log(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function startTest() {
+            if (isRunning) {
+                log('❌ Test already running');
+                return;
+            }
+            
+            const canvas = document.getElementById('testCanvas');
+            
+            log('=== STARTING SMOOTH GRID DESCENT TEST ===');
+            testStartTime = Date.now();
+            frameCount = 0;
+            isRunning = true;
+            
+            try {
+                testGame = new Game(canvas);
+                testGame.gameMode = 'classic';
+                testGame.difficulty = 'medium';
+                testGame.soundEnabled = false;
+                
+                log('✅ Test game created successfully');
+                log(`Grid descent speed: ${testGame.descentSpeed} pixels/frame`);
+                log(`Initial grid Y offset: ${testGame.gridYOffset}`);
+                
+                testGame.start();
+                
+                // Add some initial test bubbles
+                addTestBubbles();
+                
+                // Monitor the grid descent
+                startMonitoring();
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                console.error(error);
+                isRunning = false;
+            }
+        }
+        
+        function stopTest() {
+            if (!isRunning) {
+                log('❌ No test running');
+                return;
+            }
+            
+            isRunning = false;
+            if (monitorInterval) {
+                clearInterval(monitorInterval);
+                monitorInterval = null;
+            }
+            
+            log('⏹️ Test stopped');
+        }
+        
+        function addTestBubbles() {
+            if (!testGame) {
+                log('❌ No game instance. Start test first.');
+                return;
+            }
+            
+            // Add some bubbles in the first few rows for testing
+            const colors = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88'];
+            let bubblesAdded = 0;
+            
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (Math.random() < 0.7) { // 70% chance to add a bubble
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        const x = testGame.getColPosition(row, col);
+                        const y = testGame.getRowPosition(row);
+                        
+                        const bubble = new Bubble(x, y, color, row, col);
+                        bubble.stuck = true;
+                        testGame.gridBubbles[row][col] = bubble;
+                        bubblesAdded++;
+                    }
+                }
+            }
+            
+            log(`✅ Added ${bubblesAdded} test bubbles`);
+            updateMetrics();
+        }
+        
+        function testShooting() {
+            if (!testGame || !testGame.shooter) {
+                log('❌ No game instance or shooter. Start test first.');
+                return;
+            }
+            
+            // Simulate a mouse click to shoot a bubble
+            testGame.mouseX = testGame.canvas.width / 2;
+            testGame.mouseY = testGame.canvas.height / 2;
+            testGame.shooter.shoot();
+            
+            log('🎯 Test shot fired - bubble should collide normally with moving grid');
+        }
+        
+        function updateMetrics() {
+            if (!testGame) return;
+            
+            frameCount++;
+            document.getElementById('gridOffset').textContent = testGame.gridYOffset.toFixed(2);
+            document.getElementById('frameCount').textContent = frameCount;
+            
+            // Count bubbles in grid
+            let bubbleCount = 0;
+            for (let row = 0; row < testGame.gridBubbles.length; row++) {
+                for (let col = 0; col < testGame.gridBubbles[row].length; col++) {
+                    if (testGame.gridBubbles[row][col]) {
+                        bubbleCount++;
+                    }
+                }
+            }
+            document.getElementById('bubbleCount').textContent = bubbleCount;
+        }
+        
+        function startMonitoring() {
+            monitorInterval = setInterval(() => {
+                if (!isRunning || !testGame) return;
+                
+                const elapsed = (Date.now() - testStartTime) / 1000;
+                const expectedOffset = elapsed * testGame.descentSpeed * 60; // Assuming 60 FPS
+                
+                // Log status every 3 seconds
+                if (elapsed > 0 && Math.floor(elapsed) % 3 === 0) {
+                    log(`📊 ${elapsed.toFixed(0)}s: Grid offset ${testGame.gridYOffset.toFixed(2)}px (expected ~${expectedOffset.toFixed(2)}px)`);
+                }
+                
+                updateMetrics();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

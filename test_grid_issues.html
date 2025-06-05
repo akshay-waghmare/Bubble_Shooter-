@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Issues Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        #gameArea {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background: linear-gradient(to bottom, #001122, #003344);
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4ECDC4;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45B7B8;
+        }
+        .info {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 600px;
+            margin-top: 20px;
+        }
+        .debug-info {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameArea">
+        <h2>Grid Issues Test</h2>
+        <canvas id="gameCanvas" width="600" height="800"></canvas>
+        
+        <div class="controls">
+            <button onclick="startGame()">Start Game</button>
+            <button onclick="triggerRowAddition()">Add Row</button>
+            <button onclick="accelerateTime()">Accelerate Time</button>
+            <button onclick="toggleDebug()">Toggle Debug</button>
+        </div>
+        
+        <div class="info">
+            <h3>Testing Three Issues:</h3>
+            <ol>
+                <li><strong>Danger Line Enforcement:</strong> Game should end when bubbles cross the red line</li>
+                <li><strong>Row Insertion Location:</strong> New rows should appear from off-screen above</li>
+                <li><strong>Grid Movement Illusion:</strong> Grid should appear fixed with rows scrolling down</li>
+            </ol>
+        </div>
+        
+        <div id="debugInfo" class="debug-info" style="display: none;">
+            <div>Grid Y Offset: <span id="gridYOffset">0</span></div>
+            <div>Danger Line Y: <span id="dangerLineY">0</span></div>
+            <div>Lowest Bubble Row: <span id="lowestBubbleRow">0</span></div>
+            <div>Lowest Bubble Visual Y: <span id="lowestBubbleY">0</span></div>
+            <div>Total Grid Rows: <span id="totalGridRows">0</span></div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.17.1/matter.min.js"></script>
+    <script src="game.js"></script>
+    
+    <script>
+        let game;
+        let debugMode = false;
+        
+        function startGame() {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            game.init();
+            game.start();
+            
+            // Enable debug logging
+            game.debugLogger.enabled = true;
+            
+            console.log('Game started - monitoring grid behavior');
+            
+            // Start debug monitoring
+            if (debugMode) {
+                startDebugMonitoring();
+            }
+        }
+        
+        function triggerRowAddition() {
+            if (game && game.gameStarted) {
+                console.log('Manually triggering row addition...');
+                game.addNewRow();
+            }
+        }
+        
+        function accelerateTime() {
+            if (game && game.gameStarted) {
+                console.log('Accelerating grid descent...');
+                game.descentSpeed = 2.0; // Much faster for testing
+            }
+        }
+        
+        function toggleDebug() {
+            debugMode = !debugMode;
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.style.display = debugMode ? 'block' : 'none';
+            
+            if (debugMode && game) {
+                startDebugMonitoring();
+            }
+        }
+        
+        function startDebugMonitoring() {
+            setInterval(() => {
+                if (game && game.gameStarted) {
+                    updateDebugInfo();
+                }
+            }, 100);
+        }
+        
+        function updateDebugInfo() {
+            document.getElementById('gridYOffset').textContent = game.gridYOffset.toFixed(2);
+            document.getElementById('dangerLineY').textContent = (game.loseLineRow * 60 + 120).toFixed(2); // Approximate calculation
+            document.getElementById('totalGridRows').textContent = game.gridBubbles.length;
+            
+            // Find lowest bubble
+            let lowestRow = 0;
+            let lowestY = 0;
+            for (let row = 0; row < game.gridBubbles.length; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (game.gridBubbles[row] && game.gridBubbles[row][col]) {
+                        lowestRow = Math.max(lowestRow, row);
+                        lowestY = Math.max(lowestY, game.getRowPosition(row));
+                    }
+                }
+            }
+            
+            document.getElementById('lowestBubbleRow').textContent = lowestRow;
+            document.getElementById('lowestBubbleY').textContent = lowestY.toFixed(2);
+        }
+        
+        // Auto-start for testing
+        setTimeout(startGame, 1000);
+    </script>
+</body>
+</html>

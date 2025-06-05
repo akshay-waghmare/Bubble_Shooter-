@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Issues Fix Validation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        #gameArea {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background: linear-gradient(to bottom, #001122, #003344);
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4ECDC4;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45B7B8;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+        .test-results {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+        .pass { color: #4ECDC4; }
+        .fail { color: #FF6B6B; }
+        .info { color: #FFD93D; }
+    </style>
+</head>
+<body>
+    <div id="gameArea">
+        <h2>Grid Issues Fix Validation</h2>
+        <canvas id="gameCanvas" width="600" height="800"></canvas>
+        
+        <div class="controls">
+            <button onclick="startTest()">Start Test</button>
+            <button onclick="testDangerLine()">Test Danger Line</button>
+            <button onclick="testRowInsertion()">Test Row Insertion</button>
+            <button onclick="testGridMovement()">Test Grid Movement</button>
+            <button onclick="runAllTests()">Run All Tests</button>
+        </div>
+        
+        <div class="status">
+            <h3>Test Status</h3>
+            <div id="testResults" class="test-results">
+                Ready to run tests...
+            </div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.17.1/matter.min.js"></script>
+    <script src="game.js"></script>
+    
+    <script>
+        let game;
+        let testResults = [];
+        
+        function log(message, status = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            testResults.push(`${timestamp} [${status.toUpperCase()}] ${message}`);
+            updateTestDisplay();
+            console.log(`[${status.toUpperCase()}] ${message}`);
+        }
+        
+        function updateTestDisplay() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = testResults.slice(-20).map(result => {
+                const className = result.includes('[PASS]') ? 'pass' : 
+                               result.includes('[FAIL]') ? 'fail' : 'info';
+                return `<div class="${className}">${result}</div>`;
+            }).join('');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        function startTest() {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            game.init();
+            game.start();
+            
+            // Enable debug logging
+            game.debugLogger.enabled = true;
+            
+            log('Game initialized and started');
+        }
+        
+        function testDangerLine() {
+            if (!game || !game.gameStarted) {
+                log('Please start the game first', 'fail');
+                return;
+            }
+            
+            log('Testing danger line enforcement...');
+            
+            // Get danger line position
+            const dangerLineY = game.loseLineRow * 60 + 120; // Approximate
+            log(`Danger line positioned at Y: ${dangerLineY.toFixed(2)}`);
+            
+            // Add bubbles near the danger line to test
+            const testRow = Math.floor(game.loseLineRow - 1);
+            if (testRow >= 0 && testRow < game.gridBubbles.length) {
+                // Add a test bubble
+                game.gridBubbles[testRow][4] = new (function() {
+                    const Bubble = game.Bubble || window.Bubble;
+                    return Bubble;
+                })();
+                
+                const testBubble = game.gridBubbles[testRow][4];
+                if (testBubble) {
+                    testBubble.x = 300;
+                    testBubble.y = game.getRowPosition(testRow);
+                    testBubble.stuck = true;
+                    testBubble.color = '#FF0000';
+                    
+                    log(`Added test bubble at row ${testRow}, Y position: ${testBubble.y.toFixed(2)}`);
+                    
+                    // Check if bubble is crossing danger line
+                    if (testBubble.y >= dangerLineY) {
+                        log('Test bubble should trigger lose condition', 'pass');
+                    } else {
+                        log(`Test bubble Y: ${testBubble.y.toFixed(2)} vs Danger Y: ${dangerLineY.toFixed(2)}`, 'info');
+                    }
+                }
+            }
+        }
+        
+        function testRowInsertion() {
+            if (!game || !game.gameStarted) {
+                log('Please start the game first', 'fail');
+                return;
+            }
+            
+            log('Testing row insertion from off-screen...');
+            
+            // Trigger row addition
+            const beforeGridOffset = game.gridYOffset;
+            const beforeTransition = game.isAddingNewRow;
+            
+            log(`Before: gridYOffset=${beforeGridOffset.toFixed(2)}, isAddingNewRow=${beforeTransition}`);
+            
+            game.addNewRow();
+            
+            const afterGridOffset = game.gridYOffset;
+            const afterTransition = game.isAddingNewRow;
+            
+            log(`After: gridYOffset=${afterGridOffset.toFixed(2)}, isAddingNewRow=${afterTransition}`);
+            
+            if (afterTransition && afterGridOffset === 0) {
+                log('Row insertion transition started correctly', 'pass');
+            } else {
+                log('Row insertion transition may have issues', 'fail');
+            }
+        }
+        
+        function testGridMovement() {
+            if (!game || !game.gameStarted) {
+                log('Please start the game first', 'fail');
+                return;
+            }
+            
+            log('Testing grid movement behavior...');
+            
+            // Monitor grid movement over time
+            let frameCount = 0;
+            const maxFrames = 300; // Monitor for 5 seconds at 60fps
+            const startOffset = game.gridYOffset;
+            
+            const monitor = setInterval(() => {
+                frameCount++;
+                const currentOffset = game.gridYOffset;
+                const isTransitioning = game.isAddingNewRow;
+                
+                if (frameCount % 60 === 0) { // Log every second
+                    log(`Frame ${frameCount}: offset=${currentOffset.toFixed(2)}, transitioning=${isTransitioning}`);
+                }
+                
+                if (frameCount >= maxFrames) {
+                    clearInterval(monitor);
+                    const finalOffset = game.gridYOffset;
+                    
+                    // Check if grid only moves during transitions
+                    if (!isTransitioning && Math.abs(finalOffset - startOffset) < 0.1) {
+                        log('Grid correctly stays fixed when not transitioning', 'pass');
+                    } else if (isTransitioning) {
+                        log('Grid correctly moves only during row transitions', 'pass');
+                    } else {
+                        log('Grid movement behavior may need adjustment', 'fail');
+                    }
+                }
+            }, 16); // ~60fps
+        }
+        
+        function runAllTests() {
+            log('Running comprehensive test suite...');
+            
+            startTest();
+            
+            setTimeout(() => testDangerLine(), 2000);
+            setTimeout(() => testRowInsertion(), 4000);
+            setTimeout(() => testGridMovement(), 6000);
+            
+            setTimeout(() => {
+                log('All tests completed. Check results above.', 'info');
+            }, 12000);
+        }
+        
+        // Initialize
+        testResults = [];
+        log('Test suite ready. Click "Start Test" or "Run All Tests" to begin.');
+    </script>
+</body>
+</html>
