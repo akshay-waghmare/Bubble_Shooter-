@@ -1372,6 +1372,7 @@ class Game {
         // Smooth grid descent system
         this.gridYOffset = 0; // Current vertical offset of the entire grid
         this.descentSpeed = 0.05; // Pixels per frame (at 60 FPS = ~3 pixels per second)
+        this.isAddingNewRow = false; // Flag to control grid movement during row transitions
     
         console.log('=== CALLING setupEventListeners ===');
         this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
@@ -1452,6 +1453,7 @@ class Game {
         
         // Reset grid descent system
         this.gridYOffset = 0;
+        this.isAddingNewRow = false;
         
         // Initialize grid
         for (let row = 0; row < GRID_ROWS; row++) {
@@ -1618,6 +1620,10 @@ class Game {
         // This is the core mechanic: shift all bubbles down and add a new row from infinite stack
         console.log('=== ADDING NEW ROW ===');
         
+        // Start the grid transition animation
+        this.isAddingNewRow = true;
+        this.gridYOffset = 0; // Reset offset for new transition
+        
         if (this.infiniteStack.length === 0) {
             console.warn('Infinite stack is empty! Regenerating...');
             this.generateInfiniteStack();
@@ -1690,8 +1696,8 @@ class Game {
             const finalY = this.getRowPosition(0);
             
             // Start new bubbles completely off-screen above visible area
-            // Position them so they're always above the visible canvas, regardless of gridYOffset
-            const startY = -BUBBLE_RADIUS * 2; // Always start above visible area
+            // Ensure they start well above the canvas, accounting for any grid offset
+            const startY = -GRID_ROW_HEIGHT - BUBBLE_RADIUS; // Start one full row height above canvas
             
             // Create bubble starting above the grid, coordinated with grid descent
             const bubble = new Bubble(finalX, startY, color, 0, col);
@@ -1733,19 +1739,25 @@ class Game {
 
     checkLoseCondition() {
         // Check if any bubble has reached or crossed the lose line
-        for (let row = this.loseLineRow; row < this.gridBubbles.length; row++) {
+        // Use actual visual positions rather than logical row numbers
+        const loseLineY = this.loseLineRow * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
+        
+        for (let row = 0; row < this.gridBubbles.length; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
-                    console.log('LOSE CONDITION MET: Bubble found at row', row, 'which is at/below lose line row', this.loseLineRow);
-                    this.gameOver = true;
-                    this.gameWon = false;
-                    // Cleanup 3D representations on lose line condition
-                    if (this.shooter) {
-                        this.shooter.cleanup3D();
+                    const bubbleVisualY = this.getRowPosition(row);
+                    if (bubbleVisualY >= loseLineY) {
+                        console.log('LOSE CONDITION MET: Bubble at visual Y', bubbleVisualY, 'crossed lose line at Y', loseLineY);
+                        this.gameOver = true;
+                        this.gameWon = false;
+                        // Cleanup 3D representations on lose line condition
+                        if (this.shooter) {
+                            this.shooter.cleanup3D();
+                        }
+                        this.playSound('lose');
+                        this.saveHighScore(this.score);
+                        return true;
                     }
-                    this.playSound('lose');
-                    this.saveHighScore(this.score);
-                    return true;
                 }
             }
         }
@@ -2222,9 +2234,17 @@ class Game {
             if (this.timeLeft < 0) this.timeLeft = 0;
         }
         
-        // Update smooth grid descent
-        if (this.gameStarted && !this.gameOver && !this.gameWon) {
-            this.gridYOffset += this.descentSpeed;
+        // Grid descent system - only move grid during new row transitions
+        // Remove continuous drift, only descend when new rows are added
+        if (this.gameStarted && !this.gameOver && !this.gameWon && this.isAddingNewRow) {
+            this.gridYOffset += this.descentSpeed * 10; // Faster movement during row addition
+            
+            // Check if new row has fully descended into position
+            if (this.gridYOffset >= GRID_ROW_HEIGHT) {
+                // Reset offset and integrate new row into normal grid
+                this.gridYOffset = 0;
+                this.isAddingNewRow = false;
+            }
         }
         
         // Check time-based descent trigger (independent of shots)
