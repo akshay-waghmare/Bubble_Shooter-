@@ -1404,9 +1404,10 @@ class Game {
             this.debugLogger.log('game', 'Game won - all bubbles cleared', { finalScore: this.score });
         }
         
-        // Check lose condition
+        // Check lose condition - check if bubbles reached the visible bottom
+        const visibleBottomRow = BUFFER_ROWS_ABOVE + GRID_ROWS - 1;
         for (let col = 0; col < GRID_COLS; col++) {
-            if (this.gridBubbles[GRID_ROWS - 1][col]) {
+            if (this.gridBubbles[visibleBottomRow][col]) {
                 this.gameOver = true;
                 this.saveHighScore(this.score);
                 this.debugLogger.log('game', 'Game over - bubbles reached bottom');
@@ -1554,14 +1555,15 @@ class Game {
     }
 
     findBestFallbackPosition(bubble) {
-        // Find the best row for fallback placement (top rows preferred)
-        for (let row = 0; row < Math.min(GRID_ROWS, 3); row++) {
+        // Find the best row for fallback placement (visible top rows preferred)
+        for (let visibleRow = 0; visibleRow < Math.min(GRID_ROWS, 3); visibleRow++) {
+            const actualRow = visibleRow + BUFFER_ROWS_ABOVE; // Map to buffer position
             for (let col = 0; col < GRID_COLS; col++) {
-                if (!this.gridBubbles[row][col]) {
-                    const gridX = this.getColPosition(row, col);
-                    const gridY = this.getRowPosition(row);
-                    if (!this.wouldOverlapPrecise(gridX, gridY, row, col)) {
-                        return row;
+                if (!this.gridBubbles[actualRow][col]) {
+                    const gridX = this.getColPosition(actualRow, col);
+                    const gridY = this.getRowPosition(actualRow);
+                    if (!this.wouldOverlapPrecise(gridX, gridY, actualRow, col)) {
+                        return actualRow;
                     }
                 }
             }
@@ -1584,7 +1586,7 @@ class Game {
         ];
         
         for (const [checkRow, checkCol] of positionsToCheck) {
-            if (checkRow >= 0 && checkRow < GRID_ROWS && 
+            if (checkRow >= 0 && checkRow < TOTAL_GRID_ROWS && 
                 checkCol >= 0 && checkCol < GRID_COLS && 
                 this.gridBubbles[checkRow][checkCol]) {
                 
@@ -1681,7 +1683,7 @@ class Game {
         const testBubble = { x: x, y: y, radius: BUBBLE_RADIUS };
         
         // Check nearby positions for overlaps
-        for (let row = Math.max(0, targetRow - 1); row <= Math.min(GRID_ROWS - 1, targetRow + 1); row++) {
+        for (let row = Math.max(0, targetRow - 1); row <= Math.min(TOTAL_GRID_ROWS - 1, targetRow + 1); row++) {
             for (let col = Math.max(0, targetCol - 1); col <= Math.min(GRID_COLS - 1, targetCol + 1); col++) {
                 if (row === targetRow && col === targetCol) continue; // Skip the target position itself
                 
@@ -1707,7 +1709,7 @@ class Game {
         const neighbors = this.getNeighborPositions(row, col);
         
         for (const [nr, nc] of neighbors) {
-            if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
+            if (nr >= 0 && nr < TOTAL_GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
                 if (this.gridBubbles[nr][nc]) {
                     return true;
                 }
@@ -1722,7 +1724,7 @@ class Game {
         if (!bubble) return [];
         
         // Reset visited flag for all bubbles
-        for (let r = 0; r < GRID_ROWS; r++) {
+        for (let r = 0; r < TOTAL_GRID_ROWS; r++) {
             for (let c = 0; c < GRID_COLS; c++) {
                 if (this.gridBubbles[r][c]) {
                     this.gridBubbles[r][c].visited = false;
@@ -1736,7 +1738,7 @@ class Game {
         
         const floodFill = (r, c) => {
             // Check bounds
-            if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS) return;
+            if (r < 0 || r >= TOTAL_GRID_ROWS || c < 0 || c >= GRID_COLS) return;
             
             // Get bubble at this position
             const currentBubble = this.gridBubbles[r][c];
@@ -1815,7 +1817,7 @@ class Game {
 
     findFloatingBubbles() {
         // Mark all bubbles as not visited
-        for (let row = 0; row < GRID_ROWS; row++) {
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row][col]) {
                     this.gridBubbles[row][col].visited = false;
@@ -1832,7 +1834,7 @@ class Game {
         
         // Collect all unvisited (floating) bubbles
         const floatingBubbles = [];
-        for (let row = 0; row < GRID_ROWS; row++) {
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 const bubble = this.gridBubbles[row][col];
                 if (bubble && !bubble.visited) {
@@ -1846,7 +1848,7 @@ class Game {
 
     markConnectedBubbles(row, col) {
         // Check bounds
-        if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return;
+        if (row < 0 || row >= TOTAL_GRID_ROWS || col < 0 || col >= GRID_COLS) return;
         
         // Get bubble at this position
         const bubble = this.gridBubbles[row][col];
@@ -2290,29 +2292,38 @@ class Game {
         this.ctx.lineWidth = 1;
         this.ctx.setLineDash([2, 2]); // Dashed lines
         
-        // Draw grid positions and connections
-        for (let row = 0; row < GRID_ROWS; row++) {
+        // Draw grid positions and connections for visible buffer area
+        const startBufferRow = Math.floor(this.gridOffsetY / GRID_ROW_HEIGHT);
+        const endBufferRow = Math.min(TOTAL_GRID_ROWS - 1, startBufferRow + GRID_ROWS + 1);
+        
+        for (let bufferRow = startBufferRow; bufferRow <= endBufferRow; bufferRow++) {
             for (let col = 0; col < GRID_COLS; col++) {
-                const x = this.getColPosition(row, col);
-                const y = this.getRowPosition(row);
+                const x = this.getColPosition(bufferRow, col);
+                const y = this.getRowPosition(bufferRow) - this.gridOffsetY;
                 
-                // Draw position markers
-                this.ctx.beginPath();
-                this.ctx.arc(x, y, 3, 0, Math.PI * 2);
-                this.ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-                this.ctx.fill();
-                
-                // Draw hexagonal connections to neighbors
-                const neighbors = this.getNeighborPositions(row, col);
-                for (const [nRow, nCol] of neighbors) {
-                    if (nRow >= 0 && nRow < GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
-                        const nx = this.getColPosition(nRow, nCol);
-                        const ny = this.getRowPosition(nRow);
-                        
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(x, y);
-                        this.ctx.lineTo(nx, ny);
-                        this.ctx.stroke();
+                // Only draw if position is visible on screen
+                if (y > -50 && y < this.canvas.height + 50) {
+                    // Draw position markers
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    this.ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                    this.ctx.fill();
+                    
+                    // Draw hexagonal connections to neighbors
+                    const neighbors = this.getNeighborPositions(bufferRow, col);
+                    for (const [nRow, nCol] of neighbors) {
+                        if (nRow >= 0 && nRow < TOTAL_GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
+                            const nx = this.getColPosition(nRow, nCol);
+                            const ny = this.getRowPosition(nRow) - this.gridOffsetY;
+                            
+                            // Only draw connections to visible neighbors
+                            if (ny > -50 && ny < this.canvas.height + 50) {
+                                this.ctx.beginPath();
+                                this.ctx.moveTo(x, y);
+                                this.ctx.lineTo(nx, ny);
+                                this.ctx.stroke();
+                            }
+                        }
                     }
                 }
             }
