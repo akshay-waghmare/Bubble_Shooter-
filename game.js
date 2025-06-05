@@ -1646,38 +1646,22 @@ class Game {
             this.gridBubbles.push(new Array(GRID_COLS).fill(null));
         }
         
-        // Start descent animation for all existing bubbles simultaneously with new row creation
-        const descentDurationMs = 300; // Fixed duration for smooth, synchronized animation
-        const fadeDurationMs = 300; // Same duration for perfect sync
-        const animationStartTime = Date.now(); // Single timestamp for perfect synchronization
+        // Move existing bubbles to new grid positions
+        // With smooth grid descent, bubbles automatically slide down via gridYOffset
+        // No separate animation needed - they move continuously with the grid
+        const fadeDurationMs = 300; // Duration for fade-in animation of new bubbles
+        const animationStartTime = Date.now(); // Timestamp for fade-in synchronization
         
         for (let row = this.gridBubbles.length - 1; row >= 1; row--) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (this.gridBubbles[row - 1][col]) {
                     const bubble = this.gridBubbles[row - 1][col];
                     
-                    // Store starting position for smooth animation
-                    bubble.startX = bubble.x;
-                    bubble.startY = bubble.y;
-                    
-                    // Calculate target position for smooth animation
-                    const targetX = this.getColPosition(row, col);
-                    const targetY = this.getRowPosition(row);
-                    
-                    // Set up time-based descent animation
-                    bubble.targetRow = row;
-                    bubble.targetCol = col;
-                    bubble.targetX = targetX;
-                    bubble.targetY = targetY;
-                    bubble.isDescending = true;
-                    bubble.descentStartTime = animationStartTime;
-                    bubble.descentDuration = descentDurationMs;
-                    
-                    // Move bubble to new grid position but keep visual position for animation
+                    // Move bubble to new grid position
                     this.gridBubbles[row][col] = bubble;
                     this.gridBubbles[row - 1][col] = null;
                     
-                    // Update logical position
+                    // Update logical position - physical position updates automatically via gridYOffset
                     bubble.row = row;
                     bubble.col = col;
                 }
@@ -1703,14 +1687,18 @@ class Game {
                 console.warn(`Missing color at col ${col}, using fallback: ${color}`);
             }
             
-            // Calculate final position
+            // Calculate final position (this includes current gridYOffset)
             const finalX = this.getColPosition(0, col);
             const finalY = this.getRowPosition(0);
             
-            // Start position (above visible area for smooth entry)
-            const startY = finalY - GRID_ROW_HEIGHT;
+            // Calculate base position without gridYOffset for smooth coordination
+            const baseY = 0 * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
             
-            // Create bubble starting above the grid
+            // Start position should be one row above the base position
+            // This ensures new bubbles slide down smoothly with the existing grid
+            const startY = baseY - GRID_ROW_HEIGHT + this.gridYOffset;
+            
+            // Create bubble starting above the grid, coordinated with grid descent
             const bubble = new Bubble(finalX, startY, color, 0, col);
             // CRITICAL: Set game reference for wall bounce detection
             bubble.game = this;
@@ -1718,18 +1706,9 @@ class Game {
             bubble.vx = 0;
             bubble.vy = 0;
             
-            // Store starting position for smooth animation
-            bubble.startX = finalX;
-            bubble.startY = startY;
-            
-            // Add synchronized time-based descent animation (same as existing bubbles)
-            bubble.targetX = finalX;
-            bubble.targetY = finalY;
-            bubble.isDescending = true;
-            bubble.descentStartTime = animationStartTime;
-            bubble.descentDuration = descentDurationMs;
-            
-            // Add fade-in animation properties (perfectly synchronized with descent)
+            // For smooth grid descent, new bubbles don't need separate descent animation
+            // They will automatically move down with the grid via gridYOffset
+            // Just add a fade-in animation for visual appeal
             bubble.isFadingIn = true;
             bubble.fadeInStartTime = animationStartTime;
             bubble.fadeInDuration = fadeDurationMs;
@@ -2349,30 +2328,6 @@ class Game {
                 if (this.gridBubbles[row] && this.gridBubbles[row][col]) {
                     const bubble = this.gridBubbles[row][col];
                     
-                    // Handle descent animation
-                    if (bubble.isDescending) {
-                        const currentTime = Date.now();
-                        const elapsed = currentTime - bubble.descentStartTime;
-                        const progress = Math.min(elapsed / bubble.descentDuration, 1);
-                        
-                        if (progress < 1) {
-                            // Smooth interpolation from start to target position
-                            bubble.x = bubble.startX + (bubble.targetX - bubble.startX) * progress;
-                            bubble.y = bubble.startY + (bubble.targetY - bubble.startY) * progress;
-                        } else {
-                            // Animation complete - snap to final position
-                            bubble.x = bubble.targetX;
-                            bubble.y = bubble.targetY;
-                            bubble.isDescending = false;
-                            bubble.startX = undefined;
-                            bubble.startY = undefined;
-                            bubble.targetX = undefined;
-                            bubble.targetY = undefined;
-                            bubble.descentStartTime = undefined;
-                            bubble.descentDuration = undefined;
-                        }
-                    }
-                    
                     // Handle fade-in animation for new bubbles
                     if (bubble.isFadingIn) {
                         const currentTime = Date.now();
@@ -2390,11 +2345,9 @@ class Game {
                     }
                     
                     // Update bubble position to reflect current grid offset
-                    // Only update if not currently in descent animation
-                    if (!bubble.isDescending) {
-                        bubble.x = this.getColPosition(row, col);
-                        bubble.y = this.getRowPosition(row);
-                    }
+                    // All bubbles move smoothly with the grid via gridYOffset
+                    bubble.x = this.getColPosition(row, col);
+                    bubble.y = this.getRowPosition(row);
                 }
             }
         }
