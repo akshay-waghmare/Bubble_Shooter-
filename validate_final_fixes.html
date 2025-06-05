@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Fix Validation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        #gameArea {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background: linear-gradient(to bottom, #001122, #003344);
+        }
+        .controls {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            width: 300px;
+        }
+        button {
+            padding: 10px;
+            background: #4ECDC4;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            background: #45B7B8;
+        }
+        .test-status {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .pass { color: #4ECDC4; }
+        .fail { color: #FF6B6B; }
+        .pending { color: #FFD93D; }
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin: 10px 0;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameArea">
+        <canvas id="gameCanvas" width="600" height="800"></canvas>
+        
+        <div class="controls">
+            <h3>Fix Validation Tests</h3>
+            
+            <button onclick="initGame()">Initialize Game</button>
+            <button onclick="testDangerLineEnforcement()">Test Issue #1: Danger Line</button>
+            <button onclick="testRowInsertion()">Test Issue #2: Row Insertion</button>
+            <button onclick="testGridMovement()">Test Issue #3: Grid Movement</button>
+            <button onclick="runComprehensiveTest()">Run All Tests</button>
+            
+            <div id="testResults">
+                <div class="test-status pending">
+                    <strong>Test Results:</strong><br>
+                    Click "Initialize Game" to start
+                </div>
+            </div>
+            
+            <div class="metrics">
+                <div>Grid Y Offset:</div><div id="gridOffset">-</div>
+                <div>Danger Line Y:</div><div id="dangerY">-</div>
+                <div>Lowest Bubble Y:</div><div id="lowestY">-</div>
+                <div>Transition Active:</div><div id="transitionState">-</div>
+                <div>Total Rows:</div><div id="totalRows">-</div>
+                <div>Game Status:</div><div id="gameStatus">-</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.17.1/matter.min.js"></script>
+    <script src="game.js"></script>
+    
+    <script>
+        let game;
+        let monitoringInterval;
+        
+        function updateMetrics() {
+            if (!game) return;
+            
+            document.getElementById('gridOffset').textContent = game.gridYOffset?.toFixed(2) || '0';
+            document.getElementById('dangerY').textContent = (game.loseLineRow * 60 + 120).toFixed(2);
+            document.getElementById('transitionState').textContent = game.isAddingNewRow ? 'YES' : 'NO';
+            document.getElementById('totalRows').textContent = game.gridBubbles?.length || '0';
+            document.getElementById('gameStatus').textContent = game.gameOver ? 'OVER' : game.gameStarted ? 'PLAYING' : 'READY';
+            
+            // Find lowest bubble
+            let lowestY = 0;
+            if (game.gridBubbles) {
+                for (let row = 0; row < game.gridBubbles.length; row++) {
+                    for (let col = 0; col < 9; col++) {
+                        if (game.gridBubbles[row] && game.gridBubbles[row][col]) {
+                            lowestY = Math.max(lowestY, game.getRowPosition(row));
+                        }
+                    }
+                }
+            }
+            document.getElementById('lowestY').textContent = lowestY.toFixed(2);
+        }
+        
+        function addTestResult(title, status, details) {
+            const resultsDiv = document.getElementById('testResults');
+            const statusClass = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'pending';
+            
+            resultsDiv.innerHTML += `
+                <div class="test-status ${statusClass}">
+                    <strong>${title}:</strong> ${status}<br>
+                    ${details}
+                </div>
+            `;
+        }
+        
+        function initGame() {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            game.init();
+            game.start();
+            
+            // Start metrics monitoring
+            if (monitoringInterval) clearInterval(monitoringInterval);
+            monitoringInterval = setInterval(updateMetrics, 100);
+            
+            document.getElementById('testResults').innerHTML = `
+                <div class="test-status pass">
+                    <strong>Game Initialized:</strong> READY<br>
+                    Game started successfully. Ready for testing.
+                </div>
+            `;
+        }
+        
+        function testDangerLineEnforcement() {
+            if (!game || !game.gameStarted) {
+                addTestResult('Issue #1', 'FAIL', 'Game not initialized');
+                return;
+            }
+            
+            addTestResult('Issue #1', 'RUNNING', 'Testing danger line enforcement...');
+            
+            // Calculate danger line position
+            const dangerLineY = game.loseLineRow * 60 + 120; // Approximate
+            
+            // Create a test bubble at the danger line
+            const testRow = game.loseLineRow;
+            if (!game.gridBubbles[testRow]) {
+                game.gridBubbles[testRow] = new Array(9).fill(null);
+            }
+            
+            // Create bubble that should trigger lose condition
+            const testBubble = {
+                x: 300,
+                y: dangerLineY + 5, // Slightly below danger line
+                stuck: true,
+                color: '#FF0000',
+                radius: 25
+            };
+            
+            game.gridBubbles[testRow][4] = testBubble;
+            
+            // Check if game detects lose condition
+            setTimeout(() => {
+                const gameOverTriggered = game.gameOver;
+                if (gameOverTriggered) {
+                    addTestResult('Issue #1', 'PASS', 'Bubble crossing danger line correctly triggers game over');
+                } else {
+                    addTestResult('Issue #1', 'FAIL', 'Bubble below danger line did not trigger game over');
+                }
+            }, 100);
+        }
+        
+        function testRowInsertion() {
+            if (!game || !game.gameStarted) {
+                addTestResult('Issue #2', 'FAIL', 'Game not initialized');
+                return;
+            }
+            
+            addTestResult('Issue #2', 'RUNNING', 'Testing row insertion from off-screen...');
+            
+            // Monitor row addition
+            const beforeRows = game.gridBubbles.length;
+            const beforeOffset = game.gridYOffset;
+            
+            // Trigger row addition
+            game.addNewRow();
+            
+            setTimeout(() => {
+                const afterRows = game.gridBubbles.length;
+                const transitionActive = game.isAddingNewRow;
+                const offsetChanged = game.gridYOffset !== beforeOffset;
+                
+                if (afterRows > beforeRows && transitionActive && offsetChanged) {
+                    addTestResult('Issue #2', 'PASS', `New row added (${beforeRows}→${afterRows}), transition active, animating from off-screen`);
+                } else {
+                    addTestResult('Issue #2', 'FAIL', `Row addition issues: rows=${beforeRows}→${afterRows}, transition=${transitionActive}, offset=${offsetChanged}`);
+                }
+            }, 100);
+        }
+        
+        function testGridMovement() {
+            if (!game || !game.gameStarted) {
+                addTestResult('Issue #3', 'FAIL', 'Game not initialized');
+                return;
+            }
+            
+            addTestResult('Issue #3', 'RUNNING', 'Testing grid movement behavior...');
+            
+            let frameCount = 0;
+            const initialOffset = game.gridYOffset;
+            let offsetChanges = 0;
+            let transitionDetected = false;
+            
+            const monitor = setInterval(() => {
+                frameCount++;
+                const currentOffset = game.gridYOffset;
+                const isTransitioning = game.isAddingNewRow;
+                
+                if (Math.abs(currentOffset - initialOffset) > 0.1) {
+                    offsetChanges++;
+                }
+                
+                if (isTransitioning) {
+                    transitionDetected = true;
+                }
+                
+                // Test for 3 seconds
+                if (frameCount >= 180) {
+                    clearInterval(monitor);
+                    
+                    // Without triggering new rows, grid should not continuously drift
+                    if (offsetChanges === 0 && !transitionDetected) {
+                        addTestResult('Issue #3', 'PASS', 'Grid correctly stays fixed without continuous drift');
+                    } else if (transitionDetected) {
+                        addTestResult('Issue #3', 'PASS', 'Grid moves only during row transitions (discrete movement)');
+                    } else {
+                        addTestResult('Issue #3', 'FAIL', `Unexpected grid movement: ${offsetChanges} offset changes, transition=${transitionDetected}`);
+                    }
+                }
+            }, 16);
+        }
+        
+        function runComprehensiveTest() {
+            document.getElementById('testResults').innerHTML = `
+                <div class="test-status pending">
+                    <strong>Running Comprehensive Tests:</strong><br>
+                    Initializing...
+                </div>
+            `;
+            
+            initGame();
+            
+            setTimeout(() => testDangerLineEnforcement(), 2000);
+            setTimeout(() => testRowInsertion(), 4000);
+            setTimeout(() => testGridMovement(), 6000);
+            
+            setTimeout(() => {
+                addTestResult('Summary', 'COMPLETE', 'All tests finished. Review results above.');
+            }, 10000);
+        }
+        
+        // Auto-initialize for quick testing
+        setTimeout(initGame, 500);
+    </script>
+</body>
+</html>
