@@ -1694,9 +1694,9 @@ class Game {
             // Calculate base position without gridYOffset for smooth coordination
             const baseY = 0 * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
             
-            // Start position should be one row above the base position
-            // This ensures new bubbles slide down smoothly with the existing grid
-            const startY = baseY - GRID_ROW_HEIGHT + this.gridYOffset;
+            // Start new bubbles completely off-screen above visible area
+            // They will naturally slide into view as the grid descends via gridYOffset
+            const startY = baseY - GRID_ROW_HEIGHT;
             
             // Create bubble starting above the grid, coordinated with grid descent
             const bubble = new Bubble(finalX, startY, color, 0, col);
@@ -2057,8 +2057,8 @@ class Game {
         // Allow bubbles to get very close to danger zone (only 5px buffer instead of full radius)
         const maxAllowedY = dangerZoneY - 5; // Much closer to danger zone
         
-        // Calculate maximum row that fits before danger zone
-        const maxRow = Math.floor((maxAllowedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        // Calculate maximum row that fits before danger zone, accounting for grid offset
+        const maxRow = Math.floor((maxAllowedY - GRID_TOP_MARGIN - this.gridYOffset) / GRID_ROW_HEIGHT);
         const effectiveMaxRows = Math.max(GRID_ROWS, maxRow); // Use at least original GRID_ROWS
         
         console.log('DYNAMIC GRID EXTENSION:', {
