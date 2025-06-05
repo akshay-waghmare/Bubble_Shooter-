@@ -697,8 +697,9 @@ class Game {
         this.pendingNewRow = false; // Flag to defer addNewRow() until after flying bubble processing
         
         // Smooth scrolling system
-        this.gridOffsetY = 0; // Current vertical offset for smooth scrolling
-        this.targetScrollOffset = 0; // Target offset for smooth animation
+        // Initialize with offset to place initial bubbles at top of screen
+        this.gridOffsetY = BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT; // Current vertical offset for smooth scrolling
+        this.targetScrollOffset = this.gridOffsetY; // Target offset for smooth animation
         this.scrollAnimating = false; // Flag to track if scrolling animation is active
         
         // Enhanced debug and collision systems
@@ -790,9 +791,10 @@ class Game {
         // Reset collision timing fix flag
         this.pendingNewRow = false;
         
-        // Reset smooth scrolling system
-        this.gridOffsetY = 0;
-        this.targetScrollOffset = 0;
+        // Initialize smooth scrolling system with offset to place initial bubbles at top
+        // The initial offset should bring buffer rows to the top of the visible area
+        this.gridOffsetY = BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT;
+        this.targetScrollOffset = this.gridOffsetY;
         this.scrollAnimating = false;
         
         // Initialize extended grid buffer
