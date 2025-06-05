@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smooth Scroll Demo</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #333; color: white; font-family: Arial; }
+        #controls { margin-bottom: 20px; }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+        #info { margin: 10px 0; font-family: monospace; }
+        canvas { border: 1px solid white; }
+    </style>
+</head>
+<body>
+    <h1>Smooth Scroll Demo</h1>
+    
+    <div id="controls">
+        <button onclick="triggerAddNewRow()">Add New Row (Test Scroll)</button>
+        <button onclick="toggleDebugGrid()">Toggle Debug Grid</button>
+        <button onclick="triggerMissedShots()">Simulate 5 Missed Shots</button>
+    </div>
+    
+    <div id="info">
+        <div>Grid Offset Y: <span id="offsetY">0</span></div>
+        <div>Target Offset: <span id="targetOffset">0</span></div>
+        <div>Scrolling: <span id="scrolling">false</span></div>
+        <div>Missed Shots: <span id="missedShots">0</span></div>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <script src="game.js"></script>
+    <script>
+        let game;
+        
+        // Initialize the game
+        try {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            
+            // Start the game so we can see bubbles
+            game.start();
+            
+            console.log('Game initialized successfully');
+            console.log('Buffer size:', game.gridBubbles.length);
+            console.log('Visible rows:', GRID_ROWS);
+            console.log('Buffer rows above:', BUFFER_ROWS_ABOVE);
+            
+        } catch (error) {
+            console.error('Failed to initialize game:', error);
+        }
+        
+        function triggerAddNewRow() {
+            if (game) {
+                console.log('Manually triggering addNewRow...');
+                console.log('Before - gridOffsetY:', game.gridOffsetY, 'targetOffset:', game.targetScrollOffset);
+                
+                game.addNewRow();
+                
+                console.log('After - gridOffsetY:', game.gridOffsetY, 'targetOffset:', game.targetScrollOffset);
+                console.log('Scrolling:', game.scrollAnimating);
+            }
+        }
+        
+        function toggleDebugGrid() {
+            if (game) {
+                game.showDebugGrid = !game.showDebugGrid;
+                console.log('Debug grid:', game.showDebugGrid);
+            }
+        }
+        
+        function triggerMissedShots() {
+            if (game) {
+                game.missedShots = 5;
+                game.pendingNewRow = true;
+                console.log('Set missedShots to 5, pendingNewRow to true');
+            }
+        }
+        
+        // Update info display
+        function updateInfo() {
+            if (game) {
+                document.getElementById('offsetY').textContent = game.gridOffsetY.toFixed(2);
+                document.getElementById('targetOffset').textContent = game.targetScrollOffset.toFixed(2);
+                document.getElementById('scrolling').textContent = game.scrollAnimating;
+                document.getElementById('missedShots').textContent = game.missedShots;
+            }
+            requestAnimationFrame(updateInfo);
+        }
+        
+        // Start info updates
+        updateInfo();
+        
+        // Add keyboard controls
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'n':
+                case 'N':
+                    triggerAddNewRow();
+                    break;
+                case 'g':
+                case 'G':
+                    toggleDebugGrid();
+                    break;
+                case 'm':
+                case 'M':
+                    triggerMissedShots();
+                    break;
+            }
+        });
+        
+        console.log('Controls:');
+        console.log('- Click "Add New Row" or press N to test smooth scrolling');
+        console.log('- Click "Toggle Debug Grid" or press G to show/hide grid');
+        console.log('- Click "Simulate 5 Missed Shots" or press M to trigger automatic scroll');
+    </script>
+</body>
+</html>

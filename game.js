@@ -157,7 +157,7 @@ const GRID_TOP_MARGIN = BUBBLE_RADIUS * 2;
 const BUFFER_ROWS_ABOVE = 5; // Extra rows above visible area
 const BUFFER_ROWS_BELOW = 5; // Extra rows below visible area
 const TOTAL_GRID_ROWS = GRID_ROWS + BUFFER_ROWS_ABOVE + BUFFER_ROWS_BELOW; // Total buffer size
-const SCROLL_SPEED = 1.0; // Pixels per frame for smooth scrolling
+const SCROLL_SPEED = 2.0; // Pixels per frame for smooth scrolling
 
 // Perfect hexagonal grid constants using mathematical precision
 const GRID_COL_SPACING = BUBBLE_RADIUS * 2; // Exact bubble diameter for perfect horizontal spacing
@@ -1312,9 +1312,9 @@ class Game {
         // Update smooth scrolling animation
         if (this.scrollAnimating) {
             const scrollDifference = this.targetScrollOffset - this.gridOffsetY;
-            if (Math.abs(scrollDifference) > 0.5) {
-                // Smoothly interpolate towards target
-                this.gridOffsetY += scrollDifference * 0.1; // Adjust speed as needed
+            if (Math.abs(scrollDifference) > 1.0) {
+                // Smoothly interpolate towards target - use faster speed for more noticeable effect
+                this.gridOffsetY += scrollDifference * 0.15; // Faster animation
                 
                 this.debugLogger.log('scroll', 'Updating scroll animation', {
                     currentOffset: this.gridOffsetY,
