@@ -1387,11 +1387,12 @@ class Game {
             }
         }
 
-        // Check win condition
+        // Check win condition - only check visible area
         let bubbleCount = 0;
-        for (let row = 0; row < GRID_ROWS; row++) {
+        for (let visibleRow = 0; visibleRow < GRID_ROWS; visibleRow++) {
+            const actualRow = visibleRow + BUFFER_ROWS_ABOVE; // Map to buffer position
             for (let col = 0; col < GRID_COLS; col++) {
-                if (this.gridBubbles[row][col]) {
+                if (this.gridBubbles[actualRow][col]) {
                     bubbleCount++;
                 }
             }
