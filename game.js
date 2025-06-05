@@ -149,9 +149,15 @@ class CollisionPredictor {
 const BUBBLE_RADIUS = 20;
 const BUBBLE_COLORS = ['#FF6B6B', '#4ECDC4', '#1E3A8A', '#00FF88', '#FECA57', '#FF9FF3'];
 const SHOOTER_SPEED = 35;
-const GRID_ROWS = 10;
+const GRID_ROWS = 10; // Visible rows on screen
 const GRID_COLS = 14;
 const GRID_TOP_MARGIN = BUBBLE_RADIUS * 2;
+
+// Off-screen grid buffer for smooth scrolling
+const BUFFER_ROWS_ABOVE = 5; // Extra rows above visible area
+const BUFFER_ROWS_BELOW = 5; // Extra rows below visible area
+const TOTAL_GRID_ROWS = GRID_ROWS + BUFFER_ROWS_ABOVE + BUFFER_ROWS_BELOW; // Total buffer size
+const SCROLL_SPEED = 1.0; // Pixels per frame for smooth scrolling
 
 // Perfect hexagonal grid constants using mathematical precision
 const GRID_COL_SPACING = BUBBLE_RADIUS * 2; // Exact bubble diameter for perfect horizontal spacing
@@ -690,6 +696,11 @@ class Game {
         // Fix for collision detection timing issue
         this.pendingNewRow = false; // Flag to defer addNewRow() until after flying bubble processing
         
+        // Smooth scrolling system
+        this.gridOffsetY = 0; // Current vertical offset for smooth scrolling
+        this.targetScrollOffset = 0; // Target offset for smooth animation
+        this.scrollAnimating = false; // Flag to track if scrolling animation is active
+        
         // Enhanced debug and collision systems
         this.debugLogger = new DebugLogger(false); // Enable with 'D' key
         this.collisionPredictor = new CollisionPredictor();
@@ -779,8 +790,13 @@ class Game {
         // Reset collision timing fix flag
         this.pendingNewRow = false;
         
-        // Initialize grid
-        for (let row = 0; row < GRID_ROWS; row++) {
+        // Reset smooth scrolling system
+        this.gridOffsetY = 0;
+        this.targetScrollOffset = 0;
+        this.scrollAnimating = false;
+        
+        // Initialize extended grid buffer
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
             this.gridBubbles[row] = [];
             for (let col = 0; col < GRID_COLS; col++) {
                 this.gridBubbles[row][col] = null;
@@ -802,41 +818,43 @@ class Game {
         console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols });
         
         let bubblesCreated = 0;
-        for (let row = 0; row < settings.rowsToStart; row++) {
+        // Place initial bubbles in the visible area (starting from BUFFER_ROWS_ABOVE)
+        for (let visibleRow = 0; visibleRow < settings.rowsToStart; visibleRow++) {
+            const actualRow = visibleRow + BUFFER_ROWS_ABOVE; // Map to actual buffer position
             for (let col = 0; col < effectiveGridCols; col++) {
                 // Skip some bubbles randomly for aesthetic reasons and to create more interesting patterns
                 if (Math.random() < 0.85) {
-                    const x = this.getColPosition(row, col);
-                    const y = this.getRowPosition(row);
+                    const x = this.getColPosition(actualRow, col);
+                    const y = this.getRowPosition(actualRow);
                     
                     // Ensure we don't place bubbles too close to the edge or overlapping
                     if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
-                        console.log('Skipping bubble due to edge constraint:', { row, col, x });
+                        console.log('Skipping bubble due to edge constraint:', { row: actualRow, col, x });
                         continue;
                     }
                     // Use wouldOverlapPrecise for robust overlap prevention
-                    if (this.wouldOverlapPrecise(x, y, row, col)) {
-                        console.log('Skipping bubble due to overlap:', { row, col, x, y });
+                    if (this.wouldOverlapPrecise(x, y, actualRow, col)) {
+                        console.log('Skipping bubble due to overlap:', { row: actualRow, col, x, y });
                         continue;
                     }
                     
                     // Create color clusters for more strategic gameplay
                     let color;
-                    if (row > 0 && col > 0 && this.gridBubbles[row-1][col] && Math.random() < 0.6) {
-                        color = this.gridBubbles[row-1][col].color;
-                    } else if (col > 0 && this.gridBubbles[row][col-1] && Math.random() < 0.4) {
-                        color = this.gridBubbles[row][col-1].color;
+                    if (visibleRow > 0 && col > 0 && this.gridBubbles[actualRow-1][col] && Math.random() < 0.6) {
+                        color = this.gridBubbles[actualRow-1][col].color;
+                    } else if (col > 0 && this.gridBubbles[actualRow][col-1] && Math.random() < 0.4) {
+                        color = this.gridBubbles[actualRow][col-1].color;
                     } else {
                         color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                     }
                     
-                    console.log('Creating grid bubble:', { row, col, x, y, color });
-                    const bubble = new Bubble(x, y, color, row, col);
+                    console.log('Creating grid bubble:', { row: actualRow, col, x, y, color });
+                    const bubble = new Bubble(x, y, color, actualRow, col);
                     // CRITICAL FIX: Set stuck=true IMMEDIATELY after creation, before any other operations
                     bubble.stuck = true;
                     bubble.vx = 0; // Ensure no velocity
                     bubble.vy = 0; // Ensure no velocity
-                    this.gridBubbles[row][col] = bubble;
+                    this.gridBubbles[actualRow][col] = bubble;
                     this.totalBubbles++;
                     bubblesCreated++;
                 }
@@ -1199,7 +1217,9 @@ class Game {
             this.collisionChecksThisFrame++;
             
             // Calculate grid region for more efficient collision checking
-            const approximateRow = Math.round((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+            // Adjust for scroll offset - convert screen position to buffer position
+            const adjustedY = bubble.y + this.gridOffsetY;
+            const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
             
             // Expand search area based on bubble velocity for fast-moving bubbles
@@ -1208,12 +1228,12 @@ class Game {
             
             const rowsToCheck = [];
             for (let r = Math.max(0, approximateRow - searchRadius); 
-                 r <= Math.min(GRID_ROWS - 1, approximateRow + searchRadius); r++) {
+                 r <= Math.min(TOTAL_GRID_ROWS - 1, approximateRow + searchRadius); r++) {
                 rowsToCheck.push(r);
             }
             
             for (const row of rowsToCheck) {
-                if (row < 0 || row >= GRID_ROWS) continue;
+                if (row < 0 || row >= TOTAL_GRID_ROWS) continue;
                 
                 // Enhanced column range for hexagonal offset
                 const colStart = Math.max(0, approximateCol - searchRadius - 1);
@@ -1245,12 +1265,18 @@ class Game {
                 const snapDistance = this.collisionSettings.snapDistance;
                 
                 // Check for nearby bubbles for smoother snapping experience
-                for (let row = 0; row < GRID_ROWS && !collided; row++) {
+                // Use the same buffer-adjusted calculation
+                const adjustedY = bubble.y + this.gridOffsetY;
+                const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+                
+                for (let row = Math.max(0, approximateRow - 2); row < Math.min(TOTAL_GRID_ROWS, approximateRow + 3) && !collided; row++) {
                     for (let col = 0; col < GRID_COLS; col++) {
                         const gridBubble = this.gridBubbles[row][col];
                         if (gridBubble) {
+                            // Calculate distance using screen positions
+                            const screenGridY = gridBubble.y - this.gridOffsetY;
                             const dx = bubble.x - gridBubble.x;
-                            const dy = bubble.y - gridBubble.y;
+                            const dy = bubble.y - screenGridY;
                             const distance = Math.sqrt(dx * dx + dy * dy);
                             
                             // Enhanced proximity check with velocity consideration
@@ -1260,7 +1286,8 @@ class Game {
                                 this.debugLogger.log('collision', 'Proximity snap triggered', {
                                     distance,
                                     snapDistance: velocityAdjustedSnapDistance,
-                                    velocity: velocityMagnitude
+                                    velocity: velocityMagnitude,
+                                    bufferRow: row
                                 });
                                 
                                 this.snapBubbleToGrid(bubble);
@@ -1280,6 +1307,29 @@ class Game {
             this.addNewRow();
             this.missedShots = 0;
             this.pendingNewRow = false;
+        }
+
+        // Update smooth scrolling animation
+        if (this.scrollAnimating) {
+            const scrollDifference = this.targetScrollOffset - this.gridOffsetY;
+            if (Math.abs(scrollDifference) > 0.5) {
+                // Smoothly interpolate towards target
+                this.gridOffsetY += scrollDifference * 0.1; // Adjust speed as needed
+                
+                this.debugLogger.log('scroll', 'Updating scroll animation', {
+                    currentOffset: this.gridOffsetY,
+                    targetOffset: this.targetScrollOffset,
+                    remaining: scrollDifference
+                });
+            } else {
+                // Close enough - snap to final position
+                this.gridOffsetY = this.targetScrollOffset;
+                this.scrollAnimating = false;
+                
+                this.debugLogger.log('scroll', 'Scroll animation completed', {
+                    finalOffset: this.gridOffsetY
+                });
+            }
         }
 
         // Update falling bubbles with enhanced physics and bucket collision
@@ -1374,7 +1424,8 @@ class Game {
         this.gridSnapsThisFrame++;
         this.debugLogger.log('snap', 'Attempting to snap bubble to grid', {
             bubblePosition: { x: bubble.x, y: bubble.y },
-            bubbleColor: bubble.color
+            bubbleColor: bubble.color,
+            gridOffsetY: this.gridOffsetY
         });
         
         // Enhanced hexagonal grid snapping with precise positioning
@@ -1383,8 +1434,11 @@ class Game {
         let minDistance = Infinity;
         let candidatePositions = [];
         
+        // Convert bubble screen position to buffer coordinate system
+        const adjustedBubbleY = bubble.y + this.gridOffsetY;
+        
         // Find the best grid position using hexagonal distance calculation
-        for (let row = 0; row < GRID_ROWS; row++) {
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 if (!this.gridBubbles[row][col]) {
                     const gridX = this.getColPosition(row, col);
@@ -1395,9 +1449,9 @@ class Game {
                         continue;
                     }
                     
-                    // Calculate precise distance to this grid position
+                    // Calculate precise distance using buffer coordinates
                     const dx = bubble.x - gridX;
-                    const dy = bubble.y - gridY;
+                    const dy = adjustedBubbleY - gridY;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
                     // Check if this position maintains connectivity to top
@@ -1557,7 +1611,7 @@ class Game {
         
         // Check if any neighbor exists and is connected to top
         for (const [nRow, nCol] of neighbors) {
-            if (nRow >= 0 && nRow < GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
+            if (nRow >= 0 && nRow < TOTAL_GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
                 const neighborBubble = this.gridBubbles[nRow][nCol];
                 if (neighborBubble) {
                     // If neighbor is in top row, we're connected
@@ -1595,7 +1649,7 @@ class Game {
             const neighbors = this.getNeighborPositions(currentRow, currentCol);
             for (const [nRow, nCol] of neighbors) {
                 const key = `${nRow},${nCol}`;
-                if (nRow >= 0 && nRow < GRID_ROWS && nCol >= 0 && nCol < GRID_COLS && 
+                if (nRow >= 0 && nRow < TOTAL_GRID_ROWS && nCol >= 0 && nCol < GRID_COLS && 
                     !visited.has(key) && this.gridBubbles[nRow][nCol]) {
                     visited.add(key);
                     queue.push([nRow, nCol]);
@@ -1813,35 +1867,31 @@ class Game {
     }
 
     addNewRow() {
-        this.debugLogger.log('game', 'Adding new row - starting shift operation');
+        this.debugLogger.log('game', 'Adding new row to buffer - starting smooth scroll');
         
-        // Shift all existing rows down and update their positions
-        for (let row = GRID_ROWS - 1; row > 0; row--) {
+        // Find the topmost empty row in the buffer
+        let topEmptyRow = -1;
+        for (let row = 0; row < BUFFER_ROWS_ABOVE; row++) {
+            let isEmpty = true;
             for (let col = 0; col < GRID_COLS; col++) {
-                this.gridBubbles[row][col] = this.gridBubbles[row - 1][col];
-                if (this.gridBubbles[row][col]) {
-                    // Update both grid coordinates and actual position
-                    this.gridBubbles[row][col].row = row;
-                    this.gridBubbles[row][col].col = col;
-                    
-                    // Recalculate precise position using grid positioning methods
-                    this.gridBubbles[row][col].x = this.getColPosition(row, col);
-                    this.gridBubbles[row][col].y = this.getRowPosition(row);
-                    
-                    this.debugLogger.log('shift', `Moved bubble from row ${row-1} to row ${row}`, {
-                        col: col,
-                        newPosition: { x: this.gridBubbles[row][col].x, y: this.gridBubbles[row][col].y }
-                    });
+                if (this.gridBubbles[row][col] !== null) {
+                    isEmpty = false;
+                    break;
                 }
+            }
+            if (isEmpty) {
+                topEmptyRow = row;
+                break;
             }
         }
         
-        // Clear the top row
-        for (let col = 0; col < GRID_COLS; col++) {
-            this.gridBubbles[0][col] = null;
+        // If no empty row in buffer, use the topmost row (this might overwrite existing bubbles)
+        if (topEmptyRow === -1) {
+            topEmptyRow = 0;
+            this.debugLogger.log('warning', 'No empty row in buffer, using topmost row');
         }
         
-        // Add new row at the top with proper collision checking
+        // Add new row at the found position
         const settings = this.difficultySettings[this.difficulty];
         const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
         
@@ -1851,8 +1901,8 @@ class Game {
         
         for (let col = 0; col < effectiveGridCols; col++) {
             if (Math.random() < 0.85) { // 85% chance to add a bubble
-                const x = this.getColPosition(0, col);
-                const y = this.getRowPosition(0);
+                const x = this.getColPosition(topEmptyRow, col);
+                const y = this.getRowPosition(topEmptyRow);
                 
                 // Ensure we don't place bubbles too close to the edge
                 if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
@@ -1860,45 +1910,56 @@ class Game {
                 }
                 
                 // Use enhanced overlap checking to prevent conflicts
-                if (this.wouldOverlapPrecise(x, y, 0, col)) {
+                if (this.wouldOverlapPrecise(x, y, topEmptyRow, col)) {
                     this.debugLogger.log('warning', 'Overlap detected when adding new row bubble', {
-                        position: { row: 0, col: col, x: x, y: y }
+                        position: { row: topEmptyRow, col: col, x: x, y: y }
                     });
                     continue;
                 }
                 
                 // Create color clusters for more strategic gameplay
                 let color;
-                if (col > 0 && this.gridBubbles[0][col-1] && Math.random() < 0.4) {
-                    color = this.gridBubbles[0][col-1].color;
+                if (col > 0 && this.gridBubbles[topEmptyRow][col-1] && Math.random() < 0.4) {
+                    color = this.gridBubbles[topEmptyRow][col-1].color;
                 } else {
                     color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                 }
                 
-                const bubble = new Bubble(x, y, color, 0, col);
+                const bubble = new Bubble(x, y, color, topEmptyRow, col);
                 // CRITICAL FIX: Set stuck=true IMMEDIATELY after creation
                 bubble.stuck = true;
                 bubble.vx = 0; // Ensure no velocity
                 bubble.vy = 0; // Ensure no velocity
-                this.gridBubbles[0][col] = bubble;
+                this.gridBubbles[topEmptyRow][col] = bubble;
                 this.totalBubbles++;
                 
-                this.debugLogger.log('add', 'New bubble added to top row', {
-                    position: { row: 0, col: col, x: x, y: y },
+                this.debugLogger.log('add', 'New bubble added to buffer row', {
+                    position: { row: topEmptyRow, col: col, x: x, y: y },
                     color: color
                 });
             }
         }
         
+        // Start smooth scrolling animation to reveal the new row
+        this.targetScrollOffset = this.gridOffsetY + GRID_ROW_HEIGHT;
+        this.scrollAnimating = true;
+        
+        this.debugLogger.log('scroll', 'Starting smooth scroll animation', {
+            currentOffset: this.gridOffsetY,
+            targetOffset: this.targetScrollOffset,
+            scrollAmount: GRID_ROW_HEIGHT
+        });
+        
         // Verify grid integrity after the operation
         this.verifyGridIntegrity();
         
-        // Check if game is over (bubbles reached bottom)
+        // Check if game is over (bubbles reached the visible bottom)
+        const visibleBottomRow = BUFFER_ROWS_ABOVE + GRID_ROWS - 1;
         for (let col = 0; col < GRID_COLS; col++) {
-            if (this.gridBubbles[GRID_ROWS - 1][col]) {
+            if (this.gridBubbles[visibleBottomRow][col]) {
                 this.gameOver = true;
                 this.saveHighScore(this.score);
-                this.debugLogger.log('game', 'Game over - bubbles reached bottom after new row added');
+                this.debugLogger.log('game', 'Game over - bubbles reached visible bottom after new row added');
                 break;
             }
         }
@@ -1912,7 +1973,7 @@ class Game {
         if (!this.debugLogger.enabled) return; // Only run in debug mode
         
         let issues = 0;
-        for (let row = 0; row < GRID_ROWS; row++) {
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 const bubble = this.gridBubbles[row][col];
                 if (bubble) {
@@ -1965,15 +2026,33 @@ class Game {
             this.drawHexagonalGrid();
         }
         
-        // Draw grid bubbles
-        for (let row = 0; row < GRID_ROWS; row++) {
+        // Draw grid bubbles - only render the visible portion of the buffer
+        this.ctx.save(); // Save context for clipping
+        
+        // Calculate visible row range based on grid offset
+        const startBufferRow = Math.floor(this.gridOffsetY / GRID_ROW_HEIGHT);
+        const endBufferRow = Math.min(TOTAL_GRID_ROWS - 1, startBufferRow + GRID_ROWS + 1); // +1 for smooth transitions
+        
+        for (let bufferRow = startBufferRow; bufferRow <= endBufferRow; bufferRow++) {
             for (let col = 0; col < GRID_COLS; col++) {
-                const bubble = this.gridBubbles[row][col];
+                const bubble = this.gridBubbles[bufferRow][col];
                 if (bubble) {
-                    bubble.draw(this.ctx);
+                    // Calculate the actual screen position based on the scroll offset
+                    const originalY = bubble.y;
+                    bubble.y = originalY - this.gridOffsetY;
+                    
+                    // Only draw bubbles that are within the visible canvas area
+                    if (bubble.y > -BUBBLE_RADIUS && bubble.y < this.canvas.height + BUBBLE_RADIUS) {
+                        bubble.draw(this.ctx);
+                    }
+                    
+                    // Restore original position
+                    bubble.y = originalY;
                 }
             }
         }
+        
+        this.ctx.restore(); // Restore context
 
         // Only draw flying bubbles if not initializing
         if (!this.initializing) {
