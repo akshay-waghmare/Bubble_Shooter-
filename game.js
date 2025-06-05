@@ -834,8 +834,8 @@ class Game {
         for (let visibleRow = 0; visibleRow < settings.rowsToStart; visibleRow++) {
             const actualRow = visibleRow + BUFFER_ROWS_ABOVE; // Map to actual buffer position
             for (let col = 0; col < effectiveGridCols; col++) {
-                // Use high density for initial grid to ensure reliable collision detection
-                if (Math.random() < 0.95) {
+                // Use very high density for initial grid to ensure reliable collision detection
+                if (Math.random() < 0.98) {
                     const x = this.getColPosition(actualRow, col);
                     const y = this.getRowPosition(actualRow);
                     
@@ -1186,6 +1186,40 @@ class Game {
             }
         }
         
+        // CRITICAL FIX: Apply continuous scrolling BEFORE collision detection to ensure coordinate consistency
+        if (CONTINUOUS_SCROLL_ENABLED && this.gameStarted && !this.gameOver && !this.gameWon) {
+            const oldGridOffsetY = this.gridOffsetY;
+            
+            // Apply continuous downward scrolling
+            this.gridOffsetY += CONTINUOUS_SCROLL_SPEED;
+            this.targetScrollOffset = this.gridOffsetY;
+            
+            // Track total scrolled distance
+            this.totalScrolledDistance += CONTINUOUS_SCROLL_SPEED;
+            
+            // Check if we need to add a new row (based on distance scrolled, not missed shots)
+            const scrolledRowsSinceLastNew = this.totalScrolledDistance - this.lastNewRowTrigger;
+            if (scrolledRowsSinceLastNew >= NEW_ROW_THRESHOLD) {
+                this.debugLogger.log('scroll', 'Continuous scroll triggered new row', {
+                    scrolledDistance: scrolledRowsSinceLastNew,
+                    threshold: NEW_ROW_THRESHOLD,
+                    totalDistance: this.totalScrolledDistance
+                });
+                
+                this.addNewRowFromContinuousScroll();
+                this.lastNewRowTrigger = this.totalScrolledDistance;
+            }
+            
+            // Log continuous scrolling (less frequently to avoid spam)
+            if (Math.floor(this.totalScrolledDistance) % 10 === 0) {
+                this.debugLogger.log('scroll', 'Continuous scrolling active', {
+                    currentOffset: this.gridOffsetY,
+                    totalDistance: this.totalScrolledDistance,
+                    speed: CONTINUOUS_SCROLL_SPEED
+                });
+            }
+        }
+        
         // Enhanced flying bubble update with improved collision detection
         for (let i = this.flyingBubbles.length - 1; i >= 0; i--) {
             const bubble = this.flyingBubbles[i];
@@ -1351,40 +1385,6 @@ class Game {
             this.addNewRow();
             this.missedShots = 0;
             this.pendingNewRow = false;
-        }
-
-        // Implement continuous scrolling - creates infinite stack illusion
-        if (CONTINUOUS_SCROLL_ENABLED && this.gameStarted && !this.gameOver && !this.gameWon) {
-            const oldGridOffsetY = this.gridOffsetY;
-            
-            // Apply continuous downward scrolling
-            this.gridOffsetY += CONTINUOUS_SCROLL_SPEED;
-            this.targetScrollOffset = this.gridOffsetY;
-            
-            // Track total scrolled distance
-            this.totalScrolledDistance += CONTINUOUS_SCROLL_SPEED;
-            
-            // Check if we need to add a new row (based on distance scrolled, not missed shots)
-            const scrolledRowsSinceLastNew = this.totalScrolledDistance - this.lastNewRowTrigger;
-            if (scrolledRowsSinceLastNew >= NEW_ROW_THRESHOLD) {
-                this.debugLogger.log('scroll', 'Continuous scroll triggered new row', {
-                    totalScrolled: this.totalScrolledDistance,
-                    lastTrigger: this.lastNewRowTrigger,
-                    scrolledSince: scrolledRowsSinceLastNew
-                });
-                
-                this.addNewRowFromContinuousScroll();
-                this.lastNewRowTrigger = this.totalScrolledDistance;
-            }
-            
-            // Log continuous scrolling (less frequently to avoid spam)
-            if (Math.floor(this.totalScrolledDistance) % 10 === 0) {
-                this.debugLogger.log('scroll', 'Continuous scrolling active', {
-                    currentOffset: this.gridOffsetY,
-                    totalDistance: this.totalScrolledDistance,
-                    speed: CONTINUOUS_SCROLL_SPEED
-                });
-            }
         }
 
         // Update discrete scrolling animation (for missed shots or manual triggers)
