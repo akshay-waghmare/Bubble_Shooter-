@@ -919,6 +919,9 @@ class Game {
         
         // CRITICAL FIX: Ensure initial collision detection works by validating and stabilizing grid state
         this.validateAndStabilizeInitialGrid();
+        
+        // EMERGENCY FIX: Force immediate collision system activation
+        this.ensureCollisionSystemActive();
     }
     
     // CRITICAL FIX: New method to ensure initial grid is immediately ready for collision detection
@@ -1018,7 +1021,113 @@ class Game {
         }
     }
     
-    // Helper method to test collision detection without side effects
+    // EMERGENCY FIX: Force collision system to be active immediately
+    ensureCollisionSystemActive() {
+        console.log('=== ENSURING COLLISION SYSTEM IS ACTIVE ===');
+        
+        // Force a grid integrity check that corrects any coordinate issues
+        this.verifyGridIntegrity();
+        
+        // Explicitly mark all grid bubbles as ready for collision
+        let activatedBubbles = 0;
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    // Ensure bubble has correct properties for collision detection
+                    bubble.stuck = true;
+                    bubble.vx = 0;
+                    bubble.vy = 0;
+                    bubble.collisionReady = true; // New flag to mark collision readiness
+                    activatedBubbles++;
+                }
+            }
+        }
+        
+        console.log(`Collision system activated for ${activatedBubbles} bubbles`);
+        
+        // Test with multiple virtual shots to ensure robustness
+        for (let testShot = 0; testShot < 3; testShot++) {
+            this.performCollisionSystemTest(testShot);
+        }
+        
+        console.log('Collision system activation complete');
+    }
+    
+    // EMERGENCY FIX: Test collision system with multiple scenarios
+    performCollisionSystemTest(testIndex) {
+        // Find visible bubbles for testing
+        const visibleBubbles = [];
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    const screenY = bubble.y + this.gridOffsetY;
+                    if (screenY >= 0 && screenY < this.canvas.height / 2) {
+                        visibleBubbles.push({ bubble, screenY, row, col });
+                    }
+                }
+            }
+        }
+        
+        if (visibleBubbles.length === 0) {
+            console.log(`Test ${testIndex}: No visible bubbles found`);
+            return;
+        }
+        
+        const targetBubble = visibleBubbles[testIndex % visibleBubbles.length];
+        const virtualShot = {
+            x: targetBubble.bubble.x + (testIndex * 5), // Slight offset for different tests
+            y: targetBubble.screenY + 45, // Position below target
+            radius: BUBBLE_RADIUS,
+            vx: 0,
+            vy: -3,
+            collisionReady: true
+        };
+        
+        const collision = this.testCollisionDetection(virtualShot);
+        if (collision) {
+            console.log(`✅ Test ${testIndex}: Collision system working - virtual shot would hit [${collision.row},${collision.col}]`);
+        } else {
+            console.log(`❌ Test ${testIndex}: Collision system NOT working - virtual shot would miss`);
+            // Force fix any issues found
+            this.forceCollisionSystemRepair();
+        }
+    }
+    
+    // EMERGENCY FIX: Repair collision system if tests fail
+    forceCollisionSystemRepair() {
+        console.log('🔧 FORCING COLLISION SYSTEM REPAIR');
+        
+        // Recalculate all bubble positions and ensure they're in correct coordinate system
+        let repairedBubbles = 0;
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    // Force recalculate position
+                    const expectedX = this.getColPosition(row, col);
+                    const expectedY = this.getRowPosition(row);
+                    
+                    // Fix position if needed
+                    if (Math.abs(bubble.x - expectedX) > 1 || Math.abs(bubble.y - expectedY) > 1) {
+                        console.log(`Repairing bubble [${row},${col}]: (${bubble.x}, ${bubble.y}) -> (${expectedX}, ${expectedY})`);
+                        bubble.x = expectedX;
+                        bubble.y = expectedY;
+                        repairedBubbles++;
+                    }
+                    
+                    // Ensure collision readiness
+                    bubble.stuck = true;
+                    bubble.vx = 0;
+                    bubble.vy = 0;
+                    bubble.collisionReady = true;
+                }
+            }
+        }
+        
+        console.log(`Repaired ${repairedBubbles} bubble positions`);
+    }
     testCollisionDetection(flyingBubble) {
         const adjustedY = flyingBubble.y - this.gridOffsetY;
         const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
@@ -1499,6 +1608,13 @@ class Game {
                     gameStarted: this.gameStarted,
                     initializing: this.initializing
                 });
+                
+                // EMERGENCY FIX: If first shot doesn't find any grid bubbles to check, force system repair
+                const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                if (gridBubbleCount === 0) {
+                    console.log('🚨 EMERGENCY: No grid bubbles found for first shot! Forcing system repair...');
+                    this.forceCollisionSystemRepair();
+                }
             }
             
             // Calculate grid region for more efficient collision checking
@@ -1580,6 +1696,11 @@ class Game {
                                 threshold: collisionDistance.toFixed(2),
                                 diff: (distance - collisionDistance).toFixed(2)
                             });
+                        }
+                    } else if (i === 0 && this.flyingBubbles.length === 1) {
+                        // Log empty grid positions for first bubble (debug why no collision target found)
+                        if (row >= BUFFER_ROWS_ABOVE && row < BUFFER_ROWS_ABOVE + 3) { // Check first 3 visible rows
+                            console.log(`First shot: empty position [${row},${col}] in visible area`);
                         }
                     }
                 }

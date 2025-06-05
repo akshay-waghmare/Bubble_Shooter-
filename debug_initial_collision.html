@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Initial Collision</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #000; color: #fff; font-family: monospace; }
+        canvas { border: 1px solid #fff; background: #111; }
+        #debug { margin-top: 10px; max-height: 400px; overflow-y: auto; }
+        .log-entry { margin: 2px 0; font-size: 12px; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .warning { color: #ff0; }
+    </style>
+</head>
+<body>
+    <h1>Debug Initial Collision Detection</h1>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="debug"></div>
+    <button onclick="testCollision()">Test Collision</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <script src="game.js"></script>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const debugDiv = document.getElementById('debug');
+        let game = null;
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            debugDiv.appendChild(entry);
+            debugDiv.scrollTop = debugDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearLog() {
+            debugDiv.innerHTML = '';
+        }
+        
+        // Initialize game
+        window.addEventListener('load', () => {
+            log('Initializing game...');
+            game = new Game(canvas);
+            game.gameMode = 'classic';
+            game.difficulty = 'novice';
+            
+            // Override some methods for debugging
+            const originalSnapToGrid = game.snapBubbleToGrid.bind(game);
+            game.snapBubbleToGrid = function(bubble) {
+                log(`SNAP: Bubble at (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)}) snapping to grid`, 'success');
+                return originalSnapToGrid(bubble);
+            };
+            
+            log('Game initialized');
+        });
+        
+        function testCollision() {
+            if (!game) {
+                log('Game not initialized', 'error');
+                return;
+            }
+            
+            log('=== TESTING INITIAL COLLISION ===');
+            
+            // Log grid state
+            let gridBubbleCount = 0;
+            let topBubble = null;
+            let topScreenY = Infinity;
+            
+            for (let row = 0; row < game.gridBubbles.length; row++) {
+                for (let col = 0; col < game.gridBubbles[row].length; col++) {
+                    const bubble = game.gridBubbles[row][col];
+                    if (bubble) {
+                        gridBubbleCount++;
+                        const screenY = bubble.y + game.gridOffsetY;
+                        if (screenY < topScreenY && screenY >= 0) {
+                            topScreenY = screenY;
+                            topBubble = bubble;
+                        }
+                    }
+                }
+            }
+            
+            log(`Grid has ${gridBubbleCount} bubbles`);
+            log(`GridOffsetY: ${game.gridOffsetY.toFixed(2)}`);
+            
+            if (topBubble) {
+                log(`Top bubble: [${topBubble.row},${topBubble.col}] at buffer(${topBubble.x}, ${topBubble.y}) -> screen(${topBubble.x}, ${topScreenY.toFixed(1)})`);
+                
+                // Create a test shot bubble aimed at the top bubble
+                const testBubble = {
+                    x: topBubble.x,
+                    y: topScreenY + 60, // 60px below the top bubble
+                    radius: 20,
+                    vx: 0,
+                    vy: -5,
+                    color: 'red',
+                    stuck: false
+                };
+                
+                log(`Test bubble: (${testBubble.x}, ${testBubble.y}) aiming at top bubble`);
+                
+                // Test collision detection directly
+                const collision = testCollisionDirect(testBubble);
+                if (collision) {
+                    log(`✅ Collision detected: distance=${collision.distance.toFixed(2)}, threshold=${((testBubble.radius + collision.gridBubble.radius) * 0.98).toFixed(2)}`, 'success');
+                } else {
+                    log(`❌ No collision detected`, 'error');
+                    
+                    // Debug why collision failed
+                    debugCollisionFailure(testBubble, topBubble);
+                }
+                
+                // Simulate actual shooting
+                game.flyingBubbles.push(testBubble);
+                log('Added test bubble to flying bubbles for live testing');
+                
+            } else {
+                log('No top bubble found', 'error');
+            }
+        }
+        
+        function testCollisionDirect(flyingBubble) {
+            const adjustedY = flyingBubble.y - game.gridOffsetY;
+            const approximateRow = Math.round((adjustedY - 40) / (20 * Math.sqrt(3))); // GRID_TOP_MARGIN and GRID_ROW_HEIGHT
+            const approximateCol = Math.round((flyingBubble.x - 20) / 40); // BUBBLE_RADIUS and GRID_COL_SPACING
+            
+            log(`Collision check: adjustedY=${adjustedY.toFixed(2)}, approxRow=${approximateRow}, approxCol=${approximateCol}`);
+            
+            // Check surrounding positions
+            for (let r = Math.max(0, approximateRow - 1); r <= Math.min(game.gridBubbles.length - 1, approximateRow + 1); r++) {
+                for (let col = Math.max(0, approximateCol - 1); col <= Math.min(game.gridBubbles[r].length - 1, approximateCol + 1); col++) {
+                    const gridBubble = game.gridBubbles[r][col];
+                    if (gridBubble) {
+                        const gridBubbleScreenY = gridBubble.y + game.gridOffsetY;
+                        const dx = flyingBubble.x - gridBubble.x;
+                        const dy = flyingBubble.y - gridBubbleScreenY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const collisionDistance = (flyingBubble.radius + gridBubble.radius) * 0.98;
+                        
+                        log(`  Checking [${r},${col}]: grid(${gridBubble.x}, ${gridBubble.y}) -> screen(${gridBubble.x}, ${gridBubbleScreenY.toFixed(1)}), distance=${distance.toFixed(2)}, threshold=${collisionDistance.toFixed(2)}`);
+                        
+                        if (distance < collisionDistance) {
+                            return { row: r, col: col, gridBubble: gridBubble, distance: distance };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+        
+        function debugCollisionFailure(testBubble, targetBubble) {
+            log('=== DEBUGGING COLLISION FAILURE ===', 'warning');
+            log(`Test bubble: (${testBubble.x}, ${testBubble.y})`);
+            log(`Target bubble: [${targetBubble.row},${targetBubble.col}] at buffer(${targetBubble.x}, ${targetBubble.y})`);
+            log(`GridOffsetY: ${game.gridOffsetY}`);
+            
+            const targetScreenY = targetBubble.y + game.gridOffsetY;
+            log(`Target screen position: (${targetBubble.x}, ${targetScreenY.toFixed(1)})`);
+            
+            const dx = testBubble.x - targetBubble.x;
+            const dy = testBubble.y - targetScreenY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const threshold = (testBubble.radius + targetBubble.radius) * 0.98;
+            
+            log(`Direct distance check: dx=${dx.toFixed(2)}, dy=${dy.toFixed(2)}, distance=${distance.toFixed(2)}, threshold=${threshold.toFixed(2)}`);
+            
+            if (distance < threshold + 10) {
+                log(`Close miss! Only ${(distance - threshold).toFixed(2)}px away from collision`, 'warning');
+            }
+        }
+    </script>
+</body>
+</html>
