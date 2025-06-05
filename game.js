@@ -2840,21 +2840,69 @@ window.addEventListener('load', () => {
     console.log('✅ All critical elements found - proceeding with initialization');
     
     let game = null;
-    let selectedGameMode = 'classic';
     let selectedDifficulty = 'novice';
-    let soundEnabled = true;
+    
+    // Load sound settings from localStorage  
+    const savedSoundEnabled = localStorage.getItem('bubbleShooterSoundEnabled');
+    let soundEnabled = savedSoundEnabled !== null ? savedSoundEnabled === 'true' : true;
+    
+    // Update the sound toggle button text to match the loaded setting
+    if (toggleSoundBtn) {
+        toggleSoundBtn.textContent = `Sound: ${soundEnabled ? 'On' : 'Off'}`;
+    }
 
-    // Handle game mode selection
-    const gameModeButtons = document.querySelectorAll('.button-group button[data-mode]');
-    gameModeButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            gameModeButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            selectedGameMode = button.getAttribute('data-mode');
+    // Generate mock leaderboard data
+    const generateLeaderboardData = () => {
+        const names = [
+            'BubbleMaster', 'ShotKing', 'ColorCrush', 'PopStar', 'BubbleNinja',
+            'RainbowShooter', 'PrecisionPro', 'BubbleLord', 'ComboQueen', 'SkillShot',
+            'BubbleHero', 'AimBot', 'PopWizard', 'BubbleSage', 'ShotGuru',
+            'ColorMaster', 'BubbleAce', 'PopChamp', 'TargetKing', 'BubbleLegend',
+            'SniperShot', 'BubbleGod', 'PopGenius', 'AimStar', 'BubblePhoenix',
+            'ShotMachine', 'ColorSniper', 'BubbleTitan', 'PopExpert', 'BubbleElite'
+        ];
+        
+        const difficulties = ['Novice', 'Easy', 'Medium', 'Hard', 'Master'];
+        
+        return names.map((name, index) => ({
+            rank: index + 1,
+            name: name,
+            score: Math.floor(Math.random() * 50000) + 10000 - (index * 500),
+            level: Math.floor(Math.random() * 20) + 1,
+            difficulty: difficulties[Math.floor(Math.random() * difficulties.length)]
+        })).sort((a, b) => b.score - a.score).map((player, index) => ({
+            ...player,
+            rank: index + 1
+        }));
+    };
+
+    // Populate horizontal leaderboard
+    const populateHorizontalLeaderboard = () => {
+        const leaderboardContainer = document.getElementById('horizontalLeaderboard');
+        if (!leaderboardContainer) return;
+        
+        const players = generateLeaderboardData();
+        leaderboardContainer.innerHTML = '';
+        
+        players.forEach(player => {
+            const playerCard = document.createElement('div');
+            playerCard.className = `player-card ${player.rank <= 3 ? 'top-3' : ''} ${player.rank === 1 ? 'rank-1' : ''}`;
+            
+            playerCard.innerHTML = `
+                <div class="player-rank rank-${player.rank}">#${player.rank}</div>
+                <div class="player-name">${player.name}</div>
+                <div class="player-score">${player.score.toLocaleString()}</div>
+                <div class="player-level">Lv.${player.level}</div>
+            `;
+            
+            leaderboardContainer.appendChild(playerCard);
         });
-    });
+    };
 
-    // Handle difficulty selection
+    // Initialize horizontal leaderboard
+    populateHorizontalLeaderboard();
+
+    // Handle difficulty selection (removed game mode selection)
     const difficultyButtons = document.querySelectorAll('.button-group button[data-difficulty]');
     difficultyButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -2867,7 +2915,7 @@ window.addEventListener('load', () => {
     // Start Game button
     startGameBtn.addEventListener('click', () => {
         console.log('🎯 START GAME BUTTON CLICKED!');
-        console.log('Selected settings:', { gameMode: selectedGameMode, difficulty: selectedDifficulty, sound: soundEnabled });
+        console.log('Selected settings:', { difficulty: selectedDifficulty, sound: soundEnabled });
         
         try {
             gameMenu.style.display = 'none';
@@ -2879,7 +2927,6 @@ window.addEventListener('load', () => {
             game = new Game(canvas);
             console.log('✅ Game constructor completed');
             
-            game.gameMode = selectedGameMode;
             game.difficulty = selectedDifficulty;
             game.soundEnabled = soundEnabled;
             
@@ -2935,7 +2982,6 @@ window.addEventListener('load', () => {
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${score.score}</td>
-                    <td>${score.mode}</td>
                     <td>${score.difficulty}</td>
                     <td>${new Date(score.date).toLocaleDateString()}</td>
                 `;
@@ -2943,7 +2989,7 @@ window.addEventListener('load', () => {
             });
         } else {
             const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="5">No high scores yet!</td>';
+            row.innerHTML = '<td colspan="4">No high scores yet!</td>';
             scoresList.appendChild(row);
         }
     });
@@ -2962,6 +3008,156 @@ window.addEventListener('load', () => {
             game.soundEnabled = soundEnabled;
         }
     });
+
+    // Bottom Navigation Event Listeners
+    const dailyChallengeBtn = document.getElementById('dailyChallenge');
+    const homeNavBtn = document.getElementById('homeNav');
+    const shopNavBtn = document.getElementById('shopNav');
+    
+    // Daily Challenge button
+    if (dailyChallengeBtn) {
+        dailyChallengeBtn.addEventListener('click', () => {
+            console.log('Daily Challenge clicked');
+            // Update active state
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            dailyChallengeBtn.classList.add('active');
+            
+            // For now, show an alert - this can be replaced with actual daily challenge functionality
+            alert('🏆 Daily Challenge\n\nComing Soon!\nGet ready for special daily challenges with unique rewards and leaderboards!');
+        });
+    }
+    
+    // Home navigation button
+    if (homeNavBtn) {
+        homeNavBtn.addEventListener('click', () => {
+            console.log('Home navigation clicked');
+            // Update active state
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            homeNavBtn.classList.add('active');
+            
+            // Return to main menu if not already there
+            if (gameScreen.style.display !== 'none') {
+                // Cleanup 3D representations before returning to menu
+                if (game && game.shooter) {
+                    game.shooter.cleanup3D();
+                }
+                gameScreen.style.display = 'none';
+                game = null;
+            }
+            if (leaderboard.style.display !== 'none') {
+                leaderboard.style.display = 'none';
+            }
+            gameMenu.style.display = 'block';
+        });
+    }
+    
+    // Shop navigation button
+    if (shopNavBtn) {
+        shopNavBtn.addEventListener('click', () => {
+            console.log('Shop navigation clicked');
+            // Update active state
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            shopNavBtn.classList.add('active');
+            
+            // For now, show an alert - this can be replaced with actual shop functionality
+            alert('🛒 Bubble Shop\n\nComing Soon!\nBuy special bubble effects, power-ups, and customization options!');
+        });
+    }
+
+    // Settings Popup Event Listeners
+    const settingsGear = document.getElementById('settingsGear');
+    const settingsPopup = document.getElementById('settingsPopup');
+    const settingsOverlay = document.getElementById('settingsOverlay');
+    const closeSettingsBtn = document.getElementById('closeSettings');
+    const musicToggle = document.getElementById('musicToggle');
+    const soundToggleSettings = document.getElementById('soundToggle');
+    const playerIdDisplay = document.getElementById('playerIdDisplay');
+    
+    // Generate unique player ID if not exists
+    let playerId = localStorage.getItem('bubbleShooterPlayerId');
+    if (!playerId) {
+        playerId = 'BS-' + new Date().getFullYear() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        localStorage.setItem('bubbleShooterPlayerId', playerId);
+    }
+    if (playerIdDisplay) {
+        playerIdDisplay.textContent = playerId;
+    }
+    
+    // Load saved settings
+    const savedMusicSetting = localStorage.getItem('bubbleShooterMusicEnabled');
+    const savedSoundSetting = localStorage.getItem('bubbleShooterSoundEnabled');
+    
+    let musicEnabled = savedMusicSetting !== null ? savedMusicSetting === 'true' : true;
+    let soundEffectsEnabled = savedSoundSetting !== null ? savedSoundSetting === 'true' : true;
+    
+    // Update toggle states
+    if (musicToggle) musicToggle.checked = musicEnabled;
+    if (soundToggleSettings) soundToggleSettings.checked = soundEffectsEnabled;
+    
+    // Open settings popup
+    if (settingsGear) {
+        settingsGear.addEventListener('click', () => {
+            console.log('Settings gear clicked');
+            settingsPopup.classList.add('show');
+            settingsOverlay.classList.add('show');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        });
+    }
+    
+    // Close settings popup function
+    const closeSettingsPopup = () => {
+        settingsPopup.classList.remove('show');
+        settingsOverlay.classList.remove('show');
+        document.body.style.overflow = ''; // Restore scrolling
+    };
+    
+    // Close settings popup - close button
+    if (closeSettingsBtn) {
+        closeSettingsBtn.addEventListener('click', closeSettingsPopup);
+    }
+    
+    // Close settings popup - overlay click
+    if (settingsOverlay) {
+        settingsOverlay.addEventListener('click', closeSettingsPopup);
+    }
+    
+    // Close settings popup - escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && settingsPopup.classList.contains('show')) {
+            closeSettingsPopup();
+        }
+    });
+    
+    // Music toggle
+    if (musicToggle) {
+        musicToggle.addEventListener('change', () => {
+            musicEnabled = musicToggle.checked;
+            localStorage.setItem('bubbleShooterMusicEnabled', musicEnabled.toString());
+            console.log('Music toggled:', musicEnabled ? 'ON' : 'OFF');
+            
+            // Apply to game if it exists
+            if (game) {
+                game.musicEnabled = musicEnabled;
+            }
+        });
+    }
+    
+    // Sound effects toggle
+    if (soundToggleSettings) {
+        soundToggleSettings.addEventListener('change', () => {
+            soundEffectsEnabled = soundToggleSettings.checked;
+            localStorage.setItem('bubbleShooterSoundEnabled', soundEffectsEnabled.toString());
+            console.log('Sound effects toggled:', soundEffectsEnabled ? 'ON' : 'OFF');
+            
+            // Sync with existing sound toggle and apply to game
+            soundEnabled = soundEffectsEnabled;
+            toggleSoundBtn.textContent = `Sound: ${soundEnabled ? 'On' : 'Off'}`;
+            
+            if (game) {
+                game.soundEnabled = soundEnabled;
+            }
+        });
+    }
 
     // Add resize listener to make the game responsive
     window.addEventListener('resize', () => {

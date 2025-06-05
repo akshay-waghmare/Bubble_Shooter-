@@ -20,15 +20,58 @@
 <body>
     <div class="game-container">
         <h1>Bubble Shooter</h1>
-        <div class="game-menu" id="gameMenu">
-            <div class="menu-section">
-                <h2>Game Mode</h2>
-                <div class="button-group">
-                    <button class="game-button active" data-mode="classic">Classic Mode</button>
-                    <button class="game-button" data-mode="arcade">Arcade Mode</button>
-                    <button class="game-button" data-mode="strategy">Strategy Mode</button>
+        
+        <!-- Settings Gear Icon -->
+        <button class="settings-gear" id="settingsGear">
+            <div class="gear-icon">⚙️</div>
+        </button>
+        
+        <!-- Settings Popup -->
+        <div class="settings-popup" id="settingsPopup">
+            <div class="settings-header">
+                <h3>Settings</h3>
+                <button class="close-btn" id="closeSettings">✕</button>
+            </div>
+            <div class="settings-content">
+                <div class="setting-item">
+                    <label class="setting-label">
+                        <span class="setting-icon">🎵</span>
+                        <span class="setting-text">Music</span>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="musicToggle" checked>
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">
+                        <span class="setting-icon">🔊</span>
+                        <span class="setting-text">Sound Effects</span>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="soundToggle" checked>
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                </div>
+                <div class="player-id-section">
+                    <div class="player-id-label">Player ID</div>
+                    <div class="player-id-value" id="playerIdDisplay">BS-2025-001</div>
                 </div>
             </div>
+        </div>
+        
+        <!-- Settings Overlay -->
+        <div class="settings-overlay" id="settingsOverlay"></div>
+        
+        <div class="game-menu" id="gameMenu">
+            <!-- Horizontal Leaderboard -->
+            <div class="horizontal-leaderboard">
+                <h2>🏆 Top Players</h2>
+                <div class="leaderboard-scroll" id="horizontalLeaderboard">
+                    <!-- Players will be populated by JavaScript -->
+                </div>
+            </div>
+            
             <div class="menu-section">
                 <h2>Difficulty</h2>
                 <div class="button-group">
@@ -39,8 +82,24 @@
                     <button class="game-button" data-difficulty="master">Master</button>
                 </div>
             </div>
-            <button id="startGame" class="start-button">Start Game</button>
+            <button id="startGame" class="play-button">Play</button>
             <button id="showLeaderboard" class="leaderboard-button">Leaderboard</button>
+        </div>
+        
+        <!-- Bottom Navigation Bar -->
+        <div class="bottom-nav">
+            <button class="nav-item" id="dailyChallenge">
+                <div class="nav-icon">🏆</div>
+                <div class="nav-label">Daily Challenge</div>
+            </button>
+            <button class="nav-item active" id="homeNav">
+                <div class="nav-icon">🏠</div>
+                <div class="nav-label">Home</div>
+            </button>
+            <button class="nav-item" id="shopNav">
+                <div class="nav-icon">🛒</div>
+                <div class="nav-label">Shop</div>
+            </button>
         </div>
         
         <div class="game-screen" id="gameScreen" style="display: none;">
@@ -62,7 +121,6 @@
                     <tr>
                         <th>Rank</th>
                         <th>Score</th>
-                        <th>Mode</th>
                         <th>Difficulty</th>
                         <th>Date</th>
                     </tr>
