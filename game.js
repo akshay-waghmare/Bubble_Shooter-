@@ -909,6 +909,176 @@ class Game {
         }
         
         console.log('=== INIT GAME END ===');
+        
+        // CRITICAL FIX: Ensure initial collision detection works by validating and stabilizing grid state
+        this.validateAndStabilizeInitialGrid();
+    }
+    
+    // CRITICAL FIX: New method to ensure initial grid is immediately ready for collision detection
+    validateAndStabilizeInitialGrid() {
+        console.log('=== VALIDATING AND STABILIZING INITIAL GRID ===');
+        
+        let totalBubbles = 0;
+        let validBubbles = 0;
+        let issuesFound = 0;
+        
+        // Check all grid bubbles for proper state
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    totalBubbles++;
+                    
+                    // Validate bubble properties
+                    if (bubble.stuck !== true) {
+                        console.log(`WARNING: Grid bubble [${row},${col}] not marked as stuck`);
+                        bubble.stuck = true;
+                        issuesFound++;
+                    }
+                    
+                    if (bubble.vx !== 0 || bubble.vy !== 0) {
+                        console.log(`WARNING: Grid bubble [${row},${col}] has velocity (${bubble.vx}, ${bubble.vy})`);
+                        bubble.vx = 0;
+                        bubble.vy = 0;
+                        issuesFound++;
+                    }
+                    
+                    if (bubble.row !== row || bubble.col !== col) {
+                        console.log(`WARNING: Grid bubble [${row},${col}] has wrong row/col (${bubble.row}, ${bubble.col})`);
+                        bubble.row = row;
+                        bubble.col = col;
+                        issuesFound++;
+                    }
+                    
+                    validBubbles++;
+                }
+            }
+        }
+        
+        console.log(`Grid validation: ${totalBubbles} total bubbles, ${validBubbles} valid, ${issuesFound} issues fixed`);
+        
+        // Test collision detection with a virtual shot
+        this.testInitialCollisionDetection();
+        
+        console.log('Initial grid validation and stabilization complete');
+    }
+    
+    // CRITICAL FIX: Test collision detection with virtual shot to ensure it works
+    testInitialCollisionDetection() {
+        console.log('Testing initial collision detection...');
+        
+        // Find the topmost visible bubble
+        let topBubble = null;
+        let topScreenY = Infinity;
+        
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    const screenY = bubble.y + this.gridOffsetY;
+                    if (screenY >= 0 && screenY < topScreenY) {
+                        topScreenY = screenY;
+                        topBubble = bubble;
+                    }
+                }
+            }
+        }
+        
+        if (topBubble) {
+            console.log(`Found top bubble at [${topBubble.row},${topBubble.col}], screen Y=${topScreenY.toFixed(1)}`);
+            
+            // Create a virtual shot aimed at this bubble
+            const virtualShot = {
+                x: topBubble.x,
+                y: topScreenY + 50, // 50px below the bubble
+                radius: BUBBLE_RADIUS,
+                vx: 0,
+                vy: -5
+            };
+            
+            // Test collision detection
+            const collision = this.testCollisionDetection(virtualShot);
+            
+            if (collision) {
+                console.log(`✅ Initial collision detection working: virtual shot would hit [${collision.row},${collision.col}]`);
+            } else {
+                console.log(`❌ Initial collision detection FAILED: virtual shot would miss`);
+                // This indicates a serious problem that needs investigation
+                this.debugCollisionFailure(virtualShot, topBubble);
+            }
+        } else {
+            console.log('❌ No top bubble found for collision test');
+        }
+    }
+    
+    // Helper method to test collision detection without side effects
+    testCollisionDetection(flyingBubble) {
+        const adjustedY = flyingBubble.y - this.gridOffsetY;
+        const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        const approximateCol = Math.round((flyingBubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
+        
+        // Check surrounding positions
+        for (let r = Math.max(0, approximateRow - 1); r <= Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1); r++) {
+            for (let col = Math.max(0, approximateCol - 1); col <= Math.min(GRID_COLS - 1, approximateCol + 1); col++) {
+                const gridBubble = this.gridBubbles[r][col];
+                if (gridBubble) {
+                    const gridBubbleScreenY = gridBubble.y + this.gridOffsetY;
+                    const dx = flyingBubble.x - gridBubble.x;
+                    const dy = flyingBubble.y - gridBubbleScreenY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const collisionDistance = (flyingBubble.radius + gridBubble.radius) * 0.98;
+                    
+                    if (distance < collisionDistance) {
+                        return { row: r, col: col, gridBubble: gridBubble, distance: distance };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    
+    // Debug method to understand why collision detection fails
+    debugCollisionFailure(virtualShot, targetBubble) {
+        console.log('=== DEBUGGING COLLISION FAILURE ===');
+        console.log('Virtual shot:', virtualShot);
+        console.log('Target bubble:', { x: targetBubble.x, y: targetBubble.y, row: targetBubble.row, col: targetBubble.col });
+        console.log('gridOffsetY:', this.gridOffsetY);
+        
+        const targetScreenY = targetBubble.y + this.gridOffsetY;
+        console.log('Target screen Y:', targetScreenY);
+        
+        const adjustedY = virtualShot.y - this.gridOffsetY;
+        const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        const approximateCol = Math.round((virtualShot.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
+        
+        console.log('Collision calculation:', { adjustedY, approximateRow, approximateCol });
+        console.log('Expected target row/col:', targetBubble.row, targetBubble.col);
+        
+        // Check if the calculation is finding the right area
+        const searchRows = [];
+        for (let r = Math.max(0, approximateRow - 1); r <= Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1); r++) {
+            searchRows.push(r);
+        }
+        console.log('Will search rows:', searchRows);
+        console.log('Target is in searched rows:', searchRows.includes(targetBubble.row));
+        
+        // Check what bubbles are actually found
+        for (let r of searchRows) {
+            for (let col = Math.max(0, approximateCol - 1); col <= Math.min(GRID_COLS - 1, approximateCol + 1); col++) {
+                const gridBubble = this.gridBubbles[r][col];
+                if (gridBubble) {
+                    const gridBubbleScreenY = gridBubble.y + this.gridOffsetY;
+                    const dx = virtualShot.x - gridBubble.x;
+                    const dy = virtualShot.y - gridBubbleScreenY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const collisionDistance = (virtualShot.radius + gridBubble.radius) * 0.98;
+                    
+                    console.log(`Found bubble [${r},${col}]: distance=${distance.toFixed(2)}, threshold=${collisionDistance.toFixed(2)}, isTarget=${r === targetBubble.row && col === targetBubble.col}`);
+                }
+            }
+        }
+        console.log('=== END COLLISION DEBUG ===');
+    }
         console.log('Final bubble counts after initGame:', {
             gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
             flyingBubbles: this.flyingBubbles.length,
