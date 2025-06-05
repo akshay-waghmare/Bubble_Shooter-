@@ -1696,8 +1696,8 @@ class Game {
             const finalY = this.getRowPosition(0);
             
             // Start new bubbles completely off-screen above visible area
-            // Ensure they start well above the canvas, accounting for any grid offset
-            const startY = -GRID_ROW_HEIGHT - BUBBLE_RADIUS; // Start one full row height above canvas
+            // Position them exactly one row height above their final position
+            const startY = this.getRowPosition(0) - GRID_ROW_HEIGHT; // Start one row above final position
             
             // Create bubble starting above the grid, coordinated with grid descent
             const bubble = new Bubble(finalX, startY, color, 0, col);
@@ -2237,13 +2237,14 @@ class Game {
         // Grid descent system - only move grid during new row transitions
         // Remove continuous drift, only descend when new rows are added
         if (this.gameStarted && !this.gameOver && !this.gameWon && this.isAddingNewRow) {
-            this.gridYOffset += this.descentSpeed * 10; // Faster movement during row addition
+            this.gridYOffset += this.descentSpeed * 20; // Fast discrete movement during row addition
             
             // Check if new row has fully descended into position
             if (this.gridYOffset >= GRID_ROW_HEIGHT) {
                 // Reset offset and integrate new row into normal grid
                 this.gridYOffset = 0;
                 this.isAddingNewRow = false;
+                console.log('Row transition completed, grid reset to normal position');
             }
         }
         
