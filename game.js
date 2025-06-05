@@ -1341,7 +1341,6 @@ class Game {
         
         // Infinite Stack System
         this.infiniteStack = []; // Pre-generated rows waiting to descend
-        this.shotCount = 0; // Track shots fired for descent triggers
         this.lastDescentTime = 0; // Track time since last descent
         this.loseLineRow = 0; // Row index that defines the lose line (calculated dynamically)
         
@@ -1448,7 +1447,6 @@ class Game {
         this.pendingNewRow = false;
         
         // Reset infinite stack system
-        this.shotCount = 0;
         this.lastDescentTime = Date.now();
         this.infiniteStack = [];
         
@@ -1754,31 +1752,17 @@ class Game {
         return false;
     }
 
-    checkDescentTriggers() {
-        // Check if it's time for a new row to descend based on shot count or time
+    checkTimeBasedDescentTrigger() {
+        // Check if it's time for a new row to descend based on time only
         const settings = this.difficultySettings[this.difficulty];
         const now = Date.now();
-        
-        let shouldDescend = false;
-        let reason = '';
-        
-        // Check shot-based trigger
-        if (this.shotCount >= settings.addRowFrequency) {
-            shouldDescend = true;
-            reason = `shot count (${this.shotCount}/${settings.addRowFrequency})`;
-            this.shotCount = 0; // Reset shot count
-        }
         
         // Check time-based trigger
         const timeSinceLastDescent = now - this.lastDescentTime;
         if (timeSinceLastDescent >= settings.timeBasedDescent) {
-            shouldDescend = true;
-            reason = `time elapsed (${(timeSinceLastDescent/1000).toFixed(1)}s/${settings.timeBasedDescent/1000}s)`;
-            this.lastDescentTime = now;
-        }
-        
-        if (shouldDescend) {
+            const reason = `time elapsed (${(timeSinceLastDescent/1000).toFixed(1)}s/${settings.timeBasedDescent/1000}s)`;
             console.log(`Triggering descent due to: ${reason}`);
+            this.lastDescentTime = now;
             // Use the pending flag to avoid calling addNewRow during bubble processing
             this.pendingNewRow = true;
         }
@@ -1931,17 +1915,11 @@ class Game {
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
                     
-                    // Increment shot count for descent tracking
-                    this.shotCount++;
-                    
                     // Decrement shots for strategy mode
                     if (this.gameMode === "strategy") {
                         this.shotsLeft--;
                         console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
                     }
-                    
-                    // Check if it's time for a new row to descend
-                    this.checkDescentTriggers();
                 }
             }
         });
@@ -1970,17 +1948,11 @@ class Game {
                 if (bubble) {
                     this.flyingBubbles.push(bubble);
                     
-                    // Increment shot count for descent tracking
-                    this.shotCount++;
-                    
                     // Decrement shots for strategy mode
                     if (this.gameMode === "strategy") {
                         this.shotsLeft--;
                         console.log(`Strategy mode: ${this.shotsLeft} shots remaining`);
                     }
-                    
-                    // Check if it's time for a new row to descend
-                    this.checkDescentTriggers();
                 }
             }
         });
@@ -2253,6 +2225,11 @@ class Game {
         // Update smooth grid descent
         if (this.gameStarted && !this.gameOver && !this.gameWon) {
             this.gridYOffset += this.descentSpeed;
+        }
+        
+        // Check time-based descent trigger (independent of shots)
+        if (this.gameStarted && !this.gameOver && !this.gameWon && !this.pendingNewRow) {
+            this.checkTimeBasedDescentTrigger();
         }
         
         // Update Matter.js physics
@@ -2649,15 +2626,11 @@ class Game {
         this.ctx.font = '12px Arial';
         this.ctx.fillStyle = '#CCCCCC';
         
-        // Show shots until next descent
-        const shotsUntilDescent = settings.addRowFrequency - this.shotCount;
-        this.ctx.fillText(`Next descent: ${shotsUntilDescent} shots`, 10, 140);
-        
         // Show time until next descent
         const timeSinceLastDescent = Date.now() - this.lastDescentTime;
         const timeUntilDescent = Math.max(0, settings.timeBasedDescent - timeSinceLastDescent);
         const secondsUntilDescent = Math.ceil(timeUntilDescent / 1000);
-        this.ctx.fillText(`or ${secondsUntilDescent}s`, 10, 155);
+        this.ctx.fillText(`Next descent: ${secondsUntilDescent}s`, 10, 140);
         
         // Danger level indicator
         this.drawDangerLevelIndicator();
@@ -2731,7 +2704,6 @@ class Game {
         this.pendingNewRow = false;
         
         // Reset infinite stack system
-        this.shotCount = 0;
         this.lastDescentTime = Date.now();
         this.infiniteStack = [];
         
