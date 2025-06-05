@@ -1691,12 +1691,9 @@ class Game {
             const finalX = this.getColPosition(0, col);
             const finalY = this.getRowPosition(0);
             
-            // Calculate base position without gridYOffset for smooth coordination
-            const baseY = 0 * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
-            
             // Start new bubbles completely off-screen above visible area
-            // They will naturally slide into view as the grid descends via gridYOffset
-            const startY = baseY - GRID_ROW_HEIGHT;
+            // Position them so they're always above the visible canvas, regardless of gridYOffset
+            const startY = -BUBBLE_RADIUS * 2; // Always start above visible area
             
             // Create bubble starting above the grid, coordinated with grid descent
             const bubble = new Bubble(finalX, startY, color, 0, col);
@@ -2057,8 +2054,8 @@ class Game {
         // Allow bubbles to get very close to danger zone (only 5px buffer instead of full radius)
         const maxAllowedY = dangerZoneY - 5; // Much closer to danger zone
         
-        // Calculate maximum row that fits before danger zone, accounting for grid offset
-        const maxRow = Math.floor((maxAllowedY - GRID_TOP_MARGIN - this.gridYOffset) / GRID_ROW_HEIGHT);
+        // Calculate maximum row that fits before danger zone - use fixed positioning for danger zone
+        const maxRow = Math.floor((maxAllowedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
         const effectiveMaxRows = Math.max(GRID_ROWS, maxRow); // Use at least original GRID_ROWS
         
         console.log('DYNAMIC GRID EXTENSION:', {
@@ -2089,6 +2086,7 @@ class Game {
                     const gridY = this.getRowPosition(row);
                     
                     // Only consider positions that don't exceed danger zone
+                    // gridY already includes gridYOffset, so compare directly with maxAllowedY
                     if (gridY <= maxAllowedY) {
                         const distance = Math.sqrt((x - gridX) ** 2 + (y - gridY) ** 2);
                         
@@ -2521,8 +2519,8 @@ class Game {
     }
 
     drawDangerZone() {
-        // Draw the lose line based on the calculated lose line row
-        const loseLineY = this.getRowPosition(this.loseLineRow);
+        // Draw the lose line at a fixed position - don't include gridYOffset
+        const loseLineY = this.loseLineRow * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
         
         // Find current lowest bubble position using extended grid
         let lowestBubbleRow = 0;
