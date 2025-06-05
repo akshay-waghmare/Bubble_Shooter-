@@ -159,15 +159,15 @@ const BUFFER_ROWS_BELOW = 5; // Extra rows below visible area
 const TOTAL_GRID_ROWS = GRID_ROWS + BUFFER_ROWS_ABOVE + BUFFER_ROWS_BELOW; // Total buffer size
 const SCROLL_SPEED = 2.0; // Pixels per frame for smooth scrolling
 
-// Continuous scrolling settings
-const CONTINUOUS_SCROLL_ENABLED = true; // Enable constant downward scrolling
-const CONTINUOUS_SCROLL_SPEED = 0.5; // Pixels per frame for continuous motion (slower than discrete scrolling)
-const NEW_ROW_THRESHOLD = GRID_ROW_HEIGHT; // Trigger new row when scrolled one full row height
-
 // Perfect hexagonal grid constants using mathematical precision
 const GRID_COL_SPACING = BUBBLE_RADIUS * 2; // Exact bubble diameter for perfect horizontal spacing
 const GRID_ROW_HEIGHT = BUBBLE_RADIUS * Math.sqrt(3); // Perfect hexagonal row height (√3 * radius)
 const HEX_OFFSET = BUBBLE_RADIUS; // Exact offset for odd rows in hexagonal pattern
+
+// Continuous scrolling settings
+const CONTINUOUS_SCROLL_ENABLED = true; // Enable constant downward scrolling
+const CONTINUOUS_SCROLL_SPEED = 0.5; // Pixels per frame for continuous motion (slower than discrete scrolling)
+const NEW_ROW_THRESHOLD = GRID_ROW_HEIGHT; // Trigger new row when scrolled one full row height
 
 const MISSED_SHOTS_LIMIT = 5;
 const POP_THRESHOLD = 3; // Number of same-colored bubbles needed to pop
