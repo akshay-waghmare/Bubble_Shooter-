@@ -874,6 +874,32 @@ class Game {
         }
         
         console.log('Grid bubbles created:', bubblesCreated);
+        
+        // CRITICAL FIX: Ensure collision detection works immediately by validating grid state
+        console.log('=== INITIAL GRID VALIDATION ===');
+        let validBubbles = 0;
+        let topBubbleScreenY = Infinity;
+        
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble && bubble.stuck === true) {
+                    validBubbles++;
+                    const screenY = bubble.y + this.gridOffsetY;
+                    if (screenY < topBubbleScreenY && screenY >= 0) {
+                        topBubbleScreenY = screenY;
+                    }
+                    
+                    // Log first few valid bubbles
+                    if (validBubbles <= 3) {
+                        console.log(`Valid bubble [${row},${col}]: buffer(${bubble.x}, ${bubble.y}) -> screen(${bubble.x}, ${screenY.toFixed(1)}), stuck=${bubble.stuck}`);
+                    }
+                }
+            }
+        }
+        
+        console.log(`Total valid bubbles: ${validBubbles}, topmost screen Y: ${topBubbleScreenY.toFixed(1)}`);
+        console.log('Grid validation complete - collision detection should work');
 
         // Set up game mode specifics
         if (this.gameMode === "strategy") {
@@ -960,6 +986,11 @@ class Game {
                     if (bubble) {
                         console.log('Bubble shot created by user click');
                         this.playSound('shoot');
+                        
+                        // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
+                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        console.log('Grid bubbles available for collision:', gridBubbleCount);
+                        
                         this.flyingBubbles.push(bubble);
                         if (this.gameMode === "strategy") {
                             this.shotsLeft--;
@@ -1056,6 +1087,11 @@ class Game {
                     if (bubble) {
                         console.log('Bubble shot created by user touch');
                         this.playSound('shoot');
+                        
+                        // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
+                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        console.log('Grid bubbles available for collision:', gridBubbleCount);
+                        
                         this.flyingBubbles.push(bubble);
                         if (this.gameMode === "strategy") {
                             this.shotsLeft--;
@@ -1284,11 +1320,34 @@ class Game {
             let collided = false;
             this.collisionChecksThisFrame++;
             
+            // CRITICAL FIX: Add comprehensive debugging for initial collision issues
+            if (i === 0 && this.flyingBubbles.length === 1) { // First flying bubble
+                console.log('Checking collision for first bubble:', {
+                    bubblePos: { x: bubble.x, y: bubble.y },
+                    gridOffsetY: this.gridOffsetY,
+                    gridBubbleCount: this.gridBubbles.flat().filter(b => b !== null).length,
+                    gameStarted: this.gameStarted,
+                    initializing: this.initializing
+                });
+            }
+            
             // Calculate grid region for more efficient collision checking
             // Adjust for scroll offset - convert screen position to buffer position
             const adjustedY = bubble.y - this.gridOffsetY;
             const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
+            
+            // CRITICAL FIX: Add detailed debugging for first collision attempt
+            if (i === 0 && this.flyingBubbles.length === 1) {
+                console.log('First collision check details:', {
+                    flyingBubble: { x: bubble.x, y: bubble.y },
+                    gridOffsetY: this.gridOffsetY,
+                    adjustedY: adjustedY,
+                    approximateRow: approximateRow,
+                    approximateCol: approximateCol,
+                    searchWillCheck: `rows ${Math.max(0, approximateRow - 1)}-${Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1)}, cols ${Math.max(0, approximateCol - 1)}-${Math.min(GRID_COLS - 1, approximateCol + 1)}`
+                });
+            }
             
             // Expand search area based on bubble velocity for fast-moving bubbles
             const velocityMagnitude = Math.sqrt(bubble.vx * bubble.vx + bubble.vy * bubble.vy);
@@ -1324,6 +1383,17 @@ class Game {
                                 distance: distance,
                                 collisionDistance: collisionDistance
                             });
+                            
+                            // CRITICAL: Log first collision for debugging initial issues
+                            if (i === 0 && this.flyingBubbles.length === 1) {
+                                console.log('🎯 FIRST COLLISION DETECTED!', {
+                                    flyingPos: { x: bubble.x, y: bubble.y },
+                                    gridPos: { x: gridBubble.x, y: gridBubble.y, screenY: gridBubbleScreenY },
+                                    distance: distance,
+                                    threshold: collisionDistance,
+                                    gridOffset: this.gridOffsetY
+                                });
+                            }
                         
                             // Enhanced collision response with smoother physics
                             bubble.handleCollisionWith(gridBubble, 0.2);
@@ -1332,6 +1402,14 @@ class Game {
                             this.flyingBubbles.splice(i, 1);
                             collided = true;
                             break;
+                        } else if (i === 0 && this.flyingBubbles.length === 1 && distance < collisionDistance * 1.5) {
+                            // Debug near-misses for first bubble
+                            console.log('Near miss on first bubble:', {
+                                gridBubble: `[${row},${col}]`,
+                                distance: distance.toFixed(2),
+                                threshold: collisionDistance.toFixed(2),
+                                diff: (distance - collisionDistance).toFixed(2)
+                            });
                         }
                     }
                 }
