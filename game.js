@@ -673,11 +673,11 @@ class Game {
         this.highScores = this.loadHighScores();
         this.lastTime = 0; // For smooth frame rate control
         this.difficultySettings = {
-            novice: { rowsToStart: 3, colors: 3, addRowFrequency: 10 },
-            easy: { rowsToStart: 4, colors: 4, addRowFrequency: 8 },
-            medium: { rowsToStart: 5, colors: 5, addRowFrequency: 6 },
-            hard: { rowsToStart: 6, colors: 6, addRowFrequency: 4 },
-            master: { rowsToStart: 7, colors: 6, addRowFrequency: 3 }
+            novice: { rowsToStart: 4, colors: 3, addRowFrequency: 10 },
+            easy: { rowsToStart: 5, colors: 4, addRowFrequency: 8 },
+            medium: { rowsToStart: 6, colors: 5, addRowFrequency: 6 },
+            hard: { rowsToStart: 7, colors: 6, addRowFrequency: 4 },
+            master: { rowsToStart: 8, colors: 6, addRowFrequency: 3 }
         };
         
         this.gameStarted = false; // Track if game has been started
@@ -825,8 +825,8 @@ class Game {
         for (let visibleRow = 0; visibleRow < settings.rowsToStart; visibleRow++) {
             const actualRow = visibleRow + BUFFER_ROWS_ABOVE; // Map to actual buffer position
             for (let col = 0; col < effectiveGridCols; col++) {
-                // Skip some bubbles randomly for aesthetic reasons and to create more interesting patterns
-                if (Math.random() < 0.85) {
+                // Use high density for initial grid to ensure reliable collision detection
+                if (Math.random() < 0.95) {
                     const x = this.getColPosition(actualRow, col);
                     const y = this.getRowPosition(actualRow);
                     
@@ -1875,29 +1875,15 @@ class Game {
     addNewRow() {
         this.debugLogger.log('game', 'Adding new row to buffer - starting smooth scroll');
         
-        // Find the topmost empty row in the buffer
-        let topEmptyRow = -1;
-        for (let row = 0; row < BUFFER_ROWS_ABOVE; row++) {
-            let isEmpty = true;
-            for (let col = 0; col < GRID_COLS; col++) {
-                if (this.gridBubbles[row][col] !== null) {
-                    isEmpty = false;
-                    break;
-                }
-            }
-            if (isEmpty) {
-                topEmptyRow = row;
-                break;
-            }
+        // Always use the topmost buffer row (row 0) for new rows to ensure they're completely off-screen
+        const topEmptyRow = 0;
+        
+        // Clear the top row in case it has any existing bubbles
+        for (let col = 0; col < GRID_COLS; col++) {
+            this.gridBubbles[topEmptyRow][col] = null;
         }
         
-        // If no empty row in buffer, use the topmost row (this might overwrite existing bubbles)
-        if (topEmptyRow === -1) {
-            topEmptyRow = 0;
-            this.debugLogger.log('warning', 'No empty row in buffer, using topmost row');
-        }
-        
-        // Add new row at the found position
+        // Add new row at the top position with full width coverage
         const settings = this.difficultySettings[this.difficulty];
         const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
         
@@ -1905,8 +1891,9 @@ class Game {
         const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
         const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
         
+        // Create full-width row with high density for better gameplay
         for (let col = 0; col < effectiveGridCols; col++) {
-            if (Math.random() < 0.85) { // 85% chance to add a bubble
+            if (Math.random() < 0.90) { // 90% chance for new rows to maintain some variation
                 const x = this.getColPosition(topEmptyRow, col);
                 const y = this.getRowPosition(topEmptyRow);
                 
@@ -1939,7 +1926,7 @@ class Game {
                 this.gridBubbles[topEmptyRow][col] = bubble;
                 this.totalBubbles++;
                 
-                this.debugLogger.log('add', 'New bubble added to buffer row', {
+                this.debugLogger.log('add', 'New bubble added to top buffer row', {
                     position: { row: topEmptyRow, col: col, x: x, y: y },
                     color: color
                 });
