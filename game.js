@@ -1369,6 +1369,10 @@ class Game {
             { x: 0, width: 0, score: 300, color: '#FF6B6B', label: '300' }
         ];
         this.finishLineY = 0; // Will be set in resizeCanvas
+        
+        // Smooth grid descent system
+        this.gridYOffset = 0; // Current vertical offset of the entire grid
+        this.descentSpeed = 0.05; // Pixels per frame (at 60 FPS = ~3 pixels per second)
     
         console.log('=== CALLING setupEventListeners ===');
         this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
@@ -1447,6 +1451,9 @@ class Game {
         this.shotCount = 0;
         this.lastDescentTime = Date.now();
         this.infiniteStack = [];
+        
+        // Reset grid descent system
+        this.gridYOffset = 0;
         
         // Initialize grid
         for (let row = 0; row < GRID_ROWS; row++) {
@@ -1814,7 +1821,8 @@ class Game {
 
     getRowPosition(row) {
         // Perfect vertical spacing using √3 * radius for true hexagonal geometry
-        return row * GRID_ROW_HEIGHT + GRID_TOP_MARGIN;
+        // Include the grid Y offset for smooth downward transition
+        return row * GRID_ROW_HEIGHT + GRID_TOP_MARGIN + this.gridYOffset;
     }
 
     createWalls() {
@@ -2265,6 +2273,11 @@ class Game {
             if (this.timeLeft < 0) this.timeLeft = 0;
         }
         
+        // Update smooth grid descent
+        if (this.gameStarted && !this.gameOver && !this.gameWon) {
+            this.gridYOffset += this.descentSpeed;
+        }
+        
         // Update Matter.js physics
         Engine.update(this.engine);
         
@@ -2374,6 +2387,13 @@ class Game {
                             bubble.fadeInStartTime = undefined;
                             bubble.fadeInDuration = undefined;
                         }
+                    }
+                    
+                    // Update bubble position to reflect current grid offset
+                    // Only update if not currently in descent animation
+                    if (!bubble.isDescending) {
+                        bubble.x = this.getColPosition(row, col);
+                        bubble.y = this.getRowPosition(row);
                     }
                 }
             }
