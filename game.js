@@ -697,8 +697,9 @@ class Game {
         this.pendingNewRow = false; // Flag to defer addNewRow() until after flying bubble processing
         
         // Smooth scrolling system
-        // Initialize with offset to place initial bubbles at top of screen
-        this.gridOffsetY = BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT; // Current vertical offset for smooth scrolling
+        // Initialize with negative offset to place initial bubbles at top of screen
+        // Using add system: screenY = originalY + gridOffsetY
+        this.gridOffsetY = GRID_TOP_MARGIN - (BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT + GRID_TOP_MARGIN); // Current vertical offset for smooth scrolling
         this.targetScrollOffset = this.gridOffsetY; // Target offset for smooth animation
         this.scrollAnimating = false; // Flag to track if scrolling animation is active
         
@@ -791,9 +792,9 @@ class Game {
         // Reset collision timing fix flag
         this.pendingNewRow = false;
         
-        // Initialize smooth scrolling system with offset to place initial bubbles at top
-        // The initial offset should bring buffer rows to the top of the visible area
-        this.gridOffsetY = BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT;
+        // Initialize smooth scrolling system with negative offset to place initial bubbles at top
+        // Using add system: screenY = originalY + gridOffsetY for intuitive downward movement
+        this.gridOffsetY = GRID_TOP_MARGIN - (BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT + GRID_TOP_MARGIN);
         this.targetScrollOffset = this.gridOffsetY;
         this.scrollAnimating = false;
         
@@ -1220,7 +1221,7 @@ class Game {
             
             // Calculate grid region for more efficient collision checking
             // Adjust for scroll offset - convert screen position to buffer position
-            const adjustedY = bubble.y + this.gridOffsetY;
+            const adjustedY = bubble.y - this.gridOffsetY;
             const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
             
@@ -1268,7 +1269,7 @@ class Game {
                 
                 // Check for nearby bubbles for smoother snapping experience
                 // Use the same buffer-adjusted calculation
-                const adjustedY = bubble.y + this.gridOffsetY;
+                const adjustedY = bubble.y - this.gridOffsetY;
                 const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
                 
                 for (let row = Math.max(0, approximateRow - 2); row < Math.min(TOTAL_GRID_ROWS, approximateRow + 3) && !collided; row++) {
@@ -1276,7 +1277,7 @@ class Game {
                         const gridBubble = this.gridBubbles[row][col];
                         if (gridBubble) {
                             // Calculate distance using screen positions
-                            const screenGridY = gridBubble.y - this.gridOffsetY;
+                            const screenGridY = gridBubble.y + this.gridOffsetY;
                             const dx = bubble.x - gridBubble.x;
                             const dy = bubble.y - screenGridY;
                             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1439,7 +1440,7 @@ class Game {
         let candidatePositions = [];
         
         // Convert bubble screen position to buffer coordinate system
-        const adjustedBubbleY = bubble.y + this.gridOffsetY;
+        const adjustedBubbleY = bubble.y - this.gridOffsetY;
         
         // Find the best grid position using hexagonal distance calculation
         for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
@@ -2035,16 +2036,18 @@ class Game {
         this.ctx.save(); // Save context for clipping
         
         // Calculate visible row range based on grid offset
-        const startBufferRow = Math.floor(this.gridOffsetY / GRID_ROW_HEIGHT);
-        const endBufferRow = Math.min(TOTAL_GRID_ROWS - 1, startBufferRow + GRID_ROWS + 1); // +1 for smooth transitions
+        // With add system: screenY = originalY + offset
+        // A row is visible if: 0 <= (row * ROW_HEIGHT + MARGIN) + offset <= canvas.height
+        const minVisibleRow = Math.max(0, Math.ceil((-this.gridOffsetY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT));
+        const maxVisibleRow = Math.min(TOTAL_GRID_ROWS - 1, Math.floor((this.canvas.height - this.gridOffsetY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT));
         
-        for (let bufferRow = startBufferRow; bufferRow <= endBufferRow; bufferRow++) {
+        for (let bufferRow = minVisibleRow; bufferRow <= maxVisibleRow; bufferRow++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 const bubble = this.gridBubbles[bufferRow][col];
                 if (bubble) {
                     // Calculate the actual screen position based on the scroll offset
                     const originalY = bubble.y;
-                    bubble.y = originalY - this.gridOffsetY;
+                    bubble.y = originalY + this.gridOffsetY;
                     
                     // Only draw bubbles that are within the visible canvas area
                     if (bubble.y > -BUBBLE_RADIUS && bubble.y < this.canvas.height + BUBBLE_RADIUS) {
@@ -2296,13 +2299,13 @@ class Game {
         this.ctx.setLineDash([2, 2]); // Dashed lines
         
         // Draw grid positions and connections for visible buffer area
-        const startBufferRow = Math.floor(this.gridOffsetY / GRID_ROW_HEIGHT);
-        const endBufferRow = Math.min(TOTAL_GRID_ROWS - 1, startBufferRow + GRID_ROWS + 1);
+        const minVisibleRow = Math.max(0, Math.ceil((-this.gridOffsetY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT));
+        const maxVisibleRow = Math.min(TOTAL_GRID_ROWS - 1, Math.floor((this.canvas.height - this.gridOffsetY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT));
         
-        for (let bufferRow = startBufferRow; bufferRow <= endBufferRow; bufferRow++) {
+        for (let bufferRow = minVisibleRow; bufferRow <= maxVisibleRow; bufferRow++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 const x = this.getColPosition(bufferRow, col);
-                const y = this.getRowPosition(bufferRow) - this.gridOffsetY;
+                const y = this.getRowPosition(bufferRow) + this.gridOffsetY;
                 
                 // Only draw if position is visible on screen
                 if (y > -50 && y < this.canvas.height + 50) {
@@ -2317,7 +2320,7 @@ class Game {
                     for (const [nRow, nCol] of neighbors) {
                         if (nRow >= 0 && nRow < TOTAL_GRID_ROWS && nCol >= 0 && nCol < GRID_COLS) {
                             const nx = this.getColPosition(nRow, nCol);
-                            const ny = this.getRowPosition(nRow) - this.gridOffsetY;
+                            const ny = this.getRowPosition(nRow) + this.gridOffsetY;
                             
                             // Only draw connections to visible neighbors
                             if (ny > -50 && ny < this.canvas.height + 50) {
