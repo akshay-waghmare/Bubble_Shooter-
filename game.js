@@ -908,6 +908,13 @@ class Game {
             this.timeLeft = 120; // 2 minutes for arcade mode
         }
         
+        console.log('Final bubble counts after initGame:', {
+            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
+        
         console.log('=== INIT GAME END ===');
         
         // CRITICAL FIX: Ensure initial collision detection works by validating and stabilizing grid state
@@ -1078,13 +1085,6 @@ class Game {
             }
         }
         console.log('=== END COLLISION DEBUG ===');
-    }
-        console.log('Final bubble counts after initGame:', {
-            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
-            flyingBubbles: this.flyingBubbles.length,
-            fallingBubbles: this.fallingBubbles.length,
-            removingBubbles: this.removingBubbles.length
-        });
     }
 
     getColPosition(row, col) {
