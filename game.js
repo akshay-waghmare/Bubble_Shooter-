@@ -166,7 +166,7 @@ const HEX_OFFSET = BUBBLE_RADIUS; // Exact offset for odd rows in hexagonal patt
 
 // Continuous scrolling settings
 const CONTINUOUS_SCROLL_ENABLED = true; // Enable constant downward scrolling
-const CONTINUOUS_SCROLL_SPEED = 0.5; // Pixels per frame for continuous motion (slower than discrete scrolling)
+const CONTINUOUS_SCROLL_SPEED = 0.2; // Pixels per frame for continuous motion (slower pace for better gameplay)
 const NEW_ROW_THRESHOLD = GRID_ROW_HEIGHT; // Trigger new row when scrolled one full row height
 
 const MISSED_SHOTS_LIMIT = 5;
@@ -829,51 +829,42 @@ class Game {
         const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
         
         console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols });
-        
+
         let bubblesCreated = 0;
-        // Place initial bubbles in the visible area (starting from BUFFER_ROWS_ABOVE)
-        for (let visibleRow = 0; visibleRow < settings.rowsToStart; visibleRow++) {
-            const actualRow = visibleRow + BUFFER_ROWS_ABOVE; // Map to actual buffer position
+        // Fill the entire buffer above AND only the top 2 visible rows for "falling stack" effect
+        const startRow = 0;
+        const endRow = Math.min(BUFFER_ROWS_ABOVE + 2, TOTAL_GRID_ROWS); // Only fill buffer + top 2 visible rows
+        for (let row = startRow; row < endRow; row++) {
             for (let col = 0; col < effectiveGridCols; col++) {
                 // Use very high density for initial grid to ensure reliable collision detection
                 if (Math.random() < 0.98) {
-                    const x = this.getColPosition(actualRow, col);
-                    const y = this.getRowPosition(actualRow);
-                    
+                    const x = this.getColPosition(row, col);
+                    const y = this.getRowPosition(row);
                     // Ensure we don't place bubbles too close to the edge or overlapping
                     if (x < BUBBLE_RADIUS || x > this.canvas.width - BUBBLE_RADIUS) {
-                        console.log('Skipping bubble due to edge constraint:', { row: actualRow, col, x });
+                        console.log('Skipping bubble due to edge constraint:', { row, col, x });
                         continue;
                     }
-                    // Use wouldOverlapPrecise for robust overlap prevention
-                    if (this.wouldOverlapPrecise(x, y, actualRow, col)) {
-                        console.log('Skipping bubble due to overlap:', { row: actualRow, col, x, y });
+                    if (this.wouldOverlapPrecise(x, y, row, col)) {
+                        console.log('Skipping bubble due to overlap:', { row, col, x, y });
                         continue;
                     }
-                    
                     // Create color clusters for more strategic gameplay
                     let color;
-                    if (visibleRow > 0 && col > 0 && this.gridBubbles[actualRow-1][col] && Math.random() < 0.6) {
-                        color = this.gridBubbles[actualRow-1][col].color;
-                    } else if (col > 0 && this.gridBubbles[actualRow][col-1] && Math.random() < 0.4) {
-                        color = this.gridBubbles[actualRow][col-1].color;
+                    if (row > 0 && this.gridBubbles[row-1][col] && Math.random() < 0.6) {
+                        color = this.gridBubbles[row-1][col].color;
+                    } else if (col > 0 && this.gridBubbles[row][col-1] && Math.random() < 0.4) {
+                        color = this.gridBubbles[row][col-1].color;
                     } else {
                         color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                     }
-                    
-                    console.log('Creating grid bubble:', { row: actualRow, col, x, y, color });
-                    const bubble = new Bubble(x, y, color, actualRow, col);
-                    // CRITICAL FIX: Set stuck=true IMMEDIATELY after creation, before any other operations
+                    console.log('Creating grid bubble:', { row, col, x, y, color });
+                    const bubble = new Bubble(x, y, color, row, col);
                     bubble.stuck = true;
-                    bubble.vx = 0; // Ensure no velocity
-                    bubble.vy = 0; // Ensure no velocity
-                    
-                    // CRITICAL: Add to gridBubbles array for collision detection
-                    this.gridBubbles[actualRow][col] = bubble;
-                    
-                    // Also add to main bubbles array for rendering
+                    bubble.vx = 0;
+                    bubble.vy = 0;
+                    this.gridBubbles[row][col] = bubble;
                     this.bubbles.push(bubble);
-                    
                     this.totalBubbles++;
                     bubblesCreated++;
                 }
@@ -1934,12 +1925,13 @@ class Game {
             }
         }
         
-        if (bubbleCount === 0) {
-            this.gameWon = true;
-            this.score *= CLEAR_FIELD_BONUS_MULTIPLIER;
-            this.saveHighScore(this.score);
-            this.debugLogger.log('game', 'Game won - all bubbles cleared', { finalScore: this.score });
-        }
+        // INFINITE PLAY MODE: Win condition disabled for continuous gameplay
+        // if (bubbleCount === 0) {
+        //     this.gameWon = true;
+        //     this.score *= CLEAR_FIELD_BONUS_MULTIPLIER;
+        //     this.saveHighScore(this.score);
+        //     this.debugLogger.log('game', 'Game won - all bubbles cleared', { finalScore: this.score });
+        // }
         
         // Check lose condition - use screen coordinates to match danger line precisely
         // Convert finish line Y to buffer coordinates for more accurate detection
@@ -2670,7 +2662,7 @@ class Game {
         this.ctx.save(); // Save context for clipping
         
         // Calculate visible row range based on grid offset
-        // With add system: screenY = originalY + offset
+        // With add system: screenY = originalY + gridOffsetY
         // A row is visible if: 0 <= (row * ROW_HEIGHT + MARGIN) + offset <= canvas.height
         const minVisibleRow = Math.max(0, Math.ceil((-this.gridOffsetY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT));
         const maxVisibleRow = Math.min(TOTAL_GRID_ROWS - 1, Math.floor((this.canvas.height - this.gridOffsetY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT));
