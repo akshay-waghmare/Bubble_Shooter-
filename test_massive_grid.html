@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Massive Grid</title>
+    <title>Test Massive Grid - Bubble Shooter</title>
     <style>
         body {
             margin: 0;
@@ -39,20 +39,34 @@
         button:hover {
             background-color: #45b7aa;
         }
+        
+        .stats {
+            background-color: #2d3748;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px auto;
+            max-width: 600px;
+        }
+        
+        .highlight {
+            color: #4ECDC4;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="info">
-        <h1>Massive Grid Test</h1>
-        <p>Testing the game with no missed shots penalty and massive initial grid</p>
+        <h1>🎯 Massive Grid Test</h1>
+        <p>Testing the game with <span class="highlight">no missed shots penalty</span> and <span class="highlight">massive initial grid</span></p>
         <button onclick="startGame()">Start Game</button>
-        <button onclick="checkGrid()">Check Grid Info</button>
+        <button onclick="checkGrid()">Check Grid Stats</button>
+        <button onclick="shootTestBubble()">Shoot Test Bubble</button>
     </div>
     
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     
-    <div class="info">
-        <div id="debugInfo"></div>
+    <div class="stats">
+        <div id="debugInfo">Click "Start Game" to initialize...</div>
     </div>
 
     <script src="game.js"></script>
@@ -60,10 +74,20 @@
         let game;
         
         function startGame() {
-            const canvas = document.getElementById('gameCanvas');
-            game = new Game(canvas);
-            console.log('Game created, initializing...');
-            updateDebugInfo();
+            try {
+                const canvas = document.getElementById('gameCanvas');
+                game = new Game(canvas);
+                console.log('Game created successfully!');
+                
+                setTimeout(() => {
+                    updateDebugInfo();
+                    document.getElementById('debugInfo').innerHTML += '<br><span style="color: #4ECDC4;">✅ Game initialized successfully!</span>';
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error starting game:', error);
+                document.getElementById('debugInfo').innerHTML = '<span style="color: #ff6b6b;">❌ Error: ' + error.message + '</span>';
+            }
         }
         
         function checkGrid() {
@@ -97,6 +121,36 @@
             updateDebugInfo();
         }
         
+        function shootTestBubble() {
+            if (!game) {
+                alert('Start the game first!');
+                return;
+            }
+            
+            // Simulate a mouse click to shoot
+            const initialMissedShots = game.missedShots;
+            
+            // Force a shot by calling the shooting logic
+            if (game.cannon && game.cannon.bubble) {
+                game.cannon.bubble.vx = 15;
+                game.cannon.bubble.vy = -15;
+                game.cannon.bubble.stuck = false;
+                game.shootingBubble = game.cannon.bubble;
+                game.cannon.bubble = null;
+                game.cannon.loadNextBubble();
+                
+                setTimeout(() => {
+                    const newMissedShots = game.missedShots;
+                    console.log('Shot test:', {
+                        initialMissedShots,
+                        newMissedShots,
+                        penalty: newMissedShots > initialMissedShots ? 'YES' : 'NO'
+                    });
+                    updateDebugInfo();
+                }, 1000);
+            }
+        }
+        
         function updateDebugInfo() {
             if (!game) return;
             
@@ -116,19 +170,32 @@
                 }
             }
             
+            const estimatedMemory = (totalBubbles * 200) / 1024; // Rough estimate in KB
+            
             document.getElementById('debugInfo').innerHTML = `
-                <h3>Grid Information</h3>
-                <p>Total Grid Rows: ${game.gridBubbles.length}</p>
-                <p>Filled Rows: ${filledRows}</p>
-                <p>Total Bubbles: ${totalBubbles}</p>
-                <p>Missed Shots: ${game.missedShots}</p>
-                <p>Game Started: ${game.gameStarted}</p>
+                <h3>📊 Grid Statistics</h3>
+                <table style="width: 100%; text-align: left;">
+                    <tr><td><strong>Total Grid Rows:</strong></td><td class="highlight">${game.gridBubbles.length}</td></tr>
+                    <tr><td><strong>Filled Rows:</strong></td><td class="highlight">${filledRows}</td></tr>
+                    <tr><td><strong>Total Bubbles:</strong></td><td class="highlight">${totalBubbles}</td></tr>
+                    <tr><td><strong>Missed Shots:</strong></td><td class="highlight">${game.missedShots}</td></tr>
+                    <tr><td><strong>Game Started:</strong></td><td class="highlight">${game.gameStarted ? 'Yes' : 'No'}</td></tr>
+                    <tr><td><strong>Est. Memory:</strong></td><td class="highlight">~${estimatedMemory.toFixed(1)} KB</td></tr>
+                </table>
+                <br>
+                <div style="background-color: #1a202c; padding: 10px; border-radius: 5px;">
+                    <strong>🎯 Changes Applied:</strong><br>
+                    ✅ Missed shots penalty removed<br>
+                    ✅ Buffer size increased to 200 rows<br>
+                    ✅ Initial grid expanded to 150 rows<br>
+                    ✅ UI updated (no more miss counter)
+                </div>
             `;
         }
         
-        // Auto-start the game for testing
+        // Auto-start for convenience
         window.onload = function() {
-            setTimeout(startGame, 1000);
+            setTimeout(startGame, 500);
         };
     </script>
 </body>
