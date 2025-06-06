@@ -1145,8 +1145,8 @@ class Game {
         console.log(`Repaired ${repairedBubbles} bubble positions`);
     }
     testCollisionDetection(flyingBubble) {
-        const adjustedY = flyingBubble.y - this.gridOffsetY;
-        const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        // Use screen coordinates directly for collision detection
+        const approximateRow = Math.round((flyingBubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
         const approximateCol = Math.round((flyingBubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
         
         // Check surrounding positions
@@ -1179,11 +1179,11 @@ class Game {
         const targetScreenY = targetBubble.y + this.gridOffsetY;
         console.log('Target screen Y:', targetScreenY);
         
-        const adjustedY = virtualShot.y - this.gridOffsetY;
-        const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        // Use screen coordinates directly for collision detection
+        const approximateRow = Math.round((virtualShot.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
         const approximateCol = Math.round((virtualShot.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
         
-        console.log('Collision calculation:', { adjustedY, approximateRow, approximateCol });
+        console.log('Collision calculation:', { approximateRow, approximateCol });
         console.log('Expected target row/col:', targetBubble.row, targetBubble.col);
         
         // Check if the calculation is finding the right area
@@ -1629,9 +1629,8 @@ class Game {
             }
             
             // Calculate grid region for more efficient collision checking
-            // Adjust for scroll offset - convert screen position to buffer position
-            const adjustedY = bubble.y - this.gridOffsetY;
-            const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+            // Use screen coordinates directly for collision detection
+            const approximateRow = Math.round((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
             
             // CRITICAL FIX: Add detailed debugging for first collision attempt
@@ -1639,7 +1638,6 @@ class Game {
                 console.log('First collision check details:', {
                     flyingBubble: { x: bubble.x, y: bubble.y },
                     gridOffsetY: this.gridOffsetY,
-                    adjustedY: adjustedY,
                     approximateRow: approximateRow,
                     approximateCol: approximateCol,
                     searchWillCheck: `rows ${Math.max(0, approximateRow - 1)}-${Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1)}, cols ${Math.max(0, approximateCol - 1)}-${Math.min(GRID_COLS - 1, approximateCol + 1)}`
@@ -1649,7 +1647,7 @@ class Game {
             // Expand search radius for fast-moving bubbles to ensure reliable collision detection
             // For bullets moving at SHOOTER_SPEED (35px/frame), increase search radius significantly
             const velocityMagnitude = Math.sqrt(bubble.vx * bubble.vx + bubble.vy * bubble.vy);
-            const searchRadius = Math.max(3, Math.ceil(velocityMagnitude / BUBBLE_RADIUS * 1.5));
+            const searchRadius = Math.max(4, Math.ceil(velocityMagnitude / BUBBLE_RADIUS * 2.0));
             
             const rowsToCheck = [];
             for (let r = Math.max(0, approximateRow - searchRadius); 
@@ -1724,9 +1722,8 @@ class Game {
                 const snapDistance = this.collisionSettings.snapDistance;
                 
                 // Check for nearby bubbles for smoother snapping experience
-                // Use the same buffer-adjusted calculation
-                const adjustedY = bubble.y - this.gridOffsetY;
-                const approximateRow = Math.round((adjustedY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+                // Use screen coordinates directly for collision detection
+                const approximateRow = Math.round((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
                 
                 for (let row = Math.max(0, approximateRow - 2); row < Math.min(TOTAL_GRID_ROWS, approximateRow + 3) && !collided; row++) {
                     for (let col = 0; col < GRID_COLS; col++) {
