@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Massive Grid</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a2e;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            border: 2px solid #333;
+            background-color: #16213e;
+            display: block;
+            margin: 20px auto;
+        }
+        
+        .info {
+            text-align: center;
+            margin: 20px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #4ECDC4;
+            color: white;
+        }
+        
+        button:hover {
+            background-color: #45b7aa;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h1>Massive Grid Test</h1>
+        <p>Testing the game with no missed shots penalty and massive initial grid</p>
+        <button onclick="startGame()">Start Game</button>
+        <button onclick="checkGrid()">Check Grid Info</button>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="info">
+        <div id="debugInfo"></div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        let game;
+        
+        function startGame() {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            console.log('Game created, initializing...');
+            updateDebugInfo();
+        }
+        
+        function checkGrid() {
+            if (!game) {
+                alert('Start the game first!');
+                return;
+            }
+            
+            let totalBubbles = 0;
+            let filledRows = 0;
+            
+            for (let row = 0; row < game.gridBubbles.length; row++) {
+                let bubblesInRow = 0;
+                for (let col = 0; col < game.gridBubbles[row].length; col++) {
+                    if (game.gridBubbles[row][col]) {
+                        bubblesInRow++;
+                        totalBubbles++;
+                    }
+                }
+                if (bubblesInRow > 0) {
+                    filledRows++;
+                }
+            }
+            
+            console.log('Grid stats:', {
+                totalRows: game.gridBubbles.length,
+                filledRows: filledRows,
+                totalBubbles: totalBubbles
+            });
+            
+            updateDebugInfo();
+        }
+        
+        function updateDebugInfo() {
+            if (!game) return;
+            
+            let totalBubbles = 0;
+            let filledRows = 0;
+            
+            for (let row = 0; row < game.gridBubbles.length; row++) {
+                let bubblesInRow = 0;
+                for (let col = 0; col < game.gridBubbles[row].length; col++) {
+                    if (game.gridBubbles[row][col]) {
+                        bubblesInRow++;
+                        totalBubbles++;
+                    }
+                }
+                if (bubblesInRow > 0) {
+                    filledRows++;
+                }
+            }
+            
+            document.getElementById('debugInfo').innerHTML = `
+                <h3>Grid Information</h3>
+                <p>Total Grid Rows: ${game.gridBubbles.length}</p>
+                <p>Filled Rows: ${filledRows}</p>
+                <p>Total Bubbles: ${totalBubbles}</p>
+                <p>Missed Shots: ${game.missedShots}</p>
+                <p>Game Started: ${game.gameStarted}</p>
+            `;
+        }
+        
+        // Auto-start the game for testing
+        window.onload = function() {
+            setTimeout(startGame, 1000);
+        };
+    </script>
+</body>
+</html>

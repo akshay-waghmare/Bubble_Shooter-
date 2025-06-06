@@ -154,7 +154,7 @@ const GRID_COLS = 14;
 const GRID_TOP_MARGIN = BUBBLE_RADIUS * 2;
 
 // Off-screen grid buffer for smooth scrolling
-const BUFFER_ROWS_ABOVE = 5; // Extra rows above visible area
+const BUFFER_ROWS_ABOVE = 200; // Massive buffer for infinite feeling
 const BUFFER_ROWS_BELOW = 5; // Extra rows below visible area
 const TOTAL_GRID_ROWS = GRID_ROWS + BUFFER_ROWS_ABOVE + BUFFER_ROWS_BELOW; // Total buffer size
 const SCROLL_SPEED = 2.0; // Pixels per frame for smooth scrolling
@@ -678,11 +678,11 @@ class Game {
         this.highScores = this.loadHighScores();
         this.lastTime = 0; // For smooth frame rate control
         this.difficultySettings = {
-            novice: { rowsToStart: 4, colors: 3, addRowFrequency: 10 },
-            easy: { rowsToStart: 5, colors: 4, addRowFrequency: 8 },
-            medium: { rowsToStart: 6, colors: 5, addRowFrequency: 6 },
-            hard: { rowsToStart: 7, colors: 6, addRowFrequency: 4 },
-            master: { rowsToStart: 8, colors: 6, addRowFrequency: 3 }
+            novice: { rowsToStart: 150, colors: 3, addRowFrequency: 10 }, // Fill most of buffer
+            easy: { rowsToStart: 150, colors: 4, addRowFrequency: 8 },
+            medium: { rowsToStart: 150, colors: 5, addRowFrequency: 6 },
+            hard: { rowsToStart: 150, colors: 6, addRowFrequency: 4 },
+            master: { rowsToStart: 150, colors: 6, addRowFrequency: 3 }
         };
         
         this.gameStarted = false; // Track if game has been started
@@ -2091,17 +2091,8 @@ class Game {
                 this.popBubbles(matches);
                 this.missedShots = 0;
             } else {
-                this.missedShots++;
-                this.debugLogger.log('game', 'Shot missed - incrementing miss counter', {
-                    missedShots: this.missedShots,
-                    limit: MISSED_SHOTS_LIMIT
-                });
-                
-                if (this.missedShots >= MISSED_SHOTS_LIMIT) {
-                    this.debugLogger.log('game', 'Miss limit reached - deferring new row addition');
-                    this.pendingNewRow = true;
-                    this.missedShots = 0;
-                }
+                // No penalty for missed shots
+                this.debugLogger.log('game', 'Shot placed without match - no penalty');
             }
         } else {
             this.debugLogger.log('snap', 'WARNING: Could not find valid grid position for bubble!', {
@@ -2804,8 +2795,7 @@ class Game {
         // Draw level
         this.ctx.fillText(`Level: ${this.level}`, 20, 60);
         
-        // Draw missed shots indicator
-        this.ctx.fillText(`Misses: ${this.missedShots}/${MISSED_SHOTS_LIMIT}`, 20, 90);
+
         
         // Draw mode specific UI
         if (this.gameMode === "strategy") {
