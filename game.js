@@ -915,6 +915,19 @@ class Game {
             removingBubbles: this.removingBubbles.length
         });
         
+        // Verify grid integrity to ensure all positions are correct
+        this.verifyGridIntegrity();
+        
+        // Ensure all bubbles are in the main bubbles array
+        this.bubbles = [];
+        for (let row = 0; row < this.gridBubbles.length; row++) {
+            for (let col = 0; col < this.gridBubbles[row].length; col++) {
+                if (this.gridBubbles[row][col]) {
+                    this.bubbles.push(this.gridBubbles[row][col]);
+                }
+            }
+        }
+        
         console.log('=== INIT GAME END ===');
         
         // CRITICAL FIX: Ensure initial collision detection works by validating and stabilizing grid state
@@ -2548,6 +2561,25 @@ class Game {
         
         if (issues > 0) {
             this.debugLogger.log('warning', `Fixed ${issues} grid integrity issues`);
+        }
+    }
+
+    refreshAllBubblePositions() {
+        for (let row = 0; row < this.gridBubbles.length; row++) {
+            for (let col = 0; col < this.gridBubbles[row].length; col++) {
+                const bubble = this.gridBubbles[row][col];
+                if (bubble) {
+                    const expectedX = this.getColPosition(row, col);
+                    const expectedY = this.getRowPosition(row);
+                    bubble.x = expectedX;
+                    bubble.y = expectedY;
+                    bubble.row = row;
+                    bubble.col = col;
+                    bubble.stuck = true;
+                    bubble.vx = 0;
+                    bubble.vy = 0;
+                }
+            }
         }
     }
 
