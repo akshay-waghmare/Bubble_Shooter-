@@ -24,7 +24,8 @@ class DebugLogger {
             data
         };
         
-        console.log(`[${category.toUpperCase()}] Frame ${this.frameCount}: ${message}`, data || '');
+        // Disabled console.log for performance optimization
+        // console.log(`[${category.toUpperCase()}] Frame ${this.frameCount}: ${message}`, data || '');
         
         // Store specific logs for analysis
         if (category === 'collision') {
@@ -209,15 +210,15 @@ class Bubble {
         this.trail = [];
         this.maxTrailLength = 8;
         
-        // DEBUG: Log every bubble creation with stack trace
-        console.log('BUBBLE CREATED:', {
-            position: { x: this.x, y: this.y },
-            color: this.color,
-            gridPos: { row: this.row, col: this.col },
-            stuck: this.stuck,
-            velocity: { vx: this.vx, vy: this.vy },
-            stackTrace: new Error().stack
-        });
+        // DEBUG: Bubble creation logging disabled for performance
+        // console.log('BUBBLE CREATED:', {
+        //     position: { x: this.x, y: this.y },
+        //     color: this.color,
+        //     gridPos: { row: this.row, col: this.col },
+        //     stuck: this.stuck,
+        //     velocity: { vx: this.vx, vy: this.vy },
+        //     stackTrace: new Error().stack
+        // });
     }
 
     draw(ctx) {
@@ -456,7 +457,7 @@ class Bubble {
 
 class Shooter {
     constructor(x, y) {
-        console.log('SHOOTER CREATED:', { x, y });
+        // console.log('SHOOTER CREATED:', { x, y }); // Disabled for performance
         this.x = x;
         this.y = y;
         this.angle = 0;
@@ -464,7 +465,7 @@ class Shooter {
         this.nextColor = this.getRandomColor();
         this.reloadTime = 300; // ms
         this.lastShot = 0;
-        console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor });
+        // console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor }); // Disabled for performance
     }
 
     getRandomColor() {
@@ -606,7 +607,7 @@ class Shooter {
     shoot() {
         if (!this.canShoot()) return null;
         
-        console.log('SHOOTER SHOOTING - creating new bubble');
+        // console.log('SHOOTER SHOOTING - creating new bubble'); // Disabled for performance
         
         this.lastShot = Date.now();
         
@@ -614,12 +615,12 @@ class Shooter {
         bubble.vx = Math.cos(this.angle) * SHOOTER_SPEED;
         bubble.vy = Math.sin(this.angle) * SHOOTER_SPEED;
         
-        console.log('Shot bubble created:', { 
-            x: bubble.x, y: bubble.y, 
-            vx: bubble.vx, vy: bubble.vy, 
-            color: bubble.color,
-            stuck: bubble.stuck
-        });
+        // console.log('Shot bubble created:', { 
+        //     x: bubble.x, y: bubble.y, 
+        //     vx: bubble.vx, vy: bubble.vy, 
+        //     color: bubble.color,
+        //     stuck: bubble.stuck
+        // }); // Disabled for performance
         
         // Update colors
         this.currentColor = this.nextColor;
@@ -635,7 +636,7 @@ class Shooter {
 
 class Game {
     constructor(canvas) {
-        console.log('=== GAME CONSTRUCTOR START ===');
+        // console.log('=== GAME CONSTRUCTOR START ==='); // Disabled for performance
         
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
@@ -649,14 +650,14 @@ class Game {
         canvas.width = maxWidth;
         canvas.height = portraitHeight;
         
-        console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height });
+        // console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height }); // Disabled for performance
         
         this.gridBubbles = []; // 2D array representing the grid of bubbles
         this.flyingBubbles = []; // Bubbles that are currently moving
         this.removingBubbles = []; // Bubbles that are being removed
         this.fallingBubbles = []; // Bubbles that are falling
         
-        console.log('Bubble arrays initialized');
+        // console.log('Bubble arrays initialized'); // Disabled for performance
         
         // Initialize shooter as null - will be created in resizeCanvas
         this.shooter = null;
@@ -733,33 +734,33 @@ class Game {
         ];
         this.finishLineY = 0; // Will be set in resizeCanvas
     
-        console.log('=== CALLING setupEventListeners ===');
+        // console.log('=== CALLING setupEventListeners ==='); // Disabled for performance
         this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
         
-        console.log('=== CALLING initGame ===');
+        // console.log('=== CALLING initGame ==='); // Disabled for performance
         this.initGame(); // Initialize the game grid and basic setup
         
         // CRITICAL: Mark initialization as complete
         this.initializing = false;
-        console.log('=== INITIALIZATION COMPLETE ===');
+        // console.log('=== INITIALIZATION COMPLETE ==='); // Disabled for performance
         
-        console.log('=== STARTING gameLoop ===');
+        // console.log('=== STARTING gameLoop ==='); // Disabled for performance
         this.gameLoop(); // Start the rendering loop
         
-        console.log('=== GAME CONSTRUCTOR END ===');
-        console.log('Final bubble counts:', {
-            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
-            flyingBubbles: this.flyingBubbles.length,
-            fallingBubbles: this.fallingBubbles.length,
-            removingBubbles: this.removingBubbles.length
-        });
+        // console.log('=== GAME CONSTRUCTOR END ==='); // Disabled for performance
+        // console.log('Final bubble counts:', {
+        //     gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+        //     flyingBubbles: this.flyingBubbles.length,
+        //     fallingBubbles: this.fallingBubbles.length,
+        //     removingBubbles: this.removingBubbles.length
+        // }); // Disabled for performance
     }
     
     start() {
         this.resizeCanvas(); // Ensure proper sizing before starting
         this.gameStarted = true; // Mark game as started
         this.gameStartTime = Date.now(); // Record when game started
-        console.log('Game started at:', this.gameStartTime);
+        // console.log('Game started at:', this.gameStartTime); // Disabled for performance
         // Game loop is already running from constructor
     }
 
@@ -777,7 +778,7 @@ class Game {
     }
 
     initGame() {
-        console.log('=== INIT GAME START ===');
+        // console.log('=== INIT GAME START ==='); // Disabled for performance
         
         this.gridBubbles = [];
         this.flyingBubbles = [];
@@ -789,11 +790,11 @@ class Game {
         this.gameOver = false;
         this.gameWon = false;
         
-        console.log('Arrays cleared, bubble counts:', {
-            flyingBubbles: this.flyingBubbles.length,
-            fallingBubbles: this.fallingBubbles.length,
-            removingBubbles: this.removingBubbles.length
-        });
+        // console.log('Arrays cleared, bubble counts:', {
+        //     flyingBubbles: this.flyingBubbles.length,
+        //     fallingBubbles: this.fallingBubbles.length,
+        //     removingBubbles: this.removingBubbles.length
+        // }); // Disabled for performance
         
         // Reset collision timing fix flag
         this.pendingNewRow = false;
@@ -816,19 +817,19 @@ class Game {
             }
         }
         
-        console.log('Grid initialized');
+        // console.log('Grid initialized'); // Disabled for performance
         
         // Create initial bubble grid based on difficulty
         const settings = this.difficultySettings[this.difficulty];
         const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
         
-        console.log('Creating initial bubbles with settings:', settings);
+        // console.log('Creating initial bubbles with settings:', settings); // Disabled for performance
         
         // Calculate maximum bubbles that can fit in the grid based on canvas width
         const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
         const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
         
-        console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols });
+        // console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols }); // Disabled for performance
 
         let bubblesCreated = 0;
         // Fill the entire buffer above AND only the top 2 visible rows for "falling stack" effect
@@ -858,7 +859,7 @@ class Game {
                     } else {
                         color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                     }
-                    console.log('Creating grid bubble:', { row, col, x, y, color });
+                    // console.log('Creating grid bubble:', { row, col, x, y, color }); // Disabled for performance
                     const bubble = new Bubble(x, y, color, row, col);
                     bubble.stuck = true;
                     bubble.vx = 0;
@@ -871,10 +872,10 @@ class Game {
             }
         }
         
-        console.log('Grid bubbles created:', bubblesCreated);
+        // console.log('Grid bubbles created:', bubblesCreated); // Disabled for performance
         
         // CRITICAL FIX: Ensure collision detection works immediately by validating grid state
-        console.log('=== INITIAL GRID VALIDATION ===');
+        // console.log('=== INITIAL GRID VALIDATION ==='); // Disabled for performance
         let validBubbles = 0;
         let topBubbleScreenY = Infinity;
         
@@ -888,16 +889,16 @@ class Game {
                         topBubbleScreenY = screenY;
                     }
                     
-                    // Log first few valid bubbles
-                    if (validBubbles <= 3) {
-                        console.log(`Valid bubble [${row},${col}]: buffer(${bubble.x}, ${bubble.y}) -> screen(${bubble.x}, ${screenY.toFixed(1)}), stuck=${bubble.stuck}`);
-                    }
+                    // Log first few valid bubbles for debugging (disabled for performance)
+                    // if (validBubbles <= 3) {
+                    //     console.log(`Valid bubble [${row},${col}]: buffer(${bubble.x}, ${bubble.y}) -> screen(${bubble.x}, ${screenY.toFixed(1)}), stuck=${bubble.stuck}`);
+                    // }
                 }
             }
         }
         
-        console.log(`Total valid bubbles: ${validBubbles}, topmost screen Y: ${topBubbleScreenY.toFixed(1)}`);
-        console.log('Grid validation complete - collision detection should work');
+        // console.log(`Total valid bubbles: ${validBubbles}, topmost screen Y: ${topBubbleScreenY.toFixed(1)}`); // Disabled for performance
+        // console.log('Grid validation complete - collision detection should work'); // Disabled for performance
 
         // Set up game mode specifics
         if (this.gameMode === "strategy") {
@@ -906,18 +907,18 @@ class Game {
             this.timeLeft = 120; // 2 minutes for arcade mode
         }
         
-        console.log('Final bubble counts after initGame:', {
-            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
-            flyingBubbles: this.flyingBubbles.length,
-            fallingBubbles: this.fallingBubbles.length,
-            removingBubbles: this.removingBubbles.length
-        });
+        // console.log('Final bubble counts after initGame:', { // Disabled for performance
+        //     gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+        //     flyingBubbles: this.flyingBubbles.length,
+        //     fallingBubbles: this.fallingBubbles.length,
+        //     removingBubbles: this.removingBubbles.length
+        // });
         
         // Verify grid integrity to ensure all positions are correct
         this.verifyGridIntegrity();
         
         // Verify all bubbles are properly in both arrays
-        console.log('Verifying bubbles are in both arrays after initialization...');
+        // console.log('Verifying bubbles are in both arrays after initialization...'); // Disabled for performance
         const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
         const mainBubbleCount = this.bubbles.length;
         console.log(`Grid bubbles: ${gridBubbleCount}, Main bubbles: ${mainBubbleCount}`);
@@ -1558,12 +1559,12 @@ class Game {
         this.collisionChecksThisFrame = 0;
         this.gridSnapsThisFrame = 0;
         
-        // Debug: Log flying bubbles count each frame
-        if (this.flyingBubbles.length > 0) {
-            console.log('Flying bubbles in update:', this.flyingBubbles.length, this.flyingBubbles.map(b => ({
-                x: b.x, y: b.y, vx: b.vx, vy: b.vy, stuck: b.stuck
-            })));
-        }
+        // Debug: Flying bubbles logging disabled for performance
+        // if (this.flyingBubbles.length > 0) {
+        //     console.log('Flying bubbles in update:', this.flyingBubbles.length, this.flyingBubbles.map(b => ({
+        //         x: b.x, y: b.y, vx: b.vx, vy: b.vy, stuck: b.stuck
+        //     })));
+        // }
         
         // Only update shooter and game logic if game has started and shooter exists
         if (this.gameStarted && this.shooter) {
@@ -1691,7 +1692,7 @@ class Game {
                 // EMERGENCY FIX: If first shot doesn't find any grid bubbles to check, force system repair
                 const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
                 if (gridBubbleCount === 0) {
-                    console.log('🚨 EMERGENCY: No grid bubbles found for first shot! Forcing system repair...');
+                    // console.log('🚨 EMERGENCY: No grid bubbles found for first shot! Forcing system repair...'); // Disabled for performance
                     this.forceCollisionSystemRepair();
                 }
             }
@@ -1702,17 +1703,17 @@ class Game {
             const approximateRow = Math.round((flyingBubbleBufferY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
             
-            // CRITICAL FIX: Add detailed debugging for first collision attempt
-            if (i === 0 && this.flyingBubbles.length === 1) {
-                console.log('First collision check details:', {
-                    flyingBubble: { x: bubble.x, y: bubble.y },
-                    flyingBubbleBufferY: flyingBubbleBufferY,
-                    gridOffsetY: this.gridOffsetY,
-                    approximateRow: approximateRow,
-                    approximateCol: approximateCol,
-                    searchWillCheck: `rows ${Math.max(0, approximateRow - 1)}-${Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1)}, cols ${Math.max(0, approximateCol - 1)}-${Math.min(GRID_COLS - 1, approximateCol + 1)}`
-                });
-            }
+            // CRITICAL FIX: Debugging for first collision attempt (disabled for performance)
+            // if (i === 0 && this.flyingBubbles.length === 1) {
+            //     console.log('First collision check details:', {
+            //         flyingBubble: { x: bubble.x, y: bubble.y },
+            //         flyingBubbleBufferY: flyingBubbleBufferY,
+            //         gridOffsetY: this.gridOffsetY,
+            //         approximateRow: approximateRow,
+            //         approximateCol: approximateCol,
+            //         searchWillCheck: `rows ${Math.max(0, approximateRow - 1)}-${Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1)}, cols ${Math.max(0, approximateCol - 1)}-${Math.min(GRID_COLS - 1, approximateCol + 1)}`
+            //     });
+            // }
             
             // Expand search radius for fast-moving bubbles to ensure reliable collision detection
             // For bullets moving at SHOOTER_SPEED (35px/frame), increase search radius significantly
@@ -1750,16 +1751,16 @@ class Game {
                                 collisionDistance: collisionDistance
                             });
                             
-                            // CRITICAL: Log first collision for debugging initial issues
-                            if (i === 0 && this.flyingBubbles.length === 1) {
-                                console.log('🎯 FIRST COLLISION DETECTED!', {
-                                    flyingPos: { x: bubble.x, y: bubble.y },
-                                    gridPos: { x: gridBubble.x, y: gridBubble.y, screenY: gridBubbleScreenY },
-                                    distance: distance,
-                                    threshold: collisionDistance,
-                                    gridOffset: this.gridOffsetY
-                                });
-                            }
+                            // CRITICAL: First collision debugging (disabled for performance)
+                            // if (i === 0 && this.flyingBubbles.length === 1) {
+                            //     console.log('🎯 FIRST COLLISION DETECTED!', {
+                            //         flyingPos: { x: bubble.x, y: bubble.y },
+                            //         gridPos: { x: gridBubble.x, y: gridBubble.y, screenY: gridBubbleScreenY },
+                            //         distance: distance,
+                            //         threshold: collisionDistance,
+                            //         gridOffset: this.gridOffsetY
+                            //     });
+                            // }
                         
                             // Enhanced collision response with smoother physics
                             bubble.handleCollisionWith(gridBubble, 0.2);
@@ -1769,19 +1770,19 @@ class Game {
                             collided = true;
                             break;
                         } else if (i === 0 && this.flyingBubbles.length === 1 && distance < collisionDistance * 1.5) {
-                            // Debug near-misses for first bubble
-                            console.log('Near miss on first bubble:', {
-                                gridBubble: `[${row},${col}]`,
-                                distance: distance.toFixed(2),
-                                threshold: collisionDistance.toFixed(2),
-                                diff: (distance - collisionDistance).toFixed(2)
-                            });
+                            // Debug near-misses for first bubble (disabled for performance)
+                            // console.log('Near miss on first bubble:', {
+                            //     gridBubble: `[${row},${col}]`,
+                            //     distance: distance.toFixed(2),
+                            //     threshold: collisionDistance.toFixed(2),
+                            //     diff: (distance - collisionDistance).toFixed(2)
+                            // });
                         }
                     } else if (i === 0 && this.flyingBubbles.length === 1) {
-                        // Log empty grid positions for first bubble (debug why no collision target found)
-                        if (row >= BUFFER_ROWS_ABOVE && row < BUFFER_ROWS_ABOVE + 3) { // Check first 3 visible rows
-                            console.log(`First shot: empty position [${row},${col}] in visible area`);
-                        }
+                        // Log empty grid positions for first bubble (disabled for performance)
+                        // if (row >= BUFFER_ROWS_ABOVE && row < BUFFER_ROWS_ABOVE + 3) { // Check first 3 visible rows
+                        //     console.log(`First shot: empty position [${row},${col}] in visible area`);
+                        // }
                     }
                 }
                 if (collided) break;
