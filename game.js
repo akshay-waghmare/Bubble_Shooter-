@@ -783,6 +783,7 @@ class Game {
         this.flyingBubbles = [];
         this.removingBubbles = [];
         this.fallingBubbles = [];
+        this.bubbles = []; // Initialize main bubbles array early for collision detection
         this.score = 0;
         this.missedShots = 0;
         this.gameOver = false;
@@ -866,7 +867,13 @@ class Game {
                     bubble.stuck = true;
                     bubble.vx = 0; // Ensure no velocity
                     bubble.vy = 0; // Ensure no velocity
+                    
+                    // CRITICAL: Add to gridBubbles array for collision detection
                     this.gridBubbles[actualRow][col] = bubble;
+                    
+                    // Also add to main bubbles array for rendering
+                    this.bubbles.push(bubble);
+                    
                     this.totalBubbles++;
                     bubblesCreated++;
                 }
@@ -918,14 +925,20 @@ class Game {
         // Verify grid integrity to ensure all positions are correct
         this.verifyGridIntegrity();
         
-        // Ensure all bubbles are in the main bubbles array
-        this.bubbles = [];
-        for (let row = 0; row < this.gridBubbles.length; row++) {
-            for (let col = 0; col < this.gridBubbles[row].length; col++) {
-                if (this.gridBubbles[row][col]) {
-                    this.bubbles.push(this.gridBubbles[row][col]);
-                }
-            }
+        // Verify all bubbles are properly in both arrays
+        console.log('Verifying bubbles are in both arrays after initialization...');
+        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+        const mainBubbleCount = this.bubbles.length;
+        console.log(`Grid bubbles: ${gridBubbleCount}, Main bubbles: ${mainBubbleCount}`);
+        
+        if (gridBubbleCount !== mainBubbleCount) {
+            console.warn('MISMATCH: Grid and main bubble arrays have different counts!');
+        }
+        
+        // Run comprehensive grid consistency check
+        const consistencyResult = this.verifyGridConsistency();
+        if (!consistencyResult.consistent) {
+            console.error('Grid consistency check failed - collision detection may not work properly');
         }
         
         console.log('=== INIT GAME END ===');
@@ -1068,6 +1081,68 @@ class Game {
         }
         
         console.log('Collision system activation complete');
+    }
+    
+    // Add verification method to check grid consistency
+    verifyGridConsistency() {
+        console.log('=== VERIFYING GRID CONSISTENCY ===');
+        
+        let totalGridBubbles = 0;
+        let totalMainBubbles = this.bubbles ? this.bubbles.length : 0;
+        let inconsistencies = 0;
+        
+        // Count bubbles in grid and check consistency
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                const gridBubble = this.gridBubbles[row][col];
+                if (gridBubble) {
+                    totalGridBubbles++;
+                    
+                    // Verify this bubble exists in main bubbles array
+                    const foundInMain = this.bubbles && this.bubbles.includes(gridBubble);
+                    if (!foundInMain) {
+                        console.warn(`Grid bubble [${row},${col}] not found in main bubbles array`);
+                        inconsistencies++;
+                    }
+                    
+                    // Verify bubble properties
+                    if (!gridBubble.stuck) {
+                        console.warn(`Grid bubble [${row},${col}] not marked as stuck`);
+                        inconsistencies++;
+                    }
+                    
+                    if (gridBubble.vx !== 0 || gridBubble.vy !== 0) {
+                        console.warn(`Grid bubble [${row},${col}] has velocity (${gridBubble.vx}, ${gridBubble.vy})`);
+                        inconsistencies++;
+                    }
+                }
+            }
+        }
+        
+        // Check for bubbles in main array that aren't in grid
+        if (this.bubbles) {
+            for (const bubble of this.bubbles) {
+                if (bubble.stuck && bubble.row >= 0 && bubble.col >= 0) {
+                    const gridBubble = this.gridBubbles[bubble.row] && this.gridBubbles[bubble.row][bubble.col];
+                    if (gridBubble !== bubble) {
+                        console.warn(`Main bubble [${bubble.row},${bubble.col}] not correctly referenced in grid`);
+                        inconsistencies++;
+                    }
+                }
+            }
+        }
+        
+        console.log(`Grid consistency check complete:
+            Grid bubbles: ${totalGridBubbles}
+            Main bubbles: ${totalMainBubbles}
+            Inconsistencies: ${inconsistencies}`);
+        
+        return {
+            gridBubbles: totalGridBubbles,
+            mainBubbles: totalMainBubbles,
+            inconsistencies: inconsistencies,
+            consistent: inconsistencies === 0 && totalGridBubbles === totalMainBubbles
+        };
     }
     
     // EMERGENCY FIX: Test collision system with multiple scenarios
