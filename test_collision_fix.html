@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Collision Fix</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #000; color: #fff; font-family: monospace; }
+        canvas { border: 1px solid #fff; background: #111; }
+        #debug { margin-top: 10px; max-height: 400px; overflow-y: auto; }
+        .log-entry { margin: 2px 0; font-size: 12px; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .warning { color: #ff0; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Test Collision Detection Fix</h1>
+    <button onclick="testCollision()">Test First Shot Collision</button>
+    <button onclick="clearLog()">Clear Log</button>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="debug"></div>
+
+    <script src="game.js"></script>
+    <script>
+        let game;
+        let logDiv = document.getElementById('debug');
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            logDiv.innerHTML = '';
+        }
+
+        function testCollision() {
+            log('=== STARTING COLLISION TEST ===', 'warning');
+            
+            // Initialize game
+            game = new Game();
+            
+            // Check initial state
+            log(`Initial state - initializing: ${game.initializing}`, 'info');
+            log(`Grid bubbles count: ${game.gridBubbles.flat().filter(b => b !== null).length}`, 'info');
+            
+            // Wait a bit for initialization to complete
+            setTimeout(() => {
+                log(`After init - initializing: ${game.initializing}`, 'info');
+                
+                // Simulate a shot directly at a bubble
+                const firstBubble = game.gridBubbles.flat().find(b => b !== null);
+                if (firstBubble) {
+                    log(`First bubble found at: (${firstBubble.x}, ${firstBubble.y})`, 'success');
+                    
+                    // Create a shot bubble aimed at the first bubble
+                    const shotBubble = new Bubble(firstBubble.x, firstBubble.y + 100, '#FF6B6B');
+                    shotBubble.vx = 0;
+                    shotBubble.vy = -35; // Moving upward at shooter speed
+                    
+                    game.flyingBubbles.push(shotBubble);
+                    log(`Shot bubble created at: (${shotBubble.x}, ${shotBubble.y}) with velocity (${shotBubble.vx}, ${shotBubble.vy})`, 'info');
+                    
+                    // Update game for a few frames and check for collision
+                    let frames = 0;
+                    const testInterval = setInterval(() => {
+                        game.update();
+                        frames++;
+                        
+                        log(`Frame ${frames}: Flying bubbles: ${game.flyingBubbles.length}, Shot at: (${shotBubble.x}, ${shotBubble.y})`, 'info');
+                        
+                        if (game.flyingBubbles.length === 0) {
+                            log('🎯 COLLISION DETECTED! Shot bubble stuck to grid!', 'success');
+                            clearInterval(testInterval);
+                        } else if (frames > 10) {
+                            log('❌ COLLISION FAILED! Shot bubble did not stick after 10 frames', 'error');
+                            clearInterval(testInterval);
+                        }
+                    }, 100);
+                } else {
+                    log('❌ No initial bubbles found!', 'error');
+                }
+            }, 100);
+        }
+
+        // Start test automatically
+        window.onload = function() {
+            log('Page loaded, ready for testing', 'info');
+        };
+    </script>
+</body>
+</html>
