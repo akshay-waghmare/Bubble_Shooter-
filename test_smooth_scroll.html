@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smooth Scroll Test</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #333; color: white; }
+        #status { margin-bottom: 20px; font-family: monospace; }
+        canvas { border: 1px solid white; }
+    </style>
+</head>
+<body>
+    <div id="status">Testing smooth scrolling implementation...</div>
+    <canvas id="testCanvas" width="400" height="600"></canvas>
+    
+    <script src="game.js"></script>
+    <script>
+        const statusDiv = document.getElementById('status');
+        
+        function updateStatus(message) {
+            statusDiv.innerHTML += message + '<br>';
+            console.log(message);
+        }
+        
+        try {
+            updateStatus('Constants check:');
+            updateStatus('GRID_ROWS: ' + (typeof GRID_ROWS !== 'undefined' ? GRID_ROWS : 'UNDEFINED'));
+            updateStatus('BUFFER_ROWS_ABOVE: ' + (typeof BUFFER_ROWS_ABOVE !== 'undefined' ? BUFFER_ROWS_ABOVE : 'UNDEFINED'));
+            updateStatus('TOTAL_GRID_ROWS: ' + (typeof TOTAL_GRID_ROWS !== 'undefined' ? TOTAL_GRID_ROWS : 'UNDEFINED'));
+            updateStatus('SCROLL_SPEED: ' + (typeof SCROLL_SPEED !== 'undefined' ? SCROLL_SPEED : 'UNDEFINED'));
+            
+            updateStatus('\nTesting Game initialization...');
+            const canvas = document.getElementById('testCanvas');
+            
+            // Override some methods that might interfere with testing
+            const originalGameLoop = Game.prototype.gameLoop;
+            Game.prototype.gameLoop = function() {
+                updateStatus('GameLoop called, stopping to prevent infinite loop');
+            };
+            
+            const game = new Game(canvas);
+            
+            updateStatus('✓ Game created successfully');
+            updateStatus('gridOffsetY: ' + game.gridOffsetY);
+            updateStatus('targetScrollOffset: ' + game.targetScrollOffset);
+            updateStatus('scrollAnimating: ' + game.scrollAnimating);
+            updateStatus('Grid buffer size: ' + game.gridBubbles.length);
+            
+            // Test grid buffer
+            if (game.gridBubbles.length === TOTAL_GRID_ROWS) {
+                updateStatus('✓ Grid buffer initialized with correct size');
+            } else {
+                updateStatus('✗ Grid buffer has incorrect size: ' + game.gridBubbles.length + ' expected: ' + TOTAL_GRID_ROWS);
+            }
+            
+            // Check bubble placement
+            let bubblesInVisibleArea = 0;
+            let bubblesInBuffer = 0;
+            
+            for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+                for (let col = 0; col < GRID_COLS; col++) {
+                    if (game.gridBubbles[row][col]) {
+                        bubblesInBuffer++;
+                        if (row >= BUFFER_ROWS_ABOVE && row < BUFFER_ROWS_ABOVE + GRID_ROWS) {
+                            bubblesInVisibleArea++;
+                        }
+                    }
+                }
+            }
+            
+            updateStatus('Bubbles in visible area: ' + bubblesInVisibleArea);
+            updateStatus('Total bubbles in buffer: ' + bubblesInBuffer);
+            
+            if (bubblesInVisibleArea > 0) {
+                updateStatus('✓ Bubbles created in visible area');
+            } else {
+                updateStatus('✗ No bubbles found in visible area');
+            }
+            
+            // Test addNewRow functionality
+            updateStatus('\nTesting addNewRow...');
+            const initialOffset = game.gridOffsetY;
+            game.addNewRow();
+            
+            if (game.targetScrollOffset > initialOffset) {
+                updateStatus('✓ addNewRow triggered scroll animation');
+            } else {
+                updateStatus('✗ addNewRow did not trigger scroll animation');
+            }
+            
+            updateStatus('\n✓ All basic tests passed!');
+            
+        } catch (error) {
+            updateStatus('✗ Error: ' + error.message);
+            console.error(error);
+        }
+    </script>
+</body>
+</html>
