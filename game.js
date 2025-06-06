@@ -1220,8 +1220,9 @@ class Game {
         console.log(`Repaired ${repairedBubbles} bubble positions`);
     }
     testCollisionDetection(flyingBubble) {
-        // Use screen coordinates directly for collision detection
-        const approximateRow = Math.round((flyingBubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        // CRITICAL FIX: Convert flying bubble screen position to buffer coordinates
+        const flyingBubbleBufferY = flyingBubble.y - this.gridOffsetY;
+        const approximateRow = Math.round((flyingBubbleBufferY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
         const approximateCol = Math.round((flyingBubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
         
         // Check surrounding positions
@@ -1254,8 +1255,9 @@ class Game {
         const targetScreenY = targetBubble.y + this.gridOffsetY;
         console.log('Target screen Y:', targetScreenY);
         
-        // Use screen coordinates directly for collision detection
-        const approximateRow = Math.round((virtualShot.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+        // CRITICAL FIX: Convert virtual shot screen position to buffer coordinates
+        const virtualShotBufferY = virtualShot.y - this.gridOffsetY;
+        const approximateRow = Math.round((virtualShotBufferY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
         const approximateCol = Math.round((virtualShot.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
         
         console.log('Collision calculation:', { approximateRow, approximateCol });
@@ -1704,14 +1706,16 @@ class Game {
             }
             
             // Calculate grid region for more efficient collision checking
-            // Use screen coordinates directly for collision detection
-            const approximateRow = Math.round((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+            // CRITICAL FIX: Convert flying bubble screen position to buffer coordinates
+            const flyingBubbleBufferY = bubble.y - this.gridOffsetY;
+            const approximateRow = Math.round((flyingBubbleBufferY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
             
             // CRITICAL FIX: Add detailed debugging for first collision attempt
             if (i === 0 && this.flyingBubbles.length === 1) {
                 console.log('First collision check details:', {
                     flyingBubble: { x: bubble.x, y: bubble.y },
+                    flyingBubbleBufferY: flyingBubbleBufferY,
                     gridOffsetY: this.gridOffsetY,
                     approximateRow: approximateRow,
                     approximateCol: approximateCol,
@@ -1797,8 +1801,9 @@ class Game {
                 const snapDistance = this.collisionSettings.snapDistance;
                 
                 // Check for nearby bubbles for smoother snapping experience
-                // Use screen coordinates directly for collision detection
-                const approximateRow = Math.round((bubble.y - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
+                // CRITICAL FIX: Convert flying bubble screen position to buffer coordinates
+                const flyingBubbleBufferY = bubble.y - this.gridOffsetY;
+                const approximateRow = Math.round((flyingBubbleBufferY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
                 
                 for (let row = Math.max(0, approximateRow - 2); row < Math.min(TOTAL_GRID_ROWS, approximateRow + 3) && !collided; row++) {
                     for (let col = 0; col < GRID_COLS; col++) {
