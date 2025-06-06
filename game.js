@@ -935,6 +935,9 @@ class Game {
         
         // EMERGENCY FIX: Force immediate collision system activation
         this.ensureCollisionSystemActive();
+        
+        // Enable collision detection immediately after initialization
+        this.initializing = false;
     }
     
     // CRITICAL FIX: New method to ensure initial grid is immediately ready for collision detection
@@ -1481,11 +1484,6 @@ class Game {
     }
 
     update() {
-        // CRITICAL: Don't process anything during initialization
-        if (this.initializing) {
-            return;
-        }
-        
         if (this.gameOver || this.gameWon) return;
         
         this.frameStartTime = performance.now();
@@ -1648,9 +1646,10 @@ class Game {
                 });
             }
             
-            // Expand search area based on bubble velocity for fast-moving bubbles
+            // Expand search radius for fast-moving bubbles to ensure reliable collision detection
+            // For bullets moving at SHOOTER_SPEED (35px/frame), increase search radius significantly
             const velocityMagnitude = Math.sqrt(bubble.vx * bubble.vx + bubble.vy * bubble.vy);
-            const searchRadius = Math.max(1, Math.ceil(velocityMagnitude / BUBBLE_RADIUS));
+            const searchRadius = Math.max(3, Math.ceil(velocityMagnitude / BUBBLE_RADIUS * 1.5));
             
             const rowsToCheck = [];
             for (let r = Math.max(0, approximateRow - searchRadius); 
