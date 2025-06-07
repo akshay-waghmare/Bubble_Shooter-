@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Count Cache TDD Tests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 0 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #005999;
+        }
+        .test-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+        }
+        .phase-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-left: 4px solid #2196f3;
+            margin: 20px 0;
+        }
+        .phase-info h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+        .status-indicators {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        .status-indicator {
+            text-align: center;
+            padding: 10px;
+            border-radius: 4px;
+            flex: 1;
+            margin: 0 5px;
+        }
+        .status-red {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            color: #d32f2f;
+        }
+        .status-green {
+            background: #e8f5e8;
+            border: 2px solid #4caf50;
+            color: #388e3c;
+        }
+        .status-yellow {
+            background: #fff8e1;
+            border: 2px solid #ff9800;
+            color: #f57c00;
+        }
+        .hidden-canvas {
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Bubble Count Cache TDD Tests</h1>
+        
+        <div class="phase-info">
+            <h3>Test-Driven Development for Performance Optimization</h3>
+            <p>This test suite implements the bubble count cache optimization to replace expensive .flat().filter() operations 
+            that were causing severe performance lag. We're targeting 100x+ performance improvement for collision detection.</p>
+            
+            <strong>Current Bottleneck:</strong> <code>this.gridBubbles.flat().filter(b => b !== null).length</code> 
+            checking 1,782+ bubbles every frame at 60 FPS = 180,600+ operations per second!
+        </div>
+
+        <div class="status-indicators">
+            <div class="status-indicator status-red">
+                <strong>RED PHASE</strong><br>
+                Write failing tests that describe expected cache behavior
+            </div>
+            <div class="status-indicator status-green">
+                <strong>GREEN PHASE</strong><br>
+                Implement minimal code to make tests pass
+            </div>
+            <div class="status-indicator status-yellow">
+                <strong>REFACTOR PHASE</strong><br>
+                Optimize and clean up implementation
+            </div>
+        </div>
+        
+        <div class="test-controls">
+            <button onclick="runAllTests()">🚀 Run All TDD Tests</button>
+            <button onclick="runBaselineOnly()">📊 Baseline Performance Only</button>
+            <button onclick="runCacheTests()">🔧 Cache Implementation Tests</button>
+            <button onclick="clearOutput()">🧹 Clear Output</button>
+        </div>
+        
+        <div id="testOutput" class="test-output">
+Click "Run All TDD Tests" to start the Test-Driven Development cycle for bubble count cache optimization...
+
+Expected Test Flow:
+1. ✅ Baseline Performance Tests (capture current slow performance)
+2. ❌ Cache Implementation Tests (RED - should fail initially)
+3. 🔧 Implement cache in game.js
+4. ✅ Re-run tests (GREEN - should pass after implementation)
+5. 🔄 Refactor and optimize
+        </div>
+
+        <div class="phase-info">
+            <h3>📋 Implementation Checklist</h3>
+            <ul>
+                <li>✅ Remove console.log performance bottlenecks (COMPLETE)</li>
+                <li>⏳ Add <code>gridBubbleCount</code> property to Game constructor</li>
+                <li>⏳ Create <code>initializeBubbleCount()</code> method</li>
+                <li>⏳ Update <code>snapBubbleToGrid()</code> to increment cache</li>
+                <li>⏳ Update <code>popBubbles()</code> to decrement cache</li>
+                <li>⏳ Replace expensive operations with cached values</li>
+                <li>⏳ Validate 100x+ performance improvement</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Hidden canvas for game testing -->
+    <canvas id="hiddenCanvas" class="hidden-canvas" width="800" height="600"></canvas>
+
+    <!-- Game and test scripts -->
+    <script src="game.js"></script>
+    <script src="test_bubble_count_cache.js"></script>
+
+    <script>
+        // Capture console.log for display in test output
+        const originalConsoleLog = console.log;
+        const testOutput = document.getElementById('testOutput');
+        
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            
+            // Format output for display
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            testOutput.textContent += message + '\n';
+            testOutput.scrollTop = testOutput.scrollHeight;
+        };
+
+        // Test control functions
+        function runAllTests() {
+            clearOutput();
+            console.log('🧪 BUBBLE COUNT CACHE TDD TEST SUITE');
+            console.log('=====================================');
+            console.log('Starting comprehensive TDD cycle for performance optimization...\n');
+            
+            try {
+                BubbleCacheTests.runAllTests();
+            } catch (error) {
+                console.log('\n❌ ERROR during test execution:');
+                console.log(error.message);
+                console.log('\nThis is expected during RED phase - tests should fail initially!');
+            }
+        }
+
+        function runBaselineOnly() {
+            clearOutput();
+            console.log('📊 BASELINE PERFORMANCE MEASUREMENT');
+            console.log('===================================\n');
+            
+            try {
+                BubbleCacheTests.testBaslinePerformance();
+                console.log('\n✅ Baseline tests completed successfully');
+                console.log('This shows the current performance before cache optimization');
+            } catch (error) {
+                console.log('\n❌ ERROR during baseline test:');
+                console.log(error.message);
+            }
+        }
+
+        function runCacheTests() {
+            clearOutput();
+            console.log('🔧 CACHE IMPLEMENTATION TESTS');
+            console.log('==============================\n');
+            
+            try {
+                // Run only cache-specific tests
+                BubbleCacheTests.testCacheInitialization();
+                BubbleCacheTests.testCacheAccuracy();
+                BubbleCacheTests.testCacheOperations();
+                BubbleCacheTests.testSnapBubbleToGridCacheUpdate();
+                BubbleCacheTests.testPopBubblesCacheUpdate();
+                BubbleCacheTests.testPerformanceImprovement();
+                BubbleCacheTests.testStressTestCacheAccuracy();
+                
+                BubbleCacheTests.displaySummary();
+            } catch (error) {
+                console.log('\n❌ ERROR during cache tests:');
+                console.log(error.message);
+                console.log('\nThis is expected during RED phase - cache not implemented yet!');
+            }
+        }
+
+        function clearOutput() {
+            testOutput.textContent = '';
+        }
+
+        // Auto-run baseline on page load to show current state
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                console.log('🎯 Welcome to Bubble Count Cache TDD Tests');
+                console.log('===========================================');
+                console.log('Ready to implement performance optimization using Test-Driven Development');
+                console.log('Current Issue: .flat().filter() operations causing severe performance lag');
+                console.log('Target: 100x+ performance improvement with bubble count caching\n');
+                console.log('Click "Run All TDD Tests" to start the RED-GREEN-REFACTOR cycle!\n');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -667,6 +667,9 @@ class Game {
         this.removingBubbles = []; // Bubbles that are being removed
         this.fallingBubbles = []; // Bubbles that are falling
         
+        // PERFORMANCE OPTIMIZATION: Bubble count cache to replace expensive .flat().filter() operations
+        this.gridBubbleCount = 0; // Cache for total number of bubbles in grid (replaces gridBubbles.flat().filter(b => b !== null).length)
+        
         // console.log('Bubble arrays initialized'); // Disabled for performance
         
         // Initialize shooter as null - will be created in resizeCanvas
@@ -787,6 +790,29 @@ class Game {
         localStorage.setItem('bubbleShooterHighScores', JSON.stringify(scores));
     }
 
+    // PERFORMANCE OPTIMIZATION: Bubble count cache methods
+    initializeBubbleCount() {
+        // Initialize the cache by counting all existing bubbles in the grid
+        this.gridBubbleCount = 0;
+        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
+            for (let col = 0; col < GRID_COLS; col++) {
+                if (this.gridBubbles[row][col]) {
+                    this.gridBubbleCount++;
+                }
+            }
+        }
+    }
+
+    incrementBubbleCount() {
+        // Increment cache when a bubble is added to the grid
+        this.gridBubbleCount++;
+    }
+
+    decrementBubbleCount() {
+        // Decrement cache when a bubble is removed from the grid
+        this.gridBubbleCount = Math.max(0, this.gridBubbleCount - 1);
+    }
+
     initGame() {
         // console.log('=== INIT GAME START ==='); // Disabled for performance
         
@@ -878,6 +904,8 @@ class Game {
                     this.bubbles.push(bubble);
                     this.totalBubbles++;
                     bubblesCreated++;
+                    
+                    // Note: Cache will be initialized later with initializeBubbleCount()
                 }
             }
         }
@@ -927,9 +955,12 @@ class Game {
         // Verify grid integrity to ensure all positions are correct
         this.verifyGridIntegrity();
         
+        // PERFORMANCE OPTIMIZATION: Initialize bubble count cache
+        this.initializeBubbleCount();
+        
         // Verify all bubbles are properly in both arrays
         // console.log('Verifying bubbles are in both arrays after initialization...'); // Disabled for performance
-        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+        const gridBubbleCount = this.gridBubbleCount; // Use cached count instead of expensive .flat().filter()
         const mainBubbleCount = this.bubbles.length;
         console.log(`Grid bubbles: ${gridBubbleCount}, Main bubbles: ${mainBubbleCount}`);
         
@@ -1362,7 +1393,7 @@ class Game {
                         this.playSound('shoot');
                         
                         // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
-                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        const gridBubbleCount = this.gridBubbleCount;
                         safeLog('Grid bubbles available for collision:', gridBubbleCount);
                         
                         this.flyingBubbles.push(bubble);
@@ -1463,7 +1494,7 @@ class Game {
                         this.playSound('shoot');
                         
                         // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
-                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        const gridBubbleCount = this.gridBubbleCount;
                         safeLog('Grid bubbles available for collision:', gridBubbleCount);
                         
                         this.flyingBubbles.push(bubble);
@@ -1694,13 +1725,13 @@ class Game {
                 safeLog('Checking collision for first bubble:', {
                     bubblePos: { x: bubble.x, y: bubble.y },
                     gridOffsetY: this.gridOffsetY,
-                    gridBubbleCount: this.gridBubbles.flat().filter(b => b !== null).length,
+                    gridBubbleCount: this.gridBubbleCount,
                     gameStarted: this.gameStarted,
                     initializing: this.initializing
                 });
                 
                 // EMERGENCY FIX: If first shot doesn't find any grid bubbles to check, force system repair
-                const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                const gridBubbleCount = this.gridBubbleCount;
                 if (gridBubbleCount === 0) {
                     // console.log('🚨 EMERGENCY: No grid bubbles found for first shot! Forcing system repair...'); // Disabled for performance
                     this.forceCollisionSystemRepair();
@@ -2072,6 +2103,9 @@ class Game {
             bubble.snapPredicted = false; // Reset prediction flag
             this.gridBubbles[bestRow][bestCol] = bubble;
             
+            // PERFORMANCE OPTIMIZATION: Increment bubble count cache
+            this.incrementBubbleCount();
+            
             this.debugLogger.log('snap', 'Bubble successfully snapped to grid', {
                 finalPosition: { row: bestRow, col: bestCol, x: bubble.x, y: bubble.y },
                 color: bubble.color
@@ -2327,6 +2361,9 @@ class Game {
             bubble.removing = true;
             this.removingBubbles.push(bubble);
             this.bubblesCleared++;
+            
+            // PERFORMANCE OPTIMIZATION: Decrement bubble count cache
+            this.decrementBubbleCount();
         }
         
         // Add points
@@ -2362,6 +2399,9 @@ class Game {
                 bubble.vy = 1; // Initial falling speed
                 this.fallingBubbles.push(bubble);
                 this.bubblesCleared++;
+                
+                // PERFORMANCE OPTIMIZATION: Decrement bubble count cache
+                this.decrementBubbleCount();
             }
         }
     }
@@ -2473,6 +2513,9 @@ class Game {
                 this.gridBubbles[topEmptyRow][col] = bubble;
                 this.totalBubbles++;
                 
+                // PERFORMANCE OPTIMIZATION: Increment bubble count cache
+                this.incrementBubbleCount();
+                
                 this.debugLogger.log('add', 'New bubble added to top buffer row', {
                     position: { row: topEmptyRow, col: col, x: x, y: y },
                     color: color
@@ -2561,6 +2604,9 @@ class Game {
             bubble.vy = 0; // Ensure no velocity
             this.gridBubbles[topEmptyRow][col] = bubble;
             this.totalBubbles++;
+            
+            // PERFORMANCE OPTIMIZATION: Increment bubble count cache
+            this.incrementBubbleCount();
             
             this.debugLogger.log('add', 'New bubble added to top buffer row (continuous scroll)', {
                 position: { row: topEmptyRow, col: col, x: x, y: y },
