@@ -1,5 +1,15 @@
 // Bubble Shooter Game Implementation
 
+// Production mode flag - set to false only when debugging
+const PRODUCTION_MODE = true;
+
+// Safe logger function that respects production mode
+const safeLog = (...args) => {
+    if (!PRODUCTION_MODE) {
+        console.log(...args);
+    }
+};
+
 // Debug logging system
 class DebugLogger {
     constructor(enabled = false) {
@@ -1325,7 +1335,7 @@ class Game {
                 // CRITICAL: Check if enough time has passed since game start to prevent accidental shooting
                 const timeSinceStart = Date.now() - this.gameStartTime;
                 if (timeSinceStart < this.shootingDelay) {
-                    console.log('Shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
+                    safeLog('Shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
                     return;
                 }
                 
@@ -1345,15 +1355,15 @@ class Game {
                     clickY >= 0 && clickY <= this.canvas.height &&
                     !this.initializing) {
                     
-                    console.log('User clicked to shoot at:', { clickX, clickY, timeSinceStart });
+                    safeLog('User clicked to shoot at:', { clickX, clickY, timeSinceStart });
                     const bubble = this.shooter.shoot();
                     if (bubble) {
-                        console.log('Bubble shot created by user click');
+                        safeLog('Bubble shot created by user click');
                         this.playSound('shoot');
                         
                         // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
                         const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
-                        console.log('Grid bubbles available for collision:', gridBubbleCount);
+                        safeLog('Grid bubbles available for collision:', gridBubbleCount);
                         
                         this.flyingBubbles.push(bubble);
                         if (this.gameMode === "strategy") {
@@ -1425,7 +1435,7 @@ class Game {
                 // CRITICAL: Check if enough time has passed since game start to prevent accidental shooting
                 const timeSinceStart = Date.now() - this.gameStartTime;
                 if (timeSinceStart < this.shootingDelay) {
-                    console.log('Touch shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
+                    safeLog('Touch shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
                     return;
                 }
                 
@@ -1446,15 +1456,15 @@ class Game {
                     touchY >= 0 && touchY <= this.canvas.height &&
                     !this.initializing) {
                     
-                    console.log('User touched to shoot at:', { touchX, touchY, timeSinceStart });
+                    safeLog('User touched to shoot at:', { touchX, touchY, timeSinceStart });
                     const bubble = this.shooter.shoot();
                     if (bubble) {
-                        console.log('Bubble shot created by user touch');
+                        safeLog('Bubble shot created by user touch');
                         this.playSound('shoot');
                         
                         // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
                         const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
-                        console.log('Grid bubbles available for collision:', gridBubbleCount);
+                        safeLog('Grid bubbles available for collision:', gridBubbleCount);
                         
                         this.flyingBubbles.push(bubble);
                         if (this.gameMode === "strategy") {
@@ -1681,7 +1691,7 @@ class Game {
             
             // CRITICAL FIX: Add comprehensive debugging for initial collision issues
             if (i === 0 && this.flyingBubbles.length === 1) { // First flying bubble
-                console.log('Checking collision for first bubble:', {
+                safeLog('Checking collision for first bubble:', {
                     bubblePos: { x: bubble.x, y: bubble.y },
                     gridOffsetY: this.gridOffsetY,
                     gridBubbleCount: this.gridBubbles.flat().filter(b => b !== null).length,

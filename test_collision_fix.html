@@ -23,21 +23,7 @@
         <div id="debugOutput"></div>
     </div>
 
-    <script>
-        // Redirect console.log to debug output
-        const originalLog = console.log;
-        const debugOutput = document.getElementById('debugOutput');
-        
-        console.log = function(...args) {
-            originalLog.apply(console, args);
-            if (debugOutput) {
-                const div = document.createElement('div');
-                div.textContent = args.join(' ');
-                debugOutput.appendChild(div);
-                debugOutput.scrollTop = debugOutput.scrollHeight;
-            }
-        };
-    </script>
+    <!-- Console.log override completely removed for performance -->
     <script src="game.js"></script>
     <script>
         // Initialize game
@@ -50,7 +36,7 @@
         startBtn.addEventListener('click', () => {
             debugOutput.innerHTML = '<strong>Starting game...</strong><br>';
             game.startGame();
-            console.log('Game started - initial collision test');
+            // Console.log removed for performance
         });
         
         resetBtn.addEventListener('click', () => {
@@ -60,10 +46,10 @@
         
         // Auto-test collision after 2 seconds
         setTimeout(() => {
-            console.log('=== COLLISION TEST INFO ===');
-            console.log('Instructions: Click Start Game, then immediately click to fire a bubble at the initial cluster');
-            console.log('Expected: Bubble should stick to initial cluster immediately');
-            console.log('Watch debug output for collision detection details');
+            debugOutput.innerHTML += '<br>=== COLLISION TEST INFO ===<br>';
+            debugOutput.innerHTML += 'Instructions: Click Start Game, then immediately click to fire a bubble at the initial cluster<br>';
+            debugOutput.innerHTML += 'Expected: Bubble should stick to initial cluster immediately<br>';
+            debugOutput.innerHTML += 'Watch debug output for collision detection details<br>';
         }, 1000);
     </script>
 </body>
