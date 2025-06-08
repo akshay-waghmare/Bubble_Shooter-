@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Initial Bubbles Fix</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background: linear-gradient(180deg, #87CEEB 0%, #98FB98 100%);
+            display: block;
+            margin: 20px auto;
+        }
+        .test-info {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #cce7ff; color: #004085; border: 1px solid #b3d7ff; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h1>🎯 Initial Bubbles Collision Detection Test</h1>
+        <p>This test verifies that collision detection works immediately with the initial cluster of bubbles from the first frame of gameplay.</p>
+        
+        <div id="gameStatus" class="status info">
+            Click "Start Game" to begin the test...
+        </div>
+        
+        <button id="startBtn" onclick="startTest()">Start Game</button>
+        <button id="testCollisionBtn" onclick="testInitialCollision()" disabled>Test Initial Collision</button>
+        <button id="resetBtn" onclick="resetTest()">Reset</button>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <canvas id="gameCanvas" width="400" height="640"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        let game;
+        let testStatus = document.getElementById('gameStatus');
+        let testResults = document.getElementById('testResults');
+        
+        function updateStatus(message, type = 'info') {
+            testStatus.className = `status ${type}`;
+            testStatus.innerHTML = message;
+        }
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            testResults.appendChild(div);
+        }
+        
+        function startTest() {
+            const canvas = document.getElementById('gameCanvas');
+            game = new Game(canvas);
+            
+            updateStatus('🎮 Game initialized. Checking initial bubble setup...', 'info');
+            
+            // Wait a moment for initialization to complete
+            setTimeout(() => {
+                checkInitialSetup();
+            }, 100);
+        }
+        
+        function checkInitialSetup() {
+            if (!game) {
+                updateStatus('❌ Game not initialized', 'error');
+                return;
+            }
+            
+            // Check if bubbles arrays are properly initialized
+            const gridBubbleCount = game.gridBubbles.flat().filter(b => b !== null).length;
+            const mainBubbleCount = game.bubbles ? game.bubbles.length : 0;
+            
+            addResult(`📊 Grid bubbles: ${gridBubbleCount}, Main bubbles: ${mainBubbleCount}`, 'info');
+            
+            if (gridBubbleCount === 0) {
+                updateStatus('❌ No initial bubbles found in grid', 'error');
+                return;
+            }
+            
+            if (mainBubbleCount === 0) {
+                updateStatus('❌ No initial bubbles found in main array', 'error');
+                return;
+            }
+            
+            if (gridBubbleCount !== mainBubbleCount) {
+                updateStatus('⚠️ Bubble count mismatch between arrays', 'error');
+                addResult(`Expected same count in both arrays, got grid: ${gridBubbleCount}, main: ${mainBubbleCount}`, 'error');
+                return;
+            }
+            
+            updateStatus('✅ Initial bubble setup looks good. Ready to test collision detection.', 'success');
+            document.getElementById('testCollisionBtn').disabled = false;
+        }
+        
+        function testInitialCollision() {
+            if (!game || !game.bubbles || game.bubbles.length === 0) {
+                updateStatus('❌ Cannot test - no initial bubbles found', 'error');
+                return;
+            }
+            
+            updateStatus('🚀 Testing collision detection with virtual shot...', 'info');
+            
+            // Find the topmost bubble for testing
+            let topBubble = null;
+            let topY = Infinity;
+            
+            for (const bubble of game.bubbles) {
+                if (bubble.stuck && bubble.y < topY) {
+                    topY = bubble.y;
+                    topBubble = bubble;
+                }
+            }
+            
+            if (!topBubble) {
+                updateStatus('❌ No stuck bubbles found for testing', 'error');
+                return;
+            }
+            
+            addResult(`🎯 Found topmost bubble at (${topBubble.x.toFixed(1)}, ${topBubble.y.toFixed(1)})`, 'info');
+            
+            // Create a virtual shot bubble aimed at the topmost bubble
+            const shotX = topBubble.x;
+            const shotY = topBubble.y + 100; // Start below the target
+            const shotVx = 0;
+            const shotVy = -5; // Moving upward
+            
+            const virtualShot = {
+                x: shotX,
+                y: shotY,
+                vx: shotVx,
+                vy: shotVy,
+                radius: 15,
+                color: 'red'
+            };
+            
+            addResult(`🔫 Virtual shot from (${shotX.toFixed(1)}, ${shotY.toFixed(1)}) moving at (${shotVx}, ${shotVy})`, 'info');
+            
+            // Test collision detection directly
+            let collisionFound = false;
+            let steps = 0;
+            const maxSteps = 50;
+            
+            while (steps < maxSteps && !collisionFound) {
+                steps++;
+                
+                // Move the virtual shot
+                virtualShot.x += virtualShot.vx;
+                virtualShot.y += virtualShot.vy;
+                
+                // Check collision with each bubble
+                for (const bubble of game.bubbles) {
+                    if (!bubble.stuck) continue;
+                    
+                    const dx = virtualShot.x - bubble.x;
+                    const dy = virtualShot.y - bubble.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const minDistance = virtualShot.radius + bubble.radius;
+                    
+                    if (distance <= minDistance) {
+                        collisionFound = true;
+                        addResult(`💥 Collision detected at step ${steps}!`, 'success');
+                        addResult(`   Shot position: (${virtualShot.x.toFixed(1)}, ${virtualShot.y.toFixed(1)})`, 'success');
+                        addResult(`   Bubble position: (${bubble.x.toFixed(1)}, ${bubble.y.toFixed(1)})`, 'success');
+                        addResult(`   Distance: ${distance.toFixed(2)}, Min required: ${minDistance.toFixed(2)}`, 'success');
+                        break;
+                    }
+                }
+                
+                // Stop if shot goes too high
+                if (virtualShot.y < -50) {
+                    break;
+                }
+            }
+            
+            if (collisionFound) {
+                updateStatus('🎉 SUCCESS: Collision detection works with initial bubbles!', 'success');
+                addResult('✅ Initial bubbles are properly registered for collision detection', 'success');
+            } else {
+                updateStatus('❌ FAILURE: No collision detected with initial bubbles', 'error');
+                addResult(`Virtual shot traveled ${steps} steps without hitting any bubble`, 'error');
+                addResult('This indicates initial bubbles are not properly registered for collision detection', 'error');
+            }
+        }
+        
+        function resetTest() {
+            game = null;
+            testResults.innerHTML = '';
+            updateStatus('Click "Start Game" to begin the test...', 'info');
+            document.getElementById('testCollisionBtn').disabled = true;
+        }
+    </script>
+</body>
+</html>

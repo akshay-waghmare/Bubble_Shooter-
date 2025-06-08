@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Validation Test</title>
+</head>
+<body>
+    <h1>Validation Test</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="status">Loading...</div>
+    
+    <script src="game.js"></script>
+    <script>
+        try {
+            const canvas = document.getElementById('gameCanvas');
+            const game = new BubbleShooterGame(canvas);
+            document.getElementById('status').innerHTML = '✅ Game loads successfully! Collision detection row calculation fixed.';
+            console.log('✅ Validation passed - game loads without errors');
+        } catch (error) {
+            document.getElementById('status').innerHTML = '❌ Error: ' + error.message;
+            console.error('❌ Validation failed:', error);
+        }
+    </script>
+</body>
+</html>

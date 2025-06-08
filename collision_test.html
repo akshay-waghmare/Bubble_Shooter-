@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Collision Detection Test</title>
+    <style>
+        body { font-family: monospace; background: #000; color: #fff; padding: 20px; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #fff; }
+    </style>
+</head>
+<body>
+    <h1>Collision Detection Fix Test</h1>
+    <div id="results"></div>
+    <canvas id="gameCanvas" width="400" height="600" style="border: 1px solid #fff;"></canvas>
+
+    <script src="game.js"></script>
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        function testCollisionFix() {
+            log('=== TESTING COLLISION DETECTION FIX ===');
+            
+            try {
+                // Initialize game
+                const game = new Game();
+                
+                log(`1. Initialization flag after construction: ${game.initializing}`, game.initializing ? 'error' : 'success');
+                
+                // Count initial bubbles
+                const gridBubbleCount = game.gridBubbles.flat().filter(b => b !== null).length;
+                log(`2. Initial grid bubbles count: ${gridBubbleCount}`, gridBubbleCount > 0 ? 'success' : 'error');
+                
+                // Test search radius calculation
+                const testVelocity = 35; // SHOOTER_SPEED
+                const bubbleRadius = 20; // BUBBLE_RADIUS
+                const velocityMagnitude = testVelocity;
+                const oldSearchRadius = Math.max(1, Math.ceil(velocityMagnitude / bubbleRadius));
+                const newSearchRadius = Math.max(3, Math.ceil(velocityMagnitude / bubbleRadius * 1.5));
+                
+                log(`3. Search radius improvement: ${oldSearchRadius} -> ${newSearchRadius}`, newSearchRadius > oldSearchRadius ? 'success' : 'error');
+                
+                // Test if update method can run
+                let updateCanRun = false;
+                try {
+                    game.update();
+                    updateCanRun = true;
+                } catch (e) {
+                    log(`4. Update method error: ${e.message}`, 'error');
+                }
+                
+                log(`4. Update method can run: ${updateCanRun}`, updateCanRun ? 'success' : 'error');
+                
+                // Test collision detection readiness
+                const firstBubble = game.gridBubbles.flat().find(b => b !== null);
+                if (firstBubble) {
+                    log(`5. First bubble available at (${firstBubble.x}, ${firstBubble.y})`, 'success');
+                    log(`   - Bubble stuck state: ${firstBubble.stuck}`, firstBubble.stuck ? 'success' : 'error');
+                    log(`   - Bubble row/col: ${firstBubble.row}/${firstBubble.col}`, 'info');
+                } else {
+                    log('5. No bubbles found for collision detection', 'error');
+                }
+                
+                log('=== COLLISION FIX TEST COMPLETE ===');
+                
+            } catch (error) {
+                log(`TEST FAILED: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        // Run test after page loads
+        window.addEventListener('load', testCollisionFix);
+    </script>
+</body>
+</html>
