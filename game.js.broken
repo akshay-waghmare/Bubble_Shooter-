@@ -1,15 +1,5 @@
 // Bubble Shooter Game Implementation
 
-// Production mode flag - set to false only when debugging
-const PRODUCTION_MODE = true;
-
-// Safe logger function that respects production mode
-const safeLog = (...args) => {
-    if (!PRODUCTION_MODE) {
-        console.log(...args);
-    }
-};
-
 // Debug logging system
 class DebugLogger {
     constructor(enabled = false) {
@@ -34,8 +24,7 @@ class DebugLogger {
             data
         };
         
-        // Disabled console.log for performance optimization
-        // console.log(`[${category.toUpperCase()}] Frame ${this.frameCount}: ${message}`, data || '');
+        console.log(`[${category.toUpperCase()}] Frame ${this.frameCount}: ${message}`, data || '');
         
         // Store specific logs for analysis
         if (category === 'collision') {
@@ -220,15 +209,15 @@ class Bubble {
         this.trail = [];
         this.maxTrailLength = 8;
         
-        // DEBUG: Bubble creation logging disabled for performance
-        // console.log('BUBBLE CREATED:', {
-        //     position: { x: this.x, y: this.y },
-        //     color: this.color,
-        //     gridPos: { row: this.row, col: this.col },
-        //     stuck: this.stuck,
-        //     velocity: { vx: this.vx, vy: this.vy },
-        //     stackTrace: new Error().stack
-        // });
+        // DEBUG: Log every bubble creation with stack trace
+        console.log('BUBBLE CREATED:', {
+            position: { x: this.x, y: this.y },
+            color: this.color,
+            gridPos: { row: this.row, col: this.col },
+            stuck: this.stuck,
+            velocity: { vx: this.vx, vy: this.vy },
+            stackTrace: new Error().stack
+        });
     }
 
     draw(ctx) {
@@ -467,7 +456,7 @@ class Bubble {
 
 class Shooter {
     constructor(x, y) {
-        // console.log('SHOOTER CREATED:', { x, y }); // Disabled for performance
+        console.log('SHOOTER CREATED:', { x, y });
         this.x = x;
         this.y = y;
         this.angle = 0;
@@ -475,7 +464,7 @@ class Shooter {
         this.nextColor = this.getRandomColor();
         this.reloadTime = 300; // ms
         this.lastShot = 0;
-        // console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor }); // Disabled for performance
+        console.log('Shooter colors initialized:', { current: this.currentColor, next: this.nextColor });
     }
 
     getRandomColor() {
@@ -617,7 +606,7 @@ class Shooter {
     shoot() {
         if (!this.canShoot()) return null;
         
-        // console.log('SHOOTER SHOOTING - creating new bubble'); // Disabled for performance
+        console.log('SHOOTER SHOOTING - creating new bubble');
         
         this.lastShot = Date.now();
         
@@ -625,12 +614,12 @@ class Shooter {
         bubble.vx = Math.cos(this.angle) * SHOOTER_SPEED;
         bubble.vy = Math.sin(this.angle) * SHOOTER_SPEED;
         
-        // console.log('Shot bubble created:', { 
-        //     x: bubble.x, y: bubble.y, 
-        //     vx: bubble.vx, vy: bubble.vy, 
-        //     color: bubble.color,
-        //     stuck: bubble.stuck
-        // }); // Disabled for performance
+        console.log('Shot bubble created:', { 
+            x: bubble.x, y: bubble.y, 
+            vx: bubble.vx, vy: bubble.vy, 
+            color: bubble.color,
+            stuck: bubble.stuck
+        });
         
         // Update colors
         this.currentColor = this.nextColor;
@@ -646,7 +635,7 @@ class Shooter {
 
 class Game {
     constructor(canvas) {
-        // console.log('=== GAME CONSTRUCTOR START ==='); // Disabled for performance
+        console.log('=== GAME CONSTRUCTOR START ===');
         
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
@@ -660,17 +649,14 @@ class Game {
         canvas.width = maxWidth;
         canvas.height = portraitHeight;
         
-        // console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height }); // Disabled for performance
+        console.log('Canvas dimensions set:', { width: canvas.width, height: canvas.height });
         
         this.gridBubbles = []; // 2D array representing the grid of bubbles
         this.flyingBubbles = []; // Bubbles that are currently moving
         this.removingBubbles = []; // Bubbles that are being removed
         this.fallingBubbles = []; // Bubbles that are falling
         
-        // PERFORMANCE OPTIMIZATION: Bubble count cache to replace expensive .flat().filter() operations
-        this.gridBubbleCount = 0; // Cache for total number of bubbles in grid (replaces gridBubbles.flat().filter(b => b !== null).length)
-        
-        // console.log('Bubble arrays initialized'); // Disabled for performance
+        console.log('Bubble arrays initialized');
         
         // Initialize shooter as null - will be created in resizeCanvas
         this.shooter = null;
@@ -684,6 +670,7 @@ class Game {
         this.gameWon = false;
         this.bubblesCleared = 0;
         this.totalBubbles = 0;
+        this.touchStartTime = 0; // For touch event handling
         this.gameMode = "classic"; // classic, arcade, strategy
         this.difficulty = "novice"; // novice, easy, medium, hard, master
         this.shotsLeft = Infinity; // For strategy mode
@@ -747,54 +734,34 @@ class Game {
         ];
         this.finishLineY = 0; // Will be set in resizeCanvas
     
-        // console.log('=== CALLING setupEventListeners ==='); // Disabled for performance
+        console.log('=== CALLING setupEventListeners ===');
         this.setupEventListeners(); // This calls resizeCanvas which creates the shooter
         
-        // console.log('=== CALLING initGame ==='); // Disabled for performance
+        console.log('=== CALLING initGame ===');
         this.initGame(); // Initialize the game grid and basic setup
         
         // CRITICAL: Mark initialization as complete
         this.initializing = false;
-        // console.log('=== INITIALIZATION COMPLETE ==='); // Disabled for performance
+        console.log('=== INITIALIZATION COMPLETE ===');
         
-        // console.log('=== STARTING gameLoop ==='); // Disabled for performance
+        console.log('=== STARTING gameLoop ===');
         this.gameLoop(); // Start the rendering loop
         
-        // console.log('=== GAME CONSTRUCTOR END ==='); // Disabled for performance
-        // console.log('Final bubble counts:', {
-        //     gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
-        //     flyingBubbles: this.flyingBubbles.length,
-        //     fallingBubbles: this.fallingBubbles.length,
-        //     removingBubbles: this.removingBubbles.length
-        // }); // Disabled for performance
+        console.log('=== GAME CONSTRUCTOR END ===');
+        console.log('Final bubble counts:', {
+            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
     }
     
     start() {
-        console.log('=== GAME START ===');
         this.resizeCanvas(); // Ensure proper sizing before starting
-        
-        // Now initialize the game if it hasn't been already
-        console.log('=== CALLING initGame FROM start() ===');
-        this.initGame();
-        
-        // Mark the game as started and ready to play
-        this.gameStarted = true;
-        this.initializing = false; // Mark initialization as complete
+        this.gameStarted = true; // Mark game as started
         this.gameStartTime = Date.now(); // Record when game started
-        // console.log('Game started at:', this.gameStartTime); // Disabled for performance
+        console.log('Game started at:', this.gameStartTime);
         // Game loop is already running from constructor
-        
-        // Update player stats via FB Instant if available
-        if (typeof FBInstant !== 'undefined' && FBInstant.player) {
-            console.log("Updating FB Instant player stats");
-            FBInstant.player.setDataAsync({
-                gameMode: this.gameMode,
-                difficulty: this.difficulty,
-                lastPlayed: new Date().toISOString()
-            }).catch(error => console.warn("Error updating player stats:", error));
-        }
-        
-        console.log('=== GAME FULLY INITIALIZED AND READY TO PLAY ===');
     }
 
     loadHighScores() {
@@ -808,41 +775,10 @@ class Game {
         scores.sort((a, b) => b.score - a.score);
         if (scores.length > 10) scores.length = 10; // Keep only top 10
         localStorage.setItem('bubbleShooterHighScores', JSON.stringify(scores));
-        
-        // Save score to FB Instant leaderboard if available
-        if (typeof FBInstant !== 'undefined' && FBInstant.leaderboard) {
-            console.log("Saving score to FB Instant leaderboard:", score);
-            FBInstant.leaderboard.setScoreAsync('bubble_shooter_main', score)
-                .then(entry => console.log("Score saved to leaderboard:", entry))
-                .catch(error => console.error("Error saving score to leaderboard:", error));
-        }
-    }
-
-    // PERFORMANCE OPTIMIZATION: Bubble count cache methods
-    initializeBubbleCount() {
-        // Initialize the cache by counting all existing bubbles in the grid
-        this.gridBubbleCount = 0;
-        for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
-            for (let col = 0; col < GRID_COLS; col++) {
-                if (this.gridBubbles[row][col]) {
-                    this.gridBubbleCount++;
-                }
-            }
-        }
-    }
-
-    incrementBubbleCount() {
-        // Increment cache when a bubble is added to the grid
-        this.gridBubbleCount++;
-    }
-
-    decrementBubbleCount() {
-        // Decrement cache when a bubble is removed from the grid
-        this.gridBubbleCount = Math.max(0, this.gridBubbleCount - 1);
     }
 
     initGame() {
-        // console.log('=== INIT GAME START ==='); // Disabled for performance
+        console.log('=== INIT GAME START ===');
         
         this.gridBubbles = [];
         this.flyingBubbles = [];
@@ -854,11 +790,11 @@ class Game {
         this.gameOver = false;
         this.gameWon = false;
         
-        // console.log('Arrays cleared, bubble counts:', {
-        //     flyingBubbles: this.flyingBubbles.length,
-        //     fallingBubbles: this.fallingBubbles.length,
-        //     removingBubbles: this.removingBubbles.length
-        // }); // Disabled for performance
+        console.log('Arrays cleared, bubble counts:', {
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
         
         // Reset collision timing fix flag
         this.pendingNewRow = false;
@@ -881,19 +817,19 @@ class Game {
             }
         }
         
-        // console.log('Grid initialized'); // Disabled for performance
+        console.log('Grid initialized');
         
         // Create initial bubble grid based on difficulty
         const settings = this.difficultySettings[this.difficulty];
         const colorSubset = BUBBLE_COLORS.slice(0, settings.colors);
         
-        // console.log('Creating initial bubbles with settings:', settings); // Disabled for performance
+        console.log('Creating initial bubbles with settings:', settings);
         
         // Calculate maximum bubbles that can fit in the grid based on canvas width
         const maxBubblesPerRow = Math.floor((this.canvas.width - BUBBLE_RADIUS * 2) / GRID_COL_SPACING);
         const effectiveGridCols = Math.min(GRID_COLS, maxBubblesPerRow);
         
-        // console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols }); // Disabled for performance
+        console.log('Grid calculations:', { maxBubblesPerRow, effectiveGridCols });
 
         let bubblesCreated = 0;
         // Fill the entire buffer above AND only the top 2 visible rows for "falling stack" effect
@@ -923,7 +859,7 @@ class Game {
                     } else {
                         color = colorSubset[Math.floor(Math.random() * colorSubset.length)];
                     }
-                    // console.log('Creating grid bubble:', { row, col, x, y, color }); // Disabled for performance
+                    console.log('Creating grid bubble:', { row, col, x, y, color });
                     const bubble = new Bubble(x, y, color, row, col);
                     bubble.stuck = true;
                     bubble.vx = 0;
@@ -932,16 +868,14 @@ class Game {
                     this.bubbles.push(bubble);
                     this.totalBubbles++;
                     bubblesCreated++;
-                    
-                    // Note: Cache will be initialized later with initializeBubbleCount()
                 }
             }
         }
         
-        // console.log('Grid bubbles created:', bubblesCreated); // Disabled for performance
+        console.log('Grid bubbles created:', bubblesCreated);
         
         // CRITICAL FIX: Ensure collision detection works immediately by validating grid state
-        // console.log('=== INITIAL GRID VALIDATION ==='); // Disabled for performance
+        console.log('=== INITIAL GRID VALIDATION ===');
         let validBubbles = 0;
         let topBubbleScreenY = Infinity;
         
@@ -955,16 +889,16 @@ class Game {
                         topBubbleScreenY = screenY;
                     }
                     
-                    // Log first few valid bubbles for debugging (disabled for performance)
-                    // if (validBubbles <= 3) {
-                    //     console.log(`Valid bubble [${row},${col}]: buffer(${bubble.x}, ${bubble.y}) -> screen(${bubble.x}, ${screenY.toFixed(1)}), stuck=${bubble.stuck}`);
-                    // }
+                    // Log first few valid bubbles
+                    if (validBubbles <= 3) {
+                        console.log(`Valid bubble [${row},${col}]: buffer(${bubble.x}, ${bubble.y}) -> screen(${bubble.x}, ${screenY.toFixed(1)}), stuck=${bubble.stuck}`);
+                    }
                 }
             }
         }
         
-        // console.log(`Total valid bubbles: ${validBubbles}, topmost screen Y: ${topBubbleScreenY.toFixed(1)}`); // Disabled for performance
-        // console.log('Grid validation complete - collision detection should work'); // Disabled for performance
+        console.log(`Total valid bubbles: ${validBubbles}, topmost screen Y: ${topBubbleScreenY.toFixed(1)}`);
+        console.log('Grid validation complete - collision detection should work');
 
         // Set up game mode specifics
         if (this.gameMode === "strategy") {
@@ -973,22 +907,19 @@ class Game {
             this.timeLeft = 120; // 2 minutes for arcade mode
         }
         
-        // console.log('Final bubble counts after initGame:', { // Disabled for performance
-        //     gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
-        //     flyingBubbles: this.flyingBubbles.length,
-        //     fallingBubbles: this.fallingBubbles.length,
-        //     removingBubbles: this.removingBubbles.length
-        // });
+        console.log('Final bubble counts after initGame:', {
+            gridBubbles: this.gridBubbles.flat().filter(b => b !== null).length,
+            flyingBubbles: this.flyingBubbles.length,
+            fallingBubbles: this.fallingBubbles.length,
+            removingBubbles: this.removingBubbles.length
+        });
         
         // Verify grid integrity to ensure all positions are correct
         this.verifyGridIntegrity();
         
-        // PERFORMANCE OPTIMIZATION: Initialize bubble count cache
-        this.initializeBubbleCount();
-        
         // Verify all bubbles are properly in both arrays
-        // console.log('Verifying bubbles are in both arrays after initialization...'); // Disabled for performance
-        const gridBubbleCount = this.gridBubbleCount; // Use cached count instead of expensive .flat().filter()
+        console.log('Verifying bubbles are in both arrays after initialization...');
+        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
         const mainBubbleCount = this.bubbles.length;
         console.log(`Grid bubbles: ${gridBubbleCount}, Main bubbles: ${mainBubbleCount}`);
         
@@ -1383,10 +1314,33 @@ class Game {
             document.addEventListener('mousemove', (e) => {
                 if (!this.gameStarted || this.gameOver || this.gameWon || !this.shooter || this.initializing) return;
                 const rect = this.canvas.getBoundingClientRect();
-                this.mouseX = e.clientX - rect.left;
-                this.mouseY = e.clientY - rect.top;
+                
+                // Calculate the scaling factor between internal canvas size and displayed size
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                
+                // Adjust mouse coordinates to the internal canvas coordinate system
+                this.mouseX = (e.clientX - rect.left) * scaleX;
+                this.mouseY = (e.clientY - rect.top) * scaleY;
                 this.shooter.aimAt(this.mouseX, this.mouseY);
             });
+
+            // Add touch support for mobile devices
+            document.addEventListener('touchmove', (e) => {
+                if (!this.gameStarted || this.gameOver || this.gameWon || !this.shooter || this.initializing) return;
+                e.preventDefault(); // Prevent scrolling while aiming
+                const rect = this.canvas.getBoundingClientRect();
+                const touch = e.touches[0];
+                
+                // Calculate the scaling factor between internal canvas size and displayed size
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                
+                // Adjust touch coordinates to the internal canvas coordinate system
+                this.mouseX = (touch.clientX - rect.left) * scaleX;
+                this.mouseY = (touch.clientY - rect.top) * scaleY;
+                this.shooter.aimAt(this.mouseX, this.mouseY);
+            }, { passive: false });
 
             document.addEventListener('click', (e) => {
                 if (!this.gameStarted || !this.shooter || this.initializing) return;
@@ -1394,15 +1348,101 @@ class Game {
                 // CRITICAL: Check if enough time has passed since game start to prevent accidental shooting
                 const timeSinceStart = Date.now() - this.gameStartTime;
                 if (timeSinceStart < this.shootingDelay) {
-                    safeLog('Shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
+                    console.log('Ignoring too-early click:', timeSinceStart, 'ms since game start');
                     return;
                 }
                 
-                if (this.gameOver || this.gameWon) {
-                    // Restart the game if it's over
-                    this.restartGame();
-                    return;
+                const rect = this.canvas.getBoundingClientRect();
+                
+                // Calculate the scaling factor between internal canvas size and displayed size
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                
+                // Adjusted click coordinates to the internal canvas coordinate system
+                const clickX = (e.clientX - rect.left) * scaleX;
+                const clickY = (e.clientY - rect.top) * scaleY;
+                
+                if (clickY < this.finishLineY && 
+                    !this.shooter.bubble.shot && 
+                    !this.activeBubble) {
+                    
+                    console.log('User clicked to shoot at:', { clickX, clickY, timeSinceStart });
+                    const bubble = this.shooter.shoot();
+                    if (bubble) {
+                        console.log('Bubble shot created by user click');
+                        this.playSound('shoot');
+                        
+                        // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
+                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        console.log('Grid bubbles available for collision:', gridBubbleCount);
+                        
+                        this.flyingBubbles.push(bubble);
+                        if (this.gameMode === "strategy") {
+                            this.shotsLeft--;
+                            if (this.shotsLeft <= 0) {
+                                this.gameOver = true;
+                            }
+                        }
+                    }
                 }
+            });
+            
+            // Touch start to record when the touch began
+            document.addEventListener('touchstart', (e) => {
+                this.touchStartTime = Date.now();
+            });
+            
+            // Touch end for shooting
+            document.addEventListener('touchend', (e) => {
+                if (!this.gameStarted || !this.shooter || this.initializing) return;
+                
+                // Check if it's a tap action (short touch)
+                if (this.touchStartTime && (Date.now() - this.touchStartTime < 300)) {
+                    const timeSinceStart = Date.now() - this.gameStartTime;
+                    if (timeSinceStart < this.shootingDelay) {
+                        console.log('Ignoring too-early touch:', timeSinceStart);
+                        return;
+                    }
+                    
+                    if (this.gameOver || this.gameWon) {
+                        // Restart the game if it's over
+                        this.restartGame();
+                        return;
+                    }
+                    
+                    e.preventDefault(); // Prevent default touch behavior
+                    
+                    const rect = this.canvas.getBoundingClientRect();
+                    const touch = e.changedTouches[0]; // Get the touch that ended
+                    
+                    // Calculate the scaling factor between internal canvas size and displayed size
+                    const scaleX = this.canvas.width / rect.width;
+                    const scaleY = this.canvas.height / rect.height;
+                    
+                    // Adjust touch coordinates to the internal canvas coordinate system
+                    const touchX = (touch.clientX - rect.left) * scaleX;
+                    const touchY = (touch.clientY - rect.top) * scaleY;
+                    
+                    // Only shoot if we're touching in the game area and bubble is available
+                    if (touchY < this.finishLineY && 
+                        this.shooter.bubble && !this.shooter.bubble.shot && 
+                        !this.activeBubble) {
+                        
+                        const bubble = this.shooter.shoot();
+                        if (bubble) {
+                            this.playSound('shoot');
+                            this.flyingBubbles.push(bubble);
+                            
+                            if (this.gameMode === "strategy") {
+                                this.shotsLeft--;
+                                if (this.shotsLeft <= 0) {
+                                    this.gameOver = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }, { passive: false });
 
                 // Only handle clicks when the canvas is clicked
                 const rect = this.canvas.getBoundingClientRect();
@@ -1414,15 +1454,15 @@ class Game {
                     clickY >= 0 && clickY <= this.canvas.height &&
                     !this.initializing) {
                     
-                    safeLog('User clicked to shoot at:', { clickX, clickY, timeSinceStart });
+                    console.log('User clicked to shoot at:', { clickX, clickY, timeSinceStart });
                     const bubble = this.shooter.shoot();
                     if (bubble) {
-                        safeLog('Bubble shot created by user click');
+                        console.log('Bubble shot created by user click');
                         this.playSound('shoot');
                         
                         // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
-                        const gridBubbleCount = this.gridBubbleCount;
-                        safeLog('Grid bubbles available for collision:', gridBubbleCount);
+                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        console.log('Grid bubbles available for collision:', gridBubbleCount);
                         
                         this.flyingBubbles.push(bubble);
                         if (this.gameMode === "strategy") {
@@ -1494,7 +1534,7 @@ class Game {
                 // CRITICAL: Check if enough time has passed since game start to prevent accidental shooting
                 const timeSinceStart = Date.now() - this.gameStartTime;
                 if (timeSinceStart < this.shootingDelay) {
-                    safeLog('Touch shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
+                    console.log('Touch shooting blocked - too soon after game start:', { timeSinceStart, delay: this.shootingDelay });
                     return;
                 }
                 
@@ -1515,15 +1555,15 @@ class Game {
                     touchY >= 0 && touchY <= this.canvas.height &&
                     !this.initializing) {
                     
-                    safeLog('User touched to shoot at:', { touchX, touchY, timeSinceStart });
+                    console.log('User touched to shoot at:', { touchX, touchY, timeSinceStart });
                     const bubble = this.shooter.shoot();
                     if (bubble) {
-                        safeLog('Bubble shot created by user touch');
+                        console.log('Bubble shot created by user touch');
                         this.playSound('shoot');
                         
                         // CRITICAL FIX: Ensure collision detection works immediately by verifying grid state
-                        const gridBubbleCount = this.gridBubbleCount;
-                        safeLog('Grid bubbles available for collision:', gridBubbleCount);
+                        const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
+                        console.log('Grid bubbles available for collision:', gridBubbleCount);
                         
                         this.flyingBubbles.push(bubble);
                         if (this.gameMode === "strategy") {
@@ -1554,72 +1594,43 @@ class Game {
     resizeCanvas() {
         console.log('=== RESIZE CANVAS START ===');
         
-        // Get the game screen container for better sizing
-        const gameScreen = document.getElementById('gameScreen');
-        const gameContainer = document.querySelector('.game-container');
+        // Calculate the ideal canvas size based on the window dimensions
+        // Using a 9:16 (portrait) aspect ratio like in many mobile games
+        const idealAspectRatio = 9/16;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        const windowAspectRatio = windowWidth / windowHeight;
         
-        // Calculate the ideal canvas size based on mobile device dimensions
-        // Using common mobile aspect ratios (typically between 9:16 and 9:19)
-        const idealAspectRatio = 9/19; // More elongated for modern phones
+        let canvasWidth, canvasHeight;
         
-        // Use container dimensions if available, otherwise window dimensions
-        const containerWidth = gameContainer.clientWidth || window.innerWidth;
-        const containerHeight = gameContainer.clientHeight || window.innerHeight;
-        
-        // Calculate dimensions specifically for mobile view
-        // Standard mobile resolution width is around 360-414px
-        const mobileWidth = 390; // Width of typical mobile device (iPhone/Android average)
-        const mobileHeight = mobileWidth / idealAspectRatio;
-        
-        // Calculate maximum available space with margins
-        // For mobile, we want to use as much of the screen as possible
-        const maxWidth = Math.min(containerWidth * 0.98, mobileWidth); 
-        const maxHeight = Math.min(containerHeight * 0.95, mobileHeight);
-        
-        // Determine actual display dimensions maintaining aspect ratio
-        let displayWidth, displayHeight;
-        
-        // Calculate display dimensions prioritizing height for mobile view
-        if (containerHeight > containerWidth) {
-            // Portrait orientation (typical mobile)
-            displayWidth = maxWidth;
-            displayHeight = Math.min(maxHeight, displayWidth / idealAspectRatio);
+        if (windowAspectRatio > idealAspectRatio) {
+            // Window is wider than our ideal aspect ratio, so use height as constraint
+            canvasHeight = Math.min(windowHeight * 0.9, 1280); // 90% of window height, max 1280px
+            canvasWidth = canvasHeight * idealAspectRatio;
         } else {
-            // Landscape orientation (tablet or desktop)
-            displayHeight = maxHeight;
-            displayWidth = Math.min(maxWidth, displayHeight * idealAspectRatio);
+            // Window is taller than our ideal aspect ratio, so use width as constraint
+            canvasWidth = Math.min(windowWidth * 0.95, 720); // 95% of window width, max 720px
+            canvasHeight = canvasWidth / idealAspectRatio;
         }
         
-        // Base game resolution: using mobile dimensions internally
-        const baseWidth = 390;
-        const baseHeight = 844; // iPhone 12/13 resolution as reference
+        // Base game resolution: 720x1280
+        const baseWidth = 720;
+        const baseHeight = 1280;
         
-        // Keep internal game dimensions consistent
+        // Keep internal game dimensions consistent while allowing responsive display
         this.canvas.width = baseWidth;
         this.canvas.height = baseHeight;
         
         // Apply CSS sizing for responsive display
-        this.canvas.style.width = `${Math.floor(displayWidth)}px`;
-        this.canvas.style.height = `${Math.floor(displayHeight)}px`;
+        this.canvas.style.width = `${Math.floor(canvasWidth)}px`;
+        this.canvas.style.height = `${Math.floor(canvasHeight)}px`;
         
-        // Mobile-specific styling
-        this.canvas.style.maxWidth = '100%';
-        this.canvas.style.maxHeight = '90vh';
-        
-        // Apply mobile-specific attributes
-        document.documentElement.style.setProperty('--game-width', `${displayWidth}px`);
-        document.documentElement.style.setProperty('--game-height', `${displayHeight}px`);
-        
-        // Log mobile-optimized dimensions
-        console.log('Mobile-optimized canvas dimensions:', {
-            baseWidth,
-            baseHeight,
-            displayWidth: Math.floor(displayWidth),
-            displayHeight: Math.floor(displayHeight),
-            devicePixelRatio: window.devicePixelRatio || 1
+        console.log('Canvas resized to:', { 
+            internalWidth: this.canvas.width, 
+            internalHeight: this.canvas.height,
+            displayWidth: canvasWidth,
+            displayHeight: canvasHeight
         });
-        
-        console.log('Canvas resized to:', { width: this.canvas.width, height: this.canvas.height });
         
         // Adjust bubble positioning based on canvas size
         const scaleFactor = this.canvas.width / (GRID_COLS * GRID_COL_SPACING + BUBBLE_RADIUS * 2);
@@ -1681,12 +1692,12 @@ class Game {
         this.collisionChecksThisFrame = 0;
         this.gridSnapsThisFrame = 0;
         
-        // Debug: Flying bubbles logging disabled for performance
-        // if (this.flyingBubbles.length > 0) {
-        //     console.log('Flying bubbles in update:', this.flyingBubbles.length, this.flyingBubbles.map(b => ({
-        //         x: b.x, y: b.y, vx: b.vx, vy: b.vy, stuck: b.stuck
-        //     })));
-        // }
+        // Debug: Log flying bubbles count each frame
+        if (this.flyingBubbles.length > 0) {
+            console.log('Flying bubbles in update:', this.flyingBubbles.length, this.flyingBubbles.map(b => ({
+                x: b.x, y: b.y, vx: b.vx, vy: b.vy, stuck: b.stuck
+            })));
+        }
         
         // Only update shooter and game logic if game has started and shooter exists
         if (this.gameStarted && this.shooter) {
@@ -1803,18 +1814,18 @@ class Game {
             
             // CRITICAL FIX: Add comprehensive debugging for initial collision issues
             if (i === 0 && this.flyingBubbles.length === 1) { // First flying bubble
-                safeLog('Checking collision for first bubble:', {
+                console.log('Checking collision for first bubble:', {
                     bubblePos: { x: bubble.x, y: bubble.y },
                     gridOffsetY: this.gridOffsetY,
-                    gridBubbleCount: this.gridBubbleCount,
+                    gridBubbleCount: this.gridBubbles.flat().filter(b => b !== null).length,
                     gameStarted: this.gameStarted,
                     initializing: this.initializing
                 });
                 
                 // EMERGENCY FIX: If first shot doesn't find any grid bubbles to check, force system repair
-                const gridBubbleCount = this.gridBubbleCount;
+                const gridBubbleCount = this.gridBubbles.flat().filter(b => b !== null).length;
                 if (gridBubbleCount === 0) {
-                    // console.log('🚨 EMERGENCY: No grid bubbles found for first shot! Forcing system repair...'); // Disabled for performance
+                    console.log('🚨 EMERGENCY: No grid bubbles found for first shot! Forcing system repair...');
                     this.forceCollisionSystemRepair();
                 }
             }
@@ -1825,17 +1836,17 @@ class Game {
             const approximateRow = Math.round((flyingBubbleBufferY - GRID_TOP_MARGIN) / GRID_ROW_HEIGHT);
             const approximateCol = Math.round((bubble.x - BUBBLE_RADIUS) / GRID_COL_SPACING);
             
-            // CRITICAL FIX: Debugging for first collision attempt (disabled for performance)
-            // if (i === 0 && this.flyingBubbles.length === 1) {
-            //     console.log('First collision check details:', {
-            //         flyingBubble: { x: bubble.x, y: bubble.y },
-            //         flyingBubbleBufferY: flyingBubbleBufferY,
-            //         gridOffsetY: this.gridOffsetY,
-            //         approximateRow: approximateRow,
-            //         approximateCol: approximateCol,
-            //         searchWillCheck: `rows ${Math.max(0, approximateRow - 1)}-${Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1)}, cols ${Math.max(0, approximateCol - 1)}-${Math.min(GRID_COLS - 1, approximateCol + 1)}`
-            //     });
-            // }
+            // CRITICAL FIX: Add detailed debugging for first collision attempt
+            if (i === 0 && this.flyingBubbles.length === 1) {
+                console.log('First collision check details:', {
+                    flyingBubble: { x: bubble.x, y: bubble.y },
+                    flyingBubbleBufferY: flyingBubbleBufferY,
+                    gridOffsetY: this.gridOffsetY,
+                    approximateRow: approximateRow,
+                    approximateCol: approximateCol,
+                    searchWillCheck: `rows ${Math.max(0, approximateRow - 1)}-${Math.min(TOTAL_GRID_ROWS - 1, approximateRow + 1)}, cols ${Math.max(0, approximateCol - 1)}-${Math.min(GRID_COLS - 1, approximateCol + 1)}`
+                });
+            }
             
             // Expand search radius for fast-moving bubbles to ensure reliable collision detection
             // For bullets moving at SHOOTER_SPEED (35px/frame), increase search radius significantly
@@ -1873,16 +1884,16 @@ class Game {
                                 collisionDistance: collisionDistance
                             });
                             
-                            // CRITICAL: First collision debugging (disabled for performance)
-                            // if (i === 0 && this.flyingBubbles.length === 1) {
-                            //     console.log('🎯 FIRST COLLISION DETECTED!', {
-                            //         flyingPos: { x: bubble.x, y: bubble.y },
-                            //         gridPos: { x: gridBubble.x, y: gridBubble.y, screenY: gridBubbleScreenY },
-                            //         distance: distance,
-                            //         threshold: collisionDistance,
-                            //         gridOffset: this.gridOffsetY
-                            //     });
-                            // }
+                            // CRITICAL: Log first collision for debugging initial issues
+                            if (i === 0 && this.flyingBubbles.length === 1) {
+                                console.log('🎯 FIRST COLLISION DETECTED!', {
+                                    flyingPos: { x: bubble.x, y: bubble.y },
+                                    gridPos: { x: gridBubble.x, y: gridBubble.y, screenY: gridBubbleScreenY },
+                                    distance: distance,
+                                    threshold: collisionDistance,
+                                    gridOffset: this.gridOffsetY
+                                });
+                            }
                         
                             // Enhanced collision response with smoother physics
                             bubble.handleCollisionWith(gridBubble, 0.2);
@@ -1892,19 +1903,19 @@ class Game {
                             collided = true;
                             break;
                         } else if (i === 0 && this.flyingBubbles.length === 1 && distance < collisionDistance * 1.5) {
-                            // Debug near-misses for first bubble (disabled for performance)
-                            // console.log('Near miss on first bubble:', {
-                            //     gridBubble: `[${row},${col}]`,
-                            //     distance: distance.toFixed(2),
-                            //     threshold: collisionDistance.toFixed(2),
-                            //     diff: (distance - collisionDistance).toFixed(2)
-                            // });
+                            // Debug near-misses for first bubble
+                            console.log('Near miss on first bubble:', {
+                                gridBubble: `[${row},${col}]`,
+                                distance: distance.toFixed(2),
+                                threshold: collisionDistance.toFixed(2),
+                                diff: (distance - collisionDistance).toFixed(2)
+                            });
                         }
                     } else if (i === 0 && this.flyingBubbles.length === 1) {
-                        // Log empty grid positions for first bubble (disabled for performance)
-                        // if (row >= BUFFER_ROWS_ABOVE && row < BUFFER_ROWS_ABOVE + 3) { // Check first 3 visible rows
-                        //     console.log(`First shot: empty position [${row},${col}] in visible area`);
-                        // }
+                        // Log empty grid positions for first bubble (debug why no collision target found)
+                        if (row >= BUFFER_ROWS_ABOVE && row < BUFFER_ROWS_ABOVE + 3) { // Check first 3 visible rows
+                            console.log(`First shot: empty position [${row},${col}] in visible area`);
+                        }
                     }
                 }
                 if (collided) break;
@@ -2184,9 +2195,6 @@ class Game {
             bubble.snapPredicted = false; // Reset prediction flag
             this.gridBubbles[bestRow][bestCol] = bubble;
             
-            // PERFORMANCE OPTIMIZATION: Increment bubble count cache
-            this.incrementBubbleCount();
-            
             this.debugLogger.log('snap', 'Bubble successfully snapped to grid', {
                 finalPosition: { row: bestRow, col: bestCol, x: bubble.x, y: bubble.y },
                 color: bubble.color
@@ -2442,9 +2450,6 @@ class Game {
             bubble.removing = true;
             this.removingBubbles.push(bubble);
             this.bubblesCleared++;
-            
-            // PERFORMANCE OPTIMIZATION: Decrement bubble count cache
-            this.decrementBubbleCount();
         }
         
         // Add points
@@ -2480,9 +2485,6 @@ class Game {
                 bubble.vy = 1; // Initial falling speed
                 this.fallingBubbles.push(bubble);
                 this.bubblesCleared++;
-                
-                // PERFORMANCE OPTIMIZATION: Decrement bubble count cache
-                this.decrementBubbleCount();
             }
         }
     }
@@ -2594,9 +2596,6 @@ class Game {
                 this.gridBubbles[topEmptyRow][col] = bubble;
                 this.totalBubbles++;
                 
-                // PERFORMANCE OPTIMIZATION: Increment bubble count cache
-                this.incrementBubbleCount();
-                
                 this.debugLogger.log('add', 'New bubble added to top buffer row', {
                     position: { row: topEmptyRow, col: col, x: x, y: y },
                     color: color
@@ -2685,9 +2684,6 @@ class Game {
             bubble.vy = 0; // Ensure no velocity
             this.gridBubbles[topEmptyRow][col] = bubble;
             this.totalBubbles++;
-            
-            // PERFORMANCE OPTIMIZATION: Increment bubble count cache
-            this.incrementBubbleCount();
             
             this.debugLogger.log('add', 'New bubble added to top buffer row (continuous scroll)', {
                 position: { row: topEmptyRow, col: col, x: x, y: y },
@@ -3127,9 +3123,19 @@ class Game {
     }
 }
 
-// Game.js - Main game implementation
-// This file should only contain the Game class and related game logic
-// UI initialization is now handled in app.js
+// Initialize menu and game when page loads
+window.addEventListener('load', () => {
+    const canvas = document.getElementById('gameCanvas');
+    const gameMenu = document.getElementById('gameMenu');
+    const gameScreen = document.getElementById('gameScreen');
+    const startGameBtn = document.getElementById('startGame');
+    const backToMenuBtn = document.getElementById('backToMenu');
+    const toggleSoundBtn = document.getElementById('toggleSound');
+    
+    let game = null;
+    let selectedGameMode = 'classic';
+    let selectedDifficulty = 'novice';
+    let soundEnabled = true;
 
     // Handle game mode selection
     const gameModeButtons = document.querySelectorAll('.button-group button[data-mode]');
@@ -3151,106 +3157,28 @@ class Game {
         });
     });
 
-    // Function to start the game - exposed to window scope for FB Instant
-    function startGameFunction() {
-        console.log("Starting the game with the following settings:");
-        console.log("- Game Mode:", selectedGameMode);
-        console.log("- Difficulty:", selectedDifficulty);
-        console.log("- Sound:", soundEnabled ? "On" : "Off");
+    // Start Game button
+    startGameBtn.addEventListener('click', () => {
+        gameMenu.style.display = 'none';
+        gameScreen.style.display = 'block';
+        document.body.classList.add('game-active'); // Add class for responsive styling
         
-        try {
-            // Hide menu and show game
-            if (gameMenu) gameMenu.style.display = 'none';
-            if (gameScreen) gameScreen.style.display = 'flex'; // Use flex display instead of block
-            document.body.classList.add('game-active'); // Add game-active class to body
-            
-            console.log("Creating new Game instance");
-            // Initialize game with selected settings
-            game = new Game(canvas);
-            
-            // Ensure proper sizing
-            setTimeout(() => {
-                if (game) {
-                    console.log("Resizing canvas");
-                    game.resizeCanvas();
-                }
-            }, 10);
-            
-            console.log("Setting game properties");
-            game.gameMode = selectedGameMode;
-            game.difficulty = selectedDifficulty;
-            game.soundEnabled = soundEnabled;
-            
-            console.log("Starting the game - this will initialize everything");
-            game.start(); // Start the game with the chosen settings
-            console.log("Game started successfully");
-        } catch (error) {
-            console.error("Error starting the game:", error);
-        }
-    }
-    
-    // Expose startGame function to window scope for FB Instant
-    // Expose the game and start function globally for both FBInstant and direct usage
-    window.startGame = startGameFunction;
-    window.Game = Game; // Expose Game class
-    
-    // IMPORTANT: We're removing the click handler here as it's causing conflicts
-    // The startup-fix.js will manage this event listener in a cleaner way
-    console.log("Skipping direct startGameBtn event listener in game.js - handled by startup-fix.js");
-    
-    // NOTE: The original direct click handler is now removed to prevent duplicate initialization
+        // Initialize game with selected settings
+        game = new Game(canvas);
+        game.gameMode = selectedGameMode;
+        game.difficulty = selectedDifficulty;
+        game.soundEnabled = soundEnabled;
+        game.start(); // Start the game with the chosen settings
+    });
 
     // Back to Menu button
     backToMenuBtn.addEventListener('click', () => {
-        // Reset display properties
         gameScreen.style.display = 'none';
         gameMenu.style.display = 'block';
-        
-        // Remove game-active class from body
-        document.body.classList.remove('game-active');
-        
-        // Clean up canvas if needed
-        if (game) {
-            // Stop game loops or animations if needed
-            game = null; // Allow garbage collection
-        }
+        document.body.classList.remove('game-active'); // Remove class when returning to menu
     });
 
-    // Show Leaderboard button
-    showLeaderboardBtn.addEventListener('click', () => {
-        gameMenu.style.display = 'none';
-        leaderboard.style.display = 'block';
-        
-        // Populate leaderboard
-        const scores = localStorage.getItem('bubbleShooterHighScores');
-        const scoresList = document.getElementById('scoresList');
-        scoresList.innerHTML = '';
-        
-        if (scores) {
-            const parsedScores = JSON.parse(scores);
-            parsedScores.forEach((score, index) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${index + 1}</td>
-                    <td>${score.score}</td>
-                    <td>${score.mode}</td>
-                    <td>${score.difficulty}</td>
-                    <td>${new Date(score.date).toLocaleDateString()}</td>
-                `;
-                scoresList.appendChild(row);
-            });
-        } else {
-            const row = document.createElement('tr');
-            row.innerHTML = '<td colspan="5">No high scores yet!</td>';
-            scoresList.appendChild(row);
-        }
-    });
-
-    // Back to Menu from Leaderboard button
-    backToMenuFromLeaderboardBtn.addEventListener('click', () => {
-        leaderboard.style.display = 'none';
-        gameMenu.style.display = 'block';
-    });
+    // Leaderboard functionality removed
 
     // Toggle Sound button
     toggleSoundBtn.addEventListener('click', () => {
@@ -3290,7 +3218,5 @@ class Game {
             canvas.style.height = `${Math.floor(canvasHeight)}px`;
         }
     });
-
-// Explicitly expose the Game class to the window object to ensure it's available
-console.log("Explicitly exposing Game class to window object");
-window.Game = Game;
+});
+// End of document ready function
