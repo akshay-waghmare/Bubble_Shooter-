@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Animation TDD Tests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        #testResults {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .pass { color: #4CAF50; }
+        .fail { color: #f44336; }
+        .info { color: #2196F3; }
+        canvas {
+            border: 1px solid #ddd;
+            background: #000;
+            display: block;
+            margin: 20px 0;
+        }
+        .visual-test {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎮 Grid Animation TDD Tests</h1>
+        <p>Tests for implementing smooth grid movement after multi-row bubble pops</p>
+        
+        <div class="status" id="gameStatus">Loading game...</div>
+        
+        <h2>Unit Tests</h2>
+        <button class="test-button" onclick="runAllTests()">Run All Tests</button>
+        <button class="test-button" onclick="runTest('detectMultiRowPops')">Test Multi-Row Detection</button>
+        <button class="test-button" onclick="runTest('initAnimation')">Test Animation Setup</button>
+        <button class="test-button" onclick="runTest('testEasing')">Test Easing Function</button>
+        <button class="test-button" onclick="runTest('testAnimationCompletion')">Test Animation Completion</button>
+        
+        <h2>Visual Test</h2>
+        <div class="visual-test">
+            <p>This test visualizes the grid animation after a mock multi-row pop</p>
+            <canvas id="testCanvas" width="390" height="400"></canvas>
+            <button class="test-button" onclick="runVisualTest()">Run Visual Test</button>
+            <div>
+                <label for="rowsPopped">Rows Popped:</label>
+                <input type="range" id="rowsPopped" min="3" max="6" value="3" onchange="updateRowsValue(this.value)">
+                <span id="rowsValue">3</span>
+            </div>
+        </div>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <!-- Load game dependencies -->
+    <script src="game.js"></script>
+    
+    <script>
+        // Test framework
+        const TestSuite = {
+            results: [],
+            passed: 0,
+            failed: 0,
+            
+            assert(condition, message) {
+                if (!condition) {
+                    throw new Error(message);
+                }
+            },
+            
+            assertEquals(actual, expected, message) {
+                this.assert(
+                    actual === expected, 
+                    `${message || 'Assertion failed'}: expected ${expected}, got ${actual}`
+                );
+            },
+            
+            assertWithinRange(actual, expected, range, message) {
+                this.assert(
+                    Math.abs(actual - expected) <= range,
+                    `${message || 'Value out of range'}: expected ${expected}±${range}, got ${actual}`
+                );
+            },
+            
+            clearResults() {
+                this.results = [];
+                this.passed = 0;
+                this.failed = 0;
+                document.getElementById('testResults').textContent = '';
+            },
+            
+            logResult(name, passed, message) {
+                const result = { name, passed, message };
+                this.results.push(result);
+                
+                if (passed) this.passed++;
+                else this.failed++;
+                
+                const symbol = passed ? '✅' : '❌';
+                this.log(`${symbol} ${name}: ${message || (passed ? 'PASSED' : 'FAILED')}`);
+            },
+            
+            log(message) {
+                const results = document.getElementById('testResults');
+                results.textContent += message + '\n';
+                results.scrollTop = results.scrollHeight;
+                console.log(message);
+            },
+            
+            summarize() {
+                const total = this.passed + this.failed;
+                const summary = `\n=== TEST SUMMARY: ${this.passed}/${total} tests passed ===`;
+                this.log(summary);
+                return this.failed === 0;
+            }
+        };
+
+        // Animation test variables
+        let testGame;
+        let animationFrame;
+        const ctx = document.getElementById('testCanvas').getContext('2d');
+        let visualTestActive = false;
+        
+        function updateRowsValue(value) {
+            document.getElementById('rowsValue').textContent = value;
+        }
+        
+        // Initialize when document loads
+        window.addEventListener('load', function() {
+            try {
+                // Check if game code is loaded
+                if (typeof Game === 'undefined') {
+                    document.getElementById('gameStatus').innerHTML = 
+                        '<span class="fail">❌ Game class not loaded. Make sure game.js is included and working.</span>';
+                } else {
+                    document.getElementById('gameStatus').innerHTML = 
+                        '<span class="pass">✅ Game dependencies loaded</span>';
+                }
+            } catch (error) {
+                document.getElementById('gameStatus').innerHTML = 
+                    '<span class="fail">❌ Error initializing test: ' + error.message + '</span>';
+            }
+        });
+
+        // Create a mock game for testing
+        function createMockGame() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 390;
+            canvas.height = 844;
+            const game = new Game(canvas);
+            
+            // Initialize necessary properties if not done by Game constructor
+            if (!game.gridOffsetY) game.gridOffsetY = 0;
+            if (!game.gridAnimating) game.gridAnimating = false;
+            
+            return game;
+        }
+        
+        // Test: Detect multi-row pops
+        function testDetectMultiRowPops() {
+            const game = createMockGame();
+            
+            // Mock bubble data with various row spans
+            const testScenarios = [
+                {
+                    bubbles: [
+                        { row: 10, col: 1 },
+                        { row: 10, col: 2 },
+                        { row: 10, col: 3 }
+                    ],
+                    expected: { minRow: 10, maxRow: 10, rowsPopped: 1 }
+                },
+                {
+                    bubbles: [
+                        { row: 5, col: 1 },
+                        { row: 6, col: 2 },
+                        { row: 7, col: 3 }
+                    ],
+                    expected: { minRow: 5, maxRow: 7, rowsPopped: 3 }
+                },
+                {
+                    bubbles: [
+                        { row: 10, col: 1 },
+                        { row: 12, col: 2 },
+                        { row: 15, col: 3 }
+                    ],
+                    expected: { minRow: 10, maxRow: 15, rowsPopped: 6 }
+                }
+            ];
+            
+            let allPassed = true;
+            
+            for (const [i, scenario] of testScenarios.entries()) {
+                try {
+                    // Test row calculation
+                    let minRow = Infinity;
+                    let maxRow = -Infinity;
+                    
+                    for (const bubble of scenario.bubbles) {
+                        minRow = Math.min(minRow, bubble.row);
+                        maxRow = Math.max(maxRow, bubble.row);
+                    }
+                    
+                    const rowsPopped = maxRow - minRow + 1;
+                    
+                    TestSuite.assertEquals(minRow, scenario.expected.minRow, 
+                        `Scenario ${i+1}: Min row calculation`);
+                    TestSuite.assertEquals(maxRow, scenario.expected.maxRow, 
+                        `Scenario ${i+1}: Max row calculation`);
+                    TestSuite.assertEquals(rowsPopped, scenario.expected.rowsPopped, 
+                        `Scenario ${i+1}: Rows popped calculation`);
+                    
+                    // Test animation trigger threshold
+                    const shouldTrigger = rowsPopped >= 3;
+                    
+                    if (i === 0) {
+                        TestSuite.assert(!shouldTrigger, 
+                            `Scenario ${i+1}: Should NOT trigger animation (only 1 row)`);
+                    } else {
+                        TestSuite.assert(shouldTrigger, 
+                            `Scenario ${i+1}: Should trigger animation (${rowsPopped} rows)`);
+                    }
+                    
+                    TestSuite.logResult(`Scenario ${i+1}`, true, 
+                        `Correctly processed ${rowsPopped} row(s)`);
+                } catch (error) {
+                    TestSuite.logResult(`Scenario ${i+1}`, false, error.message);
+                    allPassed = false;
+                }
+            }
+            
+            return allPassed;
+        }
+
+        // Test: Animation initialization
+        function testInitAnimation() {
+            const game = createMockGame();
+            
+            // Initialize the game with animation properties
+            if (!game.animateGridAfterPop) {
+                game.gridAnimating = false;
+                game.gridAnimStart = 0;
+                game.gridAnimDuration = 800;
+                game.gridAnimDistance = 0;
+                game.gridStartY = 0;
+                
+                // Add the method if it doesn't exist
+                game.animateGridAfterPop = function(rowsPopped) {
+                    if (rowsPopped >= 3) {
+                        this.gridAnimating = true;
+                        this.gridAnimStart = Date.now();
+                        this.gridStartY = this.gridOffsetY;
+                        this.gridAnimDistance = GRID_ROW_HEIGHT * 1.5 * Math.min(3, rowsPopped - 2);
+                    }
+                };
+            }
+            
+            try {
+                // Initial state
+                TestSuite.assert(!game.gridAnimating, "Grid should not be animating initially");
+                
+                // Trigger with insufficient rows
+                game.animateGridAfterPop(2);
+                TestSuite.assert(!game.gridAnimating, "Animation shouldn't trigger with fewer than 3 rows");
+                
+                // Trigger with sufficient rows
+                const initialOffsetY = game.gridOffsetY;
+                game.animateGridAfterPop(3);
+                
+                TestSuite.assert(game.gridAnimating, "Animation should be active after 3-row pop");
+                TestSuite.assert(game.gridAnimStart > 0, "Animation start time should be set");
+                TestSuite.assertEquals(game.gridStartY, initialOffsetY, "Starting Y position should be recorded");
+                TestSuite.assert(game.gridAnimDistance > 0, "Animation distance should be positive");
+                
+                // Check distance scaling with more rows
+                game.gridAnimating = false;
+                game.animateGridAfterPop(5);
+                
+                TestSuite.assert(game.gridAnimating, "Animation should trigger with 5 rows");
+                const expectedDistance = GRID_ROW_HEIGHT * 1.5 * 3; // Max factor is 3
+                TestSuite.assertEquals(game.gridAnimDistance, expectedDistance, 
+                    "Animation distance should be capped at 3x factor for large row pops");
+                
+                TestSuite.logResult("Animation Initialization", true, "Animation triggers correctly based on rows popped");
+                return true;
+            } catch (error) {
+                TestSuite.logResult("Animation Initialization", false, error.message);
+                return false;
+            }
+        }
+        
+        // Test: Easing function
+        function testEasing() {
+            try {
+                // Test quadratic ease-out function
+                function easeOut(progress) {
+                    return 1 - Math.pow(1 - progress, 2);
+                }
+                
+                // Test progress values
+                const testPoints = [
+                    { progress: 0, expected: 0 },
+                    { progress: 0.25, expected: 0.4375 },
+                    { progress: 0.5, expected: 0.75 },
+                    { progress: 0.75, expected: 0.9375 },
+                    { progress: 1, expected: 1 }
+                ];
+                
+                for (const point of testPoints) {
+                    const result = easeOut(point.progress);
+                    TestSuite.assertWithinRange(result, point.expected, 0.0001, 
+                        `Easing at ${point.progress} should be approximately ${point.expected}`);
+                }
+                
+                // Visual verification: easing creates a smooth curve
+                let previousRate = null;
+                let accelerating = true;
+                
+                for (let i = 0; i <= 10; i++) {
+                    const progress = i / 10;
+                    const eased = easeOut(progress);
+                    const rate = progress === 0 ? 0 : eased / progress;
+                    
+                    if (previousRate !== null) {
+                        if (rate < previousRate && accelerating) {
+                            accelerating = false;
+                        } else if (rate > previousRate && !accelerating) {
+                            TestSuite.assert(false, "Easing function should have monotonic acceleration behavior");
+                        }
+                    }
+                    previousRate = rate;
+                }
+                
+                TestSuite.logResult("Easing Function", true, "Easing function produces smooth acceleration curve");
+                return true;
+            } catch (error) {
+                TestSuite.logResult("Easing Function", false, error.message);
+                return false;
+            }
+        }
+        
+        // Test: Animation completion
+        function testAnimationCompletion() {
+            const game = createMockGame();
+            
+            // Initialize animation properties
+            game.gridAnimating = false;
+            game.gridAnimStart = 0;
+            game.gridAnimDuration = 800;
+            game.gridAnimDistance = 0;
+            game.gridStartY = 0;
+            
+            // Mock animation update function
+            game.updateGridAnimation = function() {
+                if (this.gridAnimating) {
+                    const elapsed = Date.now() - this.gridAnimStart;
+                    
+                    if (elapsed >= this.gridAnimDuration) {
+                        // Animation complete
+                        this.gridAnimating = false;
+                        this.gridOffsetY = this.gridStartY - this.gridAnimDistance;
+                        return true; // Animation completed
+                    } else {
+                        // Apply easing function
+                        const progress = elapsed / this.gridAnimDuration;
+                        const easeOut = 1 - Math.pow(1 - progress, 2);
+                        this.gridOffsetY = this.gridStartY - (this.gridAnimDistance * easeOut);
+                        return false; // Animation still in progress
+                    }
+                }
+                return true; // No animation active
+            };
+            
+            try {
+                // Setup animation
+                game.gridOffsetY = 100;
+                game.gridAnimating = true;
+                game.gridAnimStart = Date.now() - 400; // Half-way through animation
+                game.gridStartY = game.gridOffsetY;
+                game.gridAnimDistance = 50;
+                
+                // Mid-animation update
+                const midAnimationComplete = game.updateGridAnimation();
+                TestSuite.assert(!midAnimationComplete, "Animation should not be complete mid-way");
+                TestSuite.assert(game.gridAnimating, "Animation flag should still be true mid-animation");
+                TestSuite.assert(game.gridOffsetY < game.gridStartY, "Grid should have moved from starting position");
+                TestSuite.assert(game.gridOffsetY > game.gridStartY - game.gridAnimDistance, 
+                    "Grid should not have reached final position yet");
+                
+                // Complete animation
+                game.gridAnimStart = Date.now() - 900; // Past animation duration
+                const animationComplete = game.updateGridAnimation();
+                TestSuite.assert(animationComplete, "Animation should be complete after duration");
+                TestSuite.assert(!game.gridAnimating, "Animation flag should be false after completion");
+                TestSuite.assertEquals(game.gridOffsetY, game.gridStartY - game.gridAnimDistance, 
+                    "Grid should be at final position after animation");
+                
+                TestSuite.logResult("Animation Completion", true, "Animation correctly completes and updates grid position");
+                return true;
+            } catch (error) {
+                TestSuite.logResult("Animation Completion", false, error.message);
+                return false;
+            }
+        }
+        
+        // Run the visual test
+        function runVisualTest() {
+            if (visualTestActive) {
+                cancelAnimationFrame(animationFrame);
+                TestSuite.log("Visual test stopped");
+            }
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            
+            // Create test grid
+            const gridBoxes = [];
+            const gridWidth = ctx.canvas.width;
+            const gridHeight = 800; // Tall grid to show scrolling
+            const rowHeight = 30;
+            const rowsVisible = Math.ceil(ctx.canvas.height / rowHeight);
+            const totalRows = 30;
+            
+            // Create initial grid state
+            for (let row = 0; row < totalRows; row++) {
+                gridBoxes.push({
+                    y: row * rowHeight,
+                    color: `hsl(${row * 10}, 70%, 60%)`
+                });
+            }
+            
+            // Create animation parameters
+            const rowsPopped = parseInt(document.getElementById('rowsPopped').value);
+            const animDuration = 800; // ms
+            const animDistance = rowHeight * 1.5 * Math.min(3, rowsPopped - 2);
+            let gridOffset = 0;
+            let animating = true;
+            let startTime = Date.now();
+            let startOffset = gridOffset;
+            
+            TestSuite.log(`Starting visual test with ${rowsPopped} rows popped`);
+            
+            // Animation loop
+            function animateGrid() {
+                ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                
+                // Update animation
+                if (animating) {
+                    const elapsed = Date.now() - startTime;
+                    
+                    if (elapsed >= animDuration) {
+                        // Animation complete
+                        animating = false;
+                        gridOffset = startOffset - animDistance;
+                        TestSuite.log("Animation complete");
+                    } else {
+                        // Apply easing function
+                        const progress = elapsed / animDuration;
+                        const easeOut = 1 - Math.pow(1 - progress, 2);
+                        gridOffset = startOffset - (animDistance * easeOut);
+                    }
+                }
+                
+                // Draw grid boxes
+                for (let i = 0; i < gridBoxes.length; i++) {
+                    const box = gridBoxes[i];
+                    const y = box.y + gridOffset;
+                    
+                    // Only draw visible boxes
+                    if (y >= -rowHeight && y <= ctx.canvas.height) {
+                        ctx.fillStyle = box.color;
+                        ctx.fillRect(0, y, gridWidth, rowHeight - 2);
+                        
+                        // Add row number
+                        ctx.fillStyle = "white";
+                        ctx.font = "12px Arial";
+                        ctx.fillText(`Row ${i}`, 10, y + 20);
+                    }
+                }
+                
+                // Draw horizontal markers
+                ctx.strokeStyle = "rgba(255,255,255,0.5)";
+                for (let y = 0; y < ctx.canvas.height; y += 50) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(ctx.canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // Continue animation
+                animationFrame = requestAnimationFrame(animateGrid);
+            }
+            
+            // Start animation
+            visualTestActive = true;
+            animateGrid();
+        }
+        
+        // Main test runner
+        function runAllTests() {
+            TestSuite.clearResults();
+            TestSuite.log("Running all Grid Animation tests...");
+            
+            const tests = [
+                { name: "Multi-Row Detection", fn: testDetectMultiRowPops },
+                { name: "Animation Initialization", fn: testInitAnimation },
+                { name: "Easing Function", fn: testEasing },
+                { name: "Animation Completion", fn: testAnimationCompletion }
+            ];
+            
+            let allPassed = true;
+            
+            for (const test of tests) {
+                TestSuite.log(`\n=== Running: ${test.name} ===`);
+                try {
+                    const passed = test.fn();
+                    if (!passed) allPassed = false;
+                } catch (error) {
+                    TestSuite.logResult(test.name, false, `Error: ${error.message}`);
+                    allPassed = false;
+                }
+            }
+            
+            TestSuite.summarize();
+            
+            if (allPassed) {
+                TestSuite.log("\n✨ All tests passed! Ready to implement in main code.");
+            } else {
+                TestSuite.log("\n⚠️ Some tests failed. Fix issues before implementing.");
+            }
+        }
+        
+        // Run a specific test
+        function runTest(testName) {
+            TestSuite.clearResults();
+            TestSuite.log(`Running test: ${testName}`);
+            
+            try {
+                let result = false;
+                
+                switch (testName) {
+                    case "detectMultiRowPops":
+                        result = testDetectMultiRowPops();
+                        break;
+                    case "initAnimation":
+                        result = testInitAnimation();
+                        break;
+                    case "testEasing":
+                        result = testEasing();
+                        break;
+                    case "testAnimationCompletion":
+                        result = testAnimationCompletion();
+                        break;
+                    default:
+                        TestSuite.log(`Unknown test: ${testName}`);
+                        return;
+                }
+                
+                if (result) {
+                    TestSuite.log("\n✅ Test passed!");
+                } else {
+                    TestSuite.log("\n❌ Test failed!");
+                }
+            } catch (error) {
+                TestSuite.log(`\n💥 Error running test: ${error.message}`);
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

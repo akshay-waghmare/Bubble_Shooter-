@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viewport Animation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        #testResults {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .pass { color: #4CAF50; }
+        .fail { color: #f44336; }
+        .info { color: #2196F3; }
+        canvas {
+            border: 1px solid #ddd;
+            background: #000;
+        }
+        .grid-container {
+            position: relative;
+            width: 390px;
+            height: 400px;
+            overflow: hidden;
+            border: 2px solid #333;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎮 Viewport Animation Test</h1>
+        <p>Testing grid animation with new viewport visibility requirement</p>
+        
+        <div class="status" id="gameStatus">Loading game...</div>
+        
+        <div class="grid-container">
+            <canvas id="testCanvas" width="390" height="400"></canvas>
+        </div>
+        
+        <button class="test-button" onclick="testAnimationTrigger('in-viewport')">Test In-Viewport Animation</button>
+        <button class="test-button" onclick="testAnimationTrigger('off-viewport')">Test Off-Viewport (No Animation)</button>
+        <button class="test-button" onclick="testAnimationTrigger('mixed')">Test Mixed Bubbles</button>
+        <button class="test-button" onclick="checkAnimationDuration()">Check Animation Duration</button>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <!-- Load game dependencies -->
+    <script src="game.js"></script>
+    
+    <script>
+        // Test utilities
+        function log(message) {
+            const results = document.getElementById('testResults');
+            results.textContent += message + '\n';
+            results.scrollTop = results.scrollHeight;
+            console.log(message);
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').textContent = '';
+        }
+        
+        // Create a game instance for testing
+        let testGame;
+        let ctx;
+        
+        // Initialize when document loads
+        window.addEventListener('load', function() {
+            try {
+                // Check if game code is loaded
+                if (typeof Game === 'undefined') {
+                    document.getElementById('gameStatus').innerHTML = 
+                        '<span class="fail">❌ Game class not loaded. Make sure game.js is included and working.</span>';
+                } else {
+                    document.getElementById('gameStatus').innerHTML = 
+                        '<span class="pass">✅ Game dependencies loaded</span>';
+                    
+                    // Initialize game
+                    initTestGame();
+                }
+            } catch (error) {
+                document.getElementById('gameStatus').innerHTML = 
+                    '<span class="fail">❌ Error initializing test: ' + error.message + '</span>';
+            }
+        });
+        
+        function initTestGame() {
+            const canvas = document.getElementById('testCanvas');
+            ctx = canvas.getContext('2d');
+            testGame = new Game(canvas);
+            
+            // Add some logging to key methods for testing
+            const originalAnimate = testGame.animateGridAfterPop;
+            testGame.animateGridAfterPop = function(rowsPopped, poppedBubblesInViewport) {
+                log(`animateGridAfterPop called with: rows=${rowsPopped}, inViewport=${poppedBubblesInViewport}`);
+                const result = originalAnimate.call(this, rowsPopped, poppedBubblesInViewport);
+                log(`Animation active: ${this.gridAnimating}`);
+                return result;
+            };
+            
+            // Draw viewport boundary for visual reference
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height * 0.05);
+            ctx.lineTo(canvas.width, canvas.height * 0.05);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height * 0.05);
+            ctx.fillText("Top 5% Viewport Zone (Animation Enabled)", 10, canvas.height * 0.03);
+        }
+        
+        // Test animation trigger with bubbles in different positions
+        function testAnimationTrigger(bubblePosition) {
+            clearResults();
+            log(`=== Testing Animation Trigger: ${bubblePosition} ===\n`);
+            
+            if (!testGame) {
+                log('❌ Game not initialized');
+                return;
+            }
+            
+            // Reset game state
+            testGame.gridAnimating = false;
+            
+            // Create mock bubbles based on position scenario
+            let mockBubbles = [];
+            
+            switch(bubblePosition) {
+                case 'in-viewport':
+                    // Bubbles in top viewport zone (should trigger animation)
+                    mockBubbles = createMockBubbles(5, true, false);
+                    break;
+                case 'off-viewport':
+                    // Bubbles outside viewport (should not trigger animation)
+                    mockBubbles = createMockBubbles(5, false, false);
+                    break;
+                case 'mixed':
+                    // Some bubbles in viewport, some outside (should trigger animation)
+                    mockBubbles = createMockBubbles(5, true, true);
+                    break;
+            }
+            
+            // Calculate animation distance for reference
+            const rowsPopped = 5;
+            const expectedDistance = GRID_ROW_HEIGHT * GRID_ANIMATION_DISTANCE_FACTOR * Math.min(3, rowsPopped - 2);
+            
+            log(`Created ${mockBubbles.length} mock bubbles`);
+            log(`Expected animation distance: ${expectedDistance}px`);
+            log(`Animation duration constant: ${GRID_ANIMATION_DURATION}ms`);
+            
+            // Draw bubbles on screen
+            drawBubbles(mockBubbles);
+            
+            // Test popping those bubbles
+            testGame.popBubbles(mockBubbles);
+            
+            // Check if animation was triggered as expected
+            if (testGame.gridAnimating) {
+                log(`✅ Animation triggered: ${testGame.gridAnimating}`);
+                log(`   Animation distance: ${testGame.gridAnimDistance}px`);
+                log(`   Animation duration: ${testGame.gridAnimDuration}ms`);
+                
+                // Check if animation completes
+                setTimeout(() => {
+                    const elapsed = Date.now() - testGame.gridAnimStart;
+                    log(`   Elapsed time at check: ${elapsed}ms`);
+                    log(`   Animation still active: ${testGame.gridAnimating}`);
+                    
+                    if (elapsed >= testGame.gridAnimDuration) {
+                        log('✅ Animation completed as expected');
+                    } else {
+                        log('⚠️ Animation still in progress');
+                    }
+                }, testGame.gridAnimDuration + 50);
+            } else {
+                if (bubblePosition === 'off-viewport') {
+                    log('✅ Animation correctly NOT triggered for off-viewport bubbles');
+                } else {
+                    log('❌ Animation should have triggered for in-viewport bubbles');
+                }
+            }
+        }
+        
+        // Check if animation duration matches the expected 400ms
+        function checkAnimationDuration() {
+            clearResults();
+            log('=== Checking Animation Duration ===\n');
+            
+            log(`GRID_ANIMATION_DURATION constant: ${GRID_ANIMATION_DURATION}ms`);
+            log(`Game instance gridAnimDuration: ${testGame.gridAnimDuration}ms`);
+            
+            if (GRID_ANIMATION_DURATION === 400) {
+                log('✅ Animation duration constant is correctly set to 400ms');
+            } else {
+                log(`❌ Animation duration constant is ${GRID_ANIMATION_DURATION}ms (expected 400ms)`);
+            }
+            
+            if (testGame.gridAnimDuration === 400) {
+                log('✅ Game instance has 400ms duration');
+            } else {
+                log(`❌ Game instance has ${testGame.gridAnimDuration}ms duration (expected 400ms)`);
+            }
+        }
+        
+        // Helper to create mock bubbles for testing
+        function createMockBubbles(count, includeInViewport, includeMixed) {
+            const bubbles = [];
+            const viewportThreshold = testGame.canvas.height * 0.05;
+            
+            for (let i = 0; i < count; i++) {
+                const inViewport = includeInViewport || (includeMixed && i % 2 === 0);
+                
+                // Create bubble with appropriate screen position
+                const y = inViewport ? 
+                    (Math.random() * viewportThreshold) : 
+                    (viewportThreshold + Math.random() * (testGame.canvas.height - viewportThreshold));
+                
+                const bubble = {
+                    row: i + 5,
+                    col: i % 3 + 1,
+                    color: ['red', 'blue', 'green', 'yellow', 'purple'][i % 5],
+                    removing: false,
+                    x: 50 + (i * 30),
+                    y: y - testGame.gridOffsetY, // Convert screen Y to bubble coordinate
+                    radius: BUBBLE_RADIUS
+                };
+                
+                bubbles.push(bubble);
+            }
+            
+            return bubbles;
+        }
+        
+        // Helper to draw bubbles on the test canvas
+        function drawBubbles(bubbles) {
+            ctx.clearRect(0, 0, testGame.canvas.width, testGame.canvas.height);
+            
+            // Redraw viewport boundary
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+            ctx.beginPath();
+            ctx.moveTo(0, testGame.canvas.height * 0.05);
+            ctx.lineTo(testGame.canvas.width, testGame.canvas.height * 0.05);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+            ctx.fillRect(0, 0, testGame.canvas.width, testGame.canvas.height * 0.05);
+            ctx.fillText("Top 5% Viewport Zone (Animation Enabled)", 10, testGame.canvas.height * 0.03);
+            
+            // Draw each bubble
+            for (const bubble of bubbles) {
+                const screenY = bubble.y + testGame.gridOffsetY;
+                ctx.fillStyle = bubble.color;
+                ctx.beginPath();
+                ctx.arc(bubble.x, screenY, bubble.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`r${bubble.row},c${bubble.col}`, bubble.x - 12, screenY);
+            }
+        }
+    </script>
+</body>
+</html>

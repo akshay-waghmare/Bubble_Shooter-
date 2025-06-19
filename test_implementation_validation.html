@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Animation Implementation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        #testResults {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .pass { color: #4CAF50; }
+        .fail { color: #f44336; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎮 Grid Animation Implementation Test</h1>
+        <p>Testing if the grid animation feature is correctly implemented in game.js</p>
+        
+        <div class="status" id="gameStatus">Loading game...</div>
+        
+        <button class="test-button" onclick="runImplementationTest()">Test Implementation</button>
+        <button class="test-button" onclick="testAnimationTrigger()">Test Animation Trigger</button>
+        <button class="test-button" onclick="testAnimationUpdate()">Test Animation Update</button>
+        <button class="test-button" onclick="runAllImplementationTests()">Run All Tests</button>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <!-- Load game dependencies -->
+    <script src="game.js"></script>
+    
+    <script>
+        function log(message) {
+            const results = document.getElementById('testResults');
+            results.textContent += message + '\n';
+            results.scrollTop = results.scrollHeight;
+            console.log(message);
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').textContent = '';
+        }
+
+        // Initialize when document loads
+        window.addEventListener('load', function() {
+            try {
+                // Check if game code is loaded
+                if (typeof Game === 'undefined') {
+                    document.getElementById('gameStatus').innerHTML = 
+                        '<span class="fail">❌ Game class not loaded. Make sure game.js is included and working.</span>';
+                } else {
+                    document.getElementById('gameStatus').innerHTML = 
+                        '<span class="pass">✅ Game dependencies loaded</span>';
+                }
+            } catch (error) {
+                document.getElementById('gameStatus').innerHTML = 
+                    '<span class="fail">❌ Error initializing test: ' + error.message + '</span>';
+            }
+        });
+
+        function createTestGame() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 390;
+            canvas.height = 844;
+            const game = new Game(canvas);
+            return game;
+        }
+
+        function runImplementationTest() {
+            clearResults();
+            log("=== Testing Grid Animation Implementation ===\n");
+            
+            try {
+                const game = createTestGame();
+                
+                // Test 1: Check if animation constants exist
+                log("Test 1: Checking animation constants...");
+                if (typeof GRID_ANIMATION_DURATION !== 'undefined') {
+                    log("✅ GRID_ANIMATION_DURATION: " + GRID_ANIMATION_DURATION);
+                } else {
+                    log("❌ GRID_ANIMATION_DURATION not defined");
+                    return;
+                }
+                
+                if (typeof GRID_ANIMATION_DISTANCE_FACTOR !== 'undefined') {
+                    log("✅ GRID_ANIMATION_DISTANCE_FACTOR: " + GRID_ANIMATION_DISTANCE_FACTOR);
+                } else {
+                    log("❌ GRID_ANIMATION_DISTANCE_FACTOR not defined");
+                    return;
+                }
+                
+                // Test 2: Check if animation properties are initialized
+                log("\nTest 2: Checking animation properties initialization...");
+                const requiredProps = ['gridAnimating', 'gridAnimStart', 'gridAnimDuration', 'gridAnimDistance', 'gridStartY'];
+                let allPropsExist = true;
+                
+                for (const prop of requiredProps) {
+                    if (game.hasOwnProperty(prop)) {
+                        log(`✅ ${prop}: ${game[prop]}`);
+                    } else {
+                        log(`❌ ${prop} not initialized`);
+                        allPropsExist = false;
+                    }
+                }
+                
+                if (!allPropsExist) return;
+                
+                // Test 3: Check if animation methods exist
+                log("\nTest 3: Checking animation methods...");
+                if (typeof game.animateGridAfterPop === 'function') {
+                    log("✅ animateGridAfterPop method exists");
+                } else {
+                    log("❌ animateGridAfterPop method missing");
+                    return;
+                }
+                
+                if (typeof game.updateGridAnimation === 'function') {
+                    log("✅ updateGridAnimation method exists");
+                } else {
+                    log("❌ updateGridAnimation method missing");
+                    return;
+                }
+                
+                // Test 4: Check if popBubbles calls animation
+                log("\nTest 4: Checking popBubbles integration...");
+                const originalAnimateGridAfterPop = game.animateGridAfterPop;
+                let animationCalled = false;
+                let rowsPassedToAnimation = 0;
+                
+                game.animateGridAfterPop = function(rows) {
+                    animationCalled = true;
+                    rowsPassedToAnimation = rows;
+                    originalAnimateGridAfterPop.call(this, rows);
+                };
+                
+                // Create mock bubbles across multiple rows
+                const mockBubbles = [
+                    { row: 5, col: 1, color: 'red', removing: false },
+                    { row: 6, col: 2, color: 'red', removing: false },
+                    { row: 7, col: 3, color: 'red', removing: false }
+                ];
+                
+                game.popBubbles(mockBubbles);
+                
+                if (animationCalled) {
+                    log(`✅ Animation called with ${rowsPassedToAnimation} rows`);
+                } else {
+                    log("❌ Animation not called from popBubbles");
+                }
+                
+                log("\n🎉 Implementation test completed successfully!");
+                
+            } catch (error) {
+                log("❌ Error during implementation test: " + error.message);
+                console.error(error);
+            }
+        }
+
+        function testAnimationTrigger() {
+            clearResults();
+            log("=== Testing Animation Trigger Logic ===\n");
+            
+            try {
+                const game = createTestGame();
+                
+                // Test with different row counts
+                const testCases = [
+                    { rows: 1, shouldTrigger: false },
+                    { rows: 2, shouldTrigger: false },
+                    { rows: 3, shouldTrigger: true },
+                    { rows: 5, shouldTrigger: true },
+                    { rows: 10, shouldTrigger: true }
+                ];
+                
+                for (const testCase of testCases) {
+                    log(`Testing ${testCase.rows} rows...`);
+                    
+                    // Reset animation state
+                    game.gridAnimating = false;
+                    
+                    // Trigger animation
+                    game.animateGridAfterPop(testCase.rows);
+                    
+                    if (testCase.shouldTrigger) {
+                        if (game.gridAnimating) {
+                            log(`✅ Animation triggered for ${testCase.rows} rows`);
+                            log(`   Distance: ${game.gridAnimDistance}`);
+                        } else {
+                            log(`❌ Animation should have triggered for ${testCase.rows} rows`);
+                        }
+                    } else {
+                        if (!game.gridAnimating) {
+                            log(`✅ Animation correctly NOT triggered for ${testCase.rows} rows`);
+                        } else {
+                            log(`❌ Animation should NOT have triggered for ${testCase.rows} rows`);
+                        }
+                    }
+                }
+                
+                log("\n🎯 Animation trigger test completed!");
+                
+            } catch (error) {
+                log("❌ Error during trigger test: " + error.message);
+                console.error(error);
+            }
+        }
+
+        function testAnimationUpdate() {
+            clearResults();
+            log("=== Testing Animation Update Logic ===\n");
+            
+            try {
+                const game = createTestGame();
+                
+                // Setup animation
+                game.gridOffsetY = 100;
+                game.gridAnimating = true;
+                game.gridAnimStart = Date.now() - 400; // Halfway through
+                game.gridStartY = game.gridOffsetY;
+                game.gridAnimDistance = 50;
+                
+                log("Initial state:");
+                log(`  gridOffsetY: ${game.gridOffsetY}`);
+                log(`  gridAnimating: ${game.gridAnimating}`);
+                log(`  gridStartY: ${game.gridStartY}`);
+                log(`  gridAnimDistance: ${game.gridAnimDistance}`);
+                
+                // Test mid-animation
+                log("\nTesting mid-animation update...");
+                const midResult = game.updateGridAnimation();
+                log(`  Animation complete: ${midResult}`);
+                log(`  Grid position: ${game.gridOffsetY}`);
+                log(`  Still animating: ${game.gridAnimating}`);
+                
+                if (!midResult && game.gridAnimating && game.gridOffsetY !== game.gridStartY) {
+                    log("✅ Mid-animation state correct");
+                } else {
+                    log("❌ Mid-animation state incorrect");
+                }
+                
+                // Test completion
+                log("\nTesting animation completion...");
+                game.gridAnimStart = Date.now() - 900; // Past duration
+                const completeResult = game.updateGridAnimation();
+                log(`  Animation complete: ${completeResult}`);
+                log(`  Grid position: ${game.gridOffsetY}`);
+                log(`  Still animating: ${game.gridAnimating}`);
+                
+                const expectedFinalPosition = game.gridStartY + game.gridAnimDistance;
+                if (completeResult && !game.gridAnimating && Math.abs(game.gridOffsetY - expectedFinalPosition) < 0.1) {
+                    log("✅ Animation completion correct");
+                } else {
+                    log("❌ Animation completion incorrect");
+                    log(`  Expected: ${expectedFinalPosition}, Got: ${game.gridOffsetY}`);
+                }
+                
+                log("\n⏱️ Animation update test completed!");
+                
+            } catch (error) {
+                log("❌ Error during update test: " + error.message);
+                console.error(error);
+            }
+        }
+
+        function runAllImplementationTests() {
+            clearResults();
+            log("=== Running All Grid Animation Implementation Tests ===\n");
+            
+            setTimeout(() => {
+                runImplementationTest();
+                setTimeout(() => {
+                    log("\n" + "=".repeat(50) + "\n");
+                    testAnimationTrigger();
+                    setTimeout(() => {
+                        log("\n" + "=".repeat(50) + "\n");
+                        testAnimationUpdate();
+                        setTimeout(() => {
+                            log("\n" + "=".repeat(50));
+                            log("🏁 All implementation tests completed!");
+                            log("=".repeat(50));
+                        }, 100);
+                    }, 100);
+                }, 100);
+            }, 100);
+        }
+    </script>
+</body>
+</html>

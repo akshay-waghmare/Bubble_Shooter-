@@ -180,6 +180,10 @@ const CONTINUOUS_SCROLL_ENABLED = true; // Enable constant downward scrolling
 const CONTINUOUS_SCROLL_SPEED = 0.2; // Pixels per frame for continuous motion (slower pace for better gameplay)
 const NEW_ROW_THRESHOLD = GRID_ROW_HEIGHT; // Trigger new row when scrolled one full row height
 
+// Grid animation settings for multi-row pops
+const GRID_ANIMATION_DURATION = 400; // ms (reduced from 800ms for faster animation)
+const GRID_ANIMATION_DISTANCE_FACTOR = 1.5; // Multiplier for row distance
+
 const MISSED_SHOTS_LIMIT = 5;
 const POP_THRESHOLD = 3; // Number of same-colored bubbles needed to pop
 const POINTS_PER_BUBBLE = 10;
@@ -868,6 +872,13 @@ class Game {
         this.gridOffsetY = GRID_TOP_MARGIN - (BUFFER_ROWS_ABOVE * GRID_ROW_HEIGHT + GRID_TOP_MARGIN);
         this.targetScrollOffset = this.gridOffsetY;
         this.scrollAnimating = false;
+        
+        // Initialize grid animation properties for multi-row pops
+        this.gridAnimating = false;
+        this.gridAnimStart = 0;
+        this.gridAnimDuration = GRID_ANIMATION_DURATION;
+        this.gridAnimDistance = 0;
+        this.gridStartY = 0;
         
         // Initialize continuous scrolling tracking
         this.totalScrolledDistance = 0; // Track total distance scrolled for new row triggering
@@ -1703,37 +1714,48 @@ class Game {
             }
         }
         
-        // CRITICAL FIX: Apply continuous scrolling BEFORE collision detection to ensure coordinate consistency
-        if (CONTINUOUS_SCROLL_ENABLED && this.gameStarted && !this.gameOver && !this.gameWon) {
-            const oldGridOffsetY = this.gridOffsetY;
-            
-            // Apply continuous downward scrolling
-            this.gridOffsetY += CONTINUOUS_SCROLL_SPEED;
-            this.targetScrollOffset = this.gridOffsetY;
-            
-            // Track total scrolled distance
-            this.totalScrolledDistance += CONTINUOUS_SCROLL_SPEED;
-            
-            // Check if we need to add a new row (based on distance scrolled, not missed shots)
-            const scrolledRowsSinceLastNew = this.totalScrolledDistance - this.lastNewRowTrigger;
-            if (scrolledRowsSinceLastNew >= NEW_ROW_THRESHOLD) {
-                this.debugLogger.log('scroll', 'Continuous scroll triggered new row', {
-                    scrolledDistance: scrolledRowsSinceLastNew,
-                    threshold: NEW_ROW_THRESHOLD,
-                    totalDistance: this.totalScrolledDistance
-                });
+        // Handle grid animation from multi-row pops first, then normal scrolling
+        if (this.gameStarted && !this.gameOver && !this.gameWon) {
+            // Check if we're currently animating the grid
+            if (this.gridAnimating) {
+                // Update animation state
+                this.updateGridAnimation();
                 
-                this.addNewRowFromContinuousScroll();
-                this.lastNewRowTrigger = this.totalScrolledDistance;
-            }
-            
-            // Log continuous scrolling (less frequently to avoid spam)
-            if (Math.floor(this.totalScrolledDistance) % 10 === 0) {
-                this.debugLogger.log('scroll', 'Continuous scrolling active', {
-                    currentOffset: this.gridOffsetY,
-                    totalDistance: this.totalScrolledDistance,
-                    speed: CONTINUOUS_SCROLL_SPEED
-                });
+                // Don't apply normal scrolling during animation
+                this.targetScrollOffset = this.gridOffsetY;
+            } 
+            // Apply regular continuous scrolling when not animating
+            else if (CONTINUOUS_SCROLL_ENABLED) {
+                const oldGridOffsetY = this.gridOffsetY;
+                
+                // Apply continuous downward scrolling
+                this.gridOffsetY += CONTINUOUS_SCROLL_SPEED;
+                this.targetScrollOffset = this.gridOffsetY;
+                
+                // Track total scrolled distance
+                this.totalScrolledDistance += CONTINUOUS_SCROLL_SPEED;
+                
+                // Check if we need to add a new row (based on distance scrolled, not missed shots)
+                const scrolledRowsSinceLastNew = this.totalScrolledDistance - this.lastNewRowTrigger;
+                if (scrolledRowsSinceLastNew >= NEW_ROW_THRESHOLD) {
+                    this.debugLogger.log('scroll', 'Continuous scroll triggered new row', {
+                        scrolledDistance: scrolledRowsSinceLastNew,
+                        threshold: NEW_ROW_THRESHOLD,
+                        totalDistance: this.totalScrolledDistance
+                    });
+                    
+                    this.addNewRowFromContinuousScroll();
+                    this.lastNewRowTrigger = this.totalScrolledDistance;
+                }
+                
+                // Log continuous scrolling (less frequently to avoid spam)
+                if (Math.floor(this.totalScrolledDistance) % 10 === 0) {
+                    this.debugLogger.log('scroll', 'Continuous scrolling active', {
+                        currentOffset: this.gridOffsetY,
+                        totalDistance: this.totalScrolledDistance,
+                        speed: CONTINUOUS_SCROLL_SPEED
+                    });
+                }
             }
         }
         
@@ -2384,6 +2406,53 @@ class Game {
         
         return false;
     }
+    
+    // Animation trigger for multi-row bubble pops
+    animateGridAfterPop(rowsPopped, poppedBubblesInViewport) {
+        // Only animate if:
+        // 1. There are 3 or more rows popped
+        // 2. At least one of the popped bubbles was in the viewport
+        if (rowsPopped >= 3 && poppedBubblesInViewport) {
+            this.gridAnimating = true;
+            this.gridAnimStart = Date.now();
+            this.gridStartY = this.gridOffsetY;
+            
+            // Calculate distance based on rows popped (cap at 3x factor for very large pops)
+            this.gridAnimDistance = GRID_ROW_HEIGHT * GRID_ANIMATION_DISTANCE_FACTOR * Math.min(3, rowsPopped - 2);
+            
+            this.debugLogger.log('animation', 'Starting grid animation after multi-row pop', {
+                rowsPopped: rowsPopped,
+                animationDistance: this.gridAnimDistance,
+                animationDuration: this.gridAnimDuration,
+                bubblesInViewport: poppedBubblesInViewport
+            });
+        }
+    }
+    
+    // Update the grid animation state
+    updateGridAnimation() {
+        if (this.gridAnimating) {
+            const elapsed = Date.now() - this.gridAnimStart;
+            
+            if (elapsed >= this.gridAnimDuration) {
+                // Animation complete
+                this.gridAnimating = false;
+                this.gridOffsetY = this.gridStartY + this.gridAnimDistance; // Note: adding because our grid moves down
+                
+                this.debugLogger.log('animation', 'Grid animation completed', {
+                    finalGridOffset: this.gridOffsetY
+                });
+                return true; // Animation completed
+            } else {
+                // Apply easing function for smooth animation
+                const progress = elapsed / this.gridAnimDuration;
+                const easeOut = 1 - Math.pow(1 - progress, 2); // Quadratic ease-out
+                this.gridOffsetY = this.gridStartY + (this.gridAnimDistance * easeOut);
+                return false; // Animation still in progress
+            }
+        }
+        return true; // No animation active
+    }
 
     // Helper method to check if a bubble is visible or near-visible
     isBubbleVisibleOrNearVisible(bubble) {
@@ -2461,8 +2530,27 @@ class Game {
             positions: bubbles.map(b => ({ row: b.row, col: b.col }))
         });
         
+        // Analyze rows affected for grid animation
+        let minRow = Infinity;
+        let maxRow = -Infinity;
+        
+        // Check if any bubbles are in the viewport (specifically in top part)
+        let bubblesInTopViewport = false;
+        const viewportTop = 0; // Top of the viewport
+        const viewportThreshold = this.canvas.height * 0.05; // Top 5% of the viewport
+        
         // Remove bubbles from grid
         for (const bubble of bubbles) {
+            // Track min/max rows for animation
+            minRow = Math.min(minRow, bubble.row);
+            maxRow = Math.max(maxRow, bubble.row);
+            
+            // Check if this bubble is in the top part of the viewport
+            const screenY = bubble.y + this.gridOffsetY;
+            if (screenY >= viewportTop && screenY <= viewportThreshold) {
+                bubblesInTopViewport = true;
+            }
+            
             this.gridBubbles[bubble.row][bubble.col] = null;
             bubble.removing = true;
             this.removingBubbles.push(bubble);
@@ -2472,11 +2560,18 @@ class Game {
             this.decrementBubbleCount();
         }
         
+        // Calculate how many rows were affected
+        const rowsPopped = maxRow - minRow + 1;
+        
+        // Trigger grid animation only if multi-row pops AND bubbles were in top viewport
+        this.animateGridAfterPop(rowsPopped, bubblesInTopViewport);
+        
         // Add points
         const pointsEarned = bubbles.length * POINTS_PER_BUBBLE;
         this.score += pointsEarned;
         this.debugLogger.log('score', 'Points earned from popping', {
             bubblesPopped: bubbles.length,
+            rowsPopped: rowsPopped,
             pointsEarned,
             newScore: this.score
         });
