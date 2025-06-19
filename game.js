@@ -2385,6 +2385,23 @@ class Game {
         return false;
     }
 
+    // Helper method to check if a bubble is visible or near-visible
+    isBubbleVisibleOrNearVisible(bubble) {
+        if (!bubble) return false;
+        
+        // Calculate screen position of bubble
+        const screenY = bubble.y + this.gridOffsetY;
+        
+        // Define visible area with stricter buffer zones
+        const bufferAbove = BUBBLE_RADIUS * 2; // Reduced buffer above viewport to prevent far off-screen bubbles from popping
+        const bufferBelow = BUBBLE_RADIUS * 2;  // Small buffer below viewport
+        
+        const viewportTop = -bufferAbove;
+        const viewportBottom = this.canvas.height + bufferBelow;
+        
+        return screenY > viewportTop && screenY < viewportBottom;
+    }
+
     checkMatches(row, col) {
         const bubble = this.gridBubbles[row][col];
         if (!bubble) return [];
@@ -2399,7 +2416,8 @@ class Game {
         }
         
         // Use flood fill to find all connected bubbles of same color
-        const matches = [];
+        const allMatches = [];
+        const visibleMatches = [];
         const color = bubble.color;
         
         const floodFill = (r, c) => {
@@ -2414,7 +2432,12 @@ class Game {
             
             // Mark as visited
             currentBubble.visited = true;
-            matches.push(currentBubble);
+            allMatches.push(currentBubble);
+            
+            // Only add to visible matches if bubble is visible or near-visible
+            if (this.isBubbleVisibleOrNearVisible(currentBubble)) {
+                visibleMatches.push(currentBubble);
+            }
             
             // Get neighboring positions using helper method
             const neighbors = this.getNeighborPositions(r, c);
@@ -2426,7 +2449,9 @@ class Game {
         };
         
         floodFill(row, col);
-        return matches;
+        
+        // Return visible matches only - this prevents off-screen bubbles from being popped
+        return visibleMatches;
     }
 
     popBubbles(bubbles) {
@@ -2504,13 +2529,24 @@ class Game {
             }
         }
         
-        // Collect all unvisited (floating) bubbles
+        // Collect all unvisited (floating) bubbles, but only include visible ones
         const floatingBubbles = [];
         for (let row = 0; row < TOTAL_GRID_ROWS; row++) {
             for (let col = 0; col < GRID_COLS; col++) {
                 const bubble = this.gridBubbles[row][col];
                 if (bubble && !bubble.visited) {
-                    floatingBubbles.push(bubble);
+                    // Only include floating bubbles that are visible or near-visible
+                    if (this.isBubbleVisibleOrNearVisible(bubble)) {
+                        floatingBubbles.push(bubble);
+                    }
+                    // Note: We still need to remove off-screen floating bubbles from the grid
+                    // to maintain game state integrity, but we don't show them falling
+                    else {
+                        // Silently remove off-screen floating bubbles
+                        this.gridBubbles[row][col] = null;
+                        this.bubblesCleared++;
+                        this.decrementBubbleCount();
+                    }
                 }
             }
         }

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visibility Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+        }
+        .test-button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .test-button:hover {
+            background: #45a049;
+        }
+        #testResults {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .pass { color: #4CAF50; }
+        .fail { color: #f44336; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔬 Bubble Shooter Visibility Fix Tests</h1>
+        <p>This page tests the fix for invisible bubbles popping off-screen.</p>
+        
+        <div class="status" id="gameStatus">Loading game...</div>
+        
+        <button class="test-button" onclick="runVisibilityTests()">Run All Tests</button>
+        <button class="test-button" onclick="runSingleTest('matches')">Test Visible Matches</button>
+        <button class="test-button" onclick="runSingleTest('floating')">Test Floating Bubbles</button>
+        <button class="test-button" onclick="runSingleTest('score')">Test Score Logic</button>
+        <button class="test-button" onclick="clearResults()">Clear Results</button>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <!-- Load game dependencies -->
+    <script src="game.js"></script>
+    <script src="test_visibility_fix.js"></script>
+    
+    <script>
+        let testSuite;
+        let gameLoaded = false;
+
+        // Initialize when page loads
+        window.addEventListener('load', function() {
+            // Check if game classes are available
+            if (typeof Game !== 'undefined' && typeof VisibilityTestSuite !== 'undefined') {
+                testSuite = new VisibilityTestSuite();
+                gameLoaded = true;
+                document.getElementById('gameStatus').innerHTML = '<span class="pass">✅ Game loaded successfully</span>';
+            } else {
+                document.getElementById('gameStatus').innerHTML = '<span class="fail">❌ Failed to load game dependencies</span>';
+            }
+        });
+
+        function logToResults(message) {
+            const results = document.getElementById('testResults');
+            results.textContent += message + '\n';
+            results.scrollTop = results.scrollHeight;
+        }
+
+        // Override console.log for test results
+        const originalLog = console.log;
+        console.log = function(...args) {
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            logToResults(message);
+            originalLog.apply(console, args);
+        };
+
+        function runVisibilityTests() {
+            if (!gameLoaded) {
+                logToResults('❌ Cannot run tests - game not loaded');
+                return;
+            }
+
+            clearResults();
+            logToResults('🚀 Starting visibility fix tests...\n');
+            
+            try {
+                const allPassed = testSuite.runAllTests();
+                
+                if (allPassed) {
+                    logToResults('\n🎉 ALL TESTS PASSED! The visibility fix is working correctly.');
+                } else {
+                    logToResults('\n⚠️  Some tests failed. The fix may need adjustments.');
+                }
+            } catch (error) {
+                logToResults('\n💥 Test execution failed: ' + error.message);
+                originalLog.error('Test error:', error);
+            }
+        }
+
+        function runSingleTest(testType) {
+            if (!gameLoaded) {
+                logToResults('❌ Cannot run tests - game not loaded');
+                return;
+            }
+
+            clearResults();
+            
+            try {
+                let result;
+                switch (testType) {
+                    case 'matches':
+                        result = testSuite.testVisibleMatchesOnly();
+                        break;
+                    case 'floating':
+                        result = testSuite.testVisibleFloatingBubblesOnly();
+                        break;
+                    case 'score':
+                        result = testSuite.testScoreOnlyFromVisibleBubbles();
+                        break;
+                    default:
+                        logToResults('❌ Unknown test type: ' + testType);
+                        return;
+                }
+                
+                if (result) {
+                    logToResults('\n✅ Test passed!');
+                } else {
+                    logToResults('\n❌ Test failed!');
+                }
+            } catch (error) {
+                logToResults('\n💥 Test failed with error: ' + error.message);
+                originalLog.error('Test error:', error);
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').textContent = '';
+        }
+
+        // Visual feedback for test status
+        function updateTestStatus(message, type = 'info') {
+            const statusEl = document.getElementById('gameStatus');
+            statusEl.innerHTML = `<span class="${type}">${message}</span>`;
+        }
+    </script>
+</body>
+</html>
