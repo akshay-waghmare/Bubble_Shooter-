@@ -5,9 +5,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-touch-fullscreen" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bubble Shooter">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="description" content="Bubble Shooter - A fun bubble popping game">
     <title>Bubble Shooter</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Facebook Instant Games SDK -->
+    <script src="https://connect.facebook.net/en_US/fbinstant.7.0.js"></script>
+    <script>
+        // Prevent scrolling on mobile devices when interacting with the game
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.id === 'gameCanvas' || e.target.closest('.game-screen')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+
+    <!-- Facebook Instant Games setup script -->
+    <script>
+        // Enhanced wrapper around FB Instant SDK
+        var FacebookInstantGames = {
+            initialized: false, // Track if SDK has been initialized
+            gameStarted: false, // Track if startGameAsync has been called
+            
+            isAvailable: function() {
+                return typeof FBInstant !== 'undefined';
+            },
+            
+            // New method to check initialization status
+            isInitialized: function() {
+                return this.initialized;
+            },
+            
+            // New method to check if game has started
+            isGameStarted: function() {
+                return this.gameStarted;
+            },
+            
+            initialize: function(callback, skipStartGame) {
+                if (!this.isAvailable()) {
+                    console.log("FB Instant SDK not available - running in standard mode");
+                    if (callback) callback();
+                    return;
+                }
+                
+                if (this.initialized) {
+                    console.log("FB Instant already initialized");
+                    if (this.gameStarted || skipStartGame) {
+                        if (callback) callback();
+                    } else {
+                        this.startGame(callback);
+                    }
+                    return;
+                }
+                
+                console.log("FB Instant SDK detected - initializing");
+                FBInstant.initializeAsync()
+                    .then(() => {
+                        console.log("FB Instant SDK initialized");
+                        this.initialized = true;
+                        
+                        if (skipStartGame) {
+                            if (callback) callback();
+                        } else {
+                            this.startGame(callback);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("FB Instant initialization failed:", error);
+                        if (callback) callback();
+                    });
+            },
+            
+            // New method to handle startGameAsync separately
+            startGame: function(callback) {
+                if (!this.isAvailable() || !this.initialized) {
+                    if (callback) callback();
+                    return;
+                }
+                
+                if (this.gameStarted) {
+                    console.log("FB Instant game already started");
+                    if (callback) callback();
+                    return;
+                }
+                
+                console.log("Starting FB Instant game");
+                
+                // Show a simple loading progress
+                let loadingProgress = 0;
+                const loadingInterval = setInterval(() => {
+                    loadingProgress += 10;
+                    if (loadingProgress >= 100) {
+                        clearInterval(loadingInterval);
+                        FBInstant.startGameAsync().then(() => {
+                            console.log("FB Instant game started");
+                            this.gameStarted = true;
+                            if (callback) callback();
+                        }).catch((error) => {
+                            console.error("FB Instant startGameAsync failed:", error);
+                            if (callback) callback();
+                        });
+                    }
+                    FBInstant.setLoadingProgress(loadingProgress);
+                }, 100);
+            }
+        };
+    </script>
 </head>
 <body>
     <div class="game-container">
@@ -32,41 +139,31 @@
                 </div>
             </div>
             <button id="startGame" class="start-button">Start Game</button>
-            <button id="showLeaderboard" class="leaderboard-button">Leaderboard</button>
         </div>
         
         <div class="game-screen" id="gameScreen" style="display: none;">
-            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <canvas id="gameCanvas" width="390" height="844"></canvas>
             <div class="game-controls">
                 <button id="backToMenu" class="control-button">Menu</button>
                 <button id="toggleSound" class="control-button">Sound: On</button>
             </div>
             <div class="instructions">
-                <p>Click to shoot bubbles! Match 3 or more of the same color to pop them.</p>
-                <p>Use the walls to reach difficult spots. Clear all bubbles to win!</p>
+                <p>Match 3+ same-colored bubbles to pop them. Use walls for tricky shots!</p>
             </div>
         </div>
-        
-        <div class="leaderboard" id="leaderboard" style="display: none;">
-            <h2>High Scores</h2>
-            <table id="scoresTable">
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Score</th>
-                        <th>Mode</th>
-                        <th>Difficulty</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody id="scoresList">
-                    <!-- Scores will be inserted here by JavaScript -->
-                </tbody>
-            </table>
-            <button id="backToMenuFromLeaderboard" class="control-button">Back to Menu</button>
-        </div>
     </div>
+    <!-- Debug monitoring script -->
+    <script src="debug-startup.js"></script>
+    
+    <!-- Simple debug game implementation -->
+    <script src="debug_simple_game.js"></script>
+    
+    <!-- Game scripts -->
     <script src="game.js"></script>
     <script src="test_collision_logic.js"></script>
+    <script src="app.js"></script>
+    
+    <!-- Fix script for startup issues - loads last to fix any initialization problems -->
+    <script src="startup-fix.js"></script>
 </body>
 </html>

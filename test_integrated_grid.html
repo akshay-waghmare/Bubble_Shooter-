@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <title>Bubble Shooter - Grid Integration Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        .game-canvas {
+            border: 2px solid #333;
+            background-color: #222;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            padding: 10px 15px;
+            background: linear-gradient(to bottom, #4e7fde, #3955a3);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background: linear-gradient(to bottom, #5a8bea, #4060b0);
+        }
+        
+        .info {
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        
+        h2 {
+            color: #555;
+            margin-top: 20px;
+        }
+        
+        .log {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+            padding: 10px;
+            font-family: monospace;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bubble Shooter - Grid Integration Test</h1>
+        
+        <canvas id="gameCanvas" class="game-canvas" width="600" height="800"></canvas>
+        
+        <div class="controls">
+            <button id="initializeGrid">Initialize Grid</button>
+            <button id="addRow">Add New Row</button>
+            <button id="shootBubble">Shoot Random Bubble</button>
+        </div>
+        
+        <div class="info">
+            <h2>Test Information</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeGrid, getGridInstance, getGridSettings, handleBubbleShot, isGameOver, isGameWon, addNewRow } from './grid_integration.js';
+        
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const context = canvas.getContext('2d');
+        
+        // Load bubble sprite image
+        const bubbleImage = new Image();
+        bubbleImage.src = 'bubble-sprites.png';
+        
+        // Game state
+        let playerBubble = {
+            x: canvas.width / 2,
+            y: canvas.height - 60,
+            type: Math.floor(Math.random() * 7),
+            angle: 90,
+            speed: 500,
+            visible: false,
+            moving: false
+        };
+        
+        // DOM elements
+        const logElement = document.getElementById('log');
+        const initButton = document.getElementById('initializeGrid');
+        const addRowButton = document.getElementById('addRow');
+        const shootButton = document.getElementById('shootBubble');
+        
+        // Event listeners
+        initButton.addEventListener('click', () => {
+            initializeGrid();
+            log('Grid initialized');
+            render();
+        });
+        
+        addRowButton.addEventListener('click', () => {
+            addNewRow();
+            log('New row added');
+            render();
+        });
+        
+        shootButton.addEventListener('click', () => {
+            if (!playerBubble.moving) {
+                playerBubble.type = Math.floor(Math.random() * 7);
+                playerBubble.visible = true;
+                playerBubble.moving = true;
+                playerBubble.x = canvas.width / 2;
+                playerBubble.y = canvas.height - 60;
+                playerBubble.angle = 45 + Math.random() * 90; // Random angle between 45 and 135 degrees
+                log(`Shooting bubble of type ${playerBubble.type} at angle ${Math.round(playerBubble.angle)}`);
+            }
+        });
+        
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (!playerBubble.moving) {
+                const dx = x - canvas.width / 2;
+                const dy = canvas.height - 60 - y;
+                playerBubble.angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                
+                if (playerBubble.angle < 0) {
+                    playerBubble.angle += 360;
+                }
+                
+                playerBubble.visible = true;
+                playerBubble.moving = true;
+                log(`Shooting bubble of type ${playerBubble.type} at angle ${Math.round(playerBubble.angle)}`);
+            }
+        });
+        
+        // Logging function
+        function log(message) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            logElement.innerHTML += `[${timeString}] ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        // Game loop variables
+        let lastTime = 0;
+        const targetFPS = 60;
+        const frameInterval = 1000 / targetFPS;
+        
+        // Main game loop
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const deltaTime = (timestamp - lastTime) / 1000; // Convert to seconds
+            lastTime = timestamp;
+            
+            update(deltaTime);
+            render();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Update game state
+        function update(deltaTime) {
+            if (playerBubble.moving) {
+                // Move the bubble
+                playerBubble.x += playerBubble.speed * deltaTime * Math.cos(playerBubble.angle * Math.PI / 180);
+                playerBubble.y -= playerBubble.speed * deltaTime * Math.sin(playerBubble.angle * Math.PI / 180);
+                
+                const gridSettings = getGridSettings();
+                
+                // Check for wall collisions
+                if (playerBubble.x <= 0 || playerBubble.x >= canvas.width) {
+                    playerBubble.angle = 180 - playerBubble.angle;
+                    playerBubble.x = Math.max(0, Math.min(playerBubble.x, canvas.width));
+                }
+                
+                // Check for top collision
+                if (playerBubble.y <= 0) {
+                    playerBubble.y = 0;
+                    playerBubble.moving = false;
+                    const result = handleBubbleShot(playerBubble.x, playerBubble.y, playerBubble.type);
+                    handleShotResult(result);
+                    return;
+                }
+                
+                // Check for collisions with other bubbles
+                const result = handleBubbleShot(playerBubble.x, playerBubble.y, playerBubble.type);
+                if (result.collided || result.snapped) {
+                    playerBubble.moving = false;
+                    handleShotResult(result);
+                }
+            }
+        }
+        
+        // Handle the result of a bubble shot
+        function handleShotResult(result) {
+            if (result.matched) {
+                log(`Matched ${result.matches.length} bubbles!`);
+                if (result.floating && result.floating.length > 0) {
+                    log(`Removed ${result.floating.length} floating bubbles!`);
+                }
+            } else if (result.snapped) {
+                log(`Bubble snapped to grid at [${result.position.col}, ${result.position.row}]`);
+            }
+            
+            // Check game state
+            if (isGameOver()) {
+                log('GAME OVER: Bubbles reached the bottom!');
+            } else if (isGameWon()) {
+                log('GAME WON: All bubbles cleared!');
+            }
+            
+            // Get ready for next bubble
+            playerBubble.visible = false;
+            setTimeout(() => {
+                playerBubble.type = Math.floor(Math.random() * 7);
+                playerBubble.visible = true;
+            }, 500);
+        }
+        
+        // Render the game
+        function render() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw the grid
+            const grid = getGridInstance();
+            if (grid) {
+                for (let col = 0; col < getGridSettings().COLUMNS; col++) {
+                    for (let row = 0; row < getGridSettings().ROWS; row++) {
+                        const bubble = grid.grid[col][row];
+                        if (bubble && bubble.type !== -1) {
+                            // Draw the bubble sprite
+                            context.drawImage(bubbleImage, bubble.type * 40, 0, 40, 40, bubble.x, bubble.y, 40, 40);
+                        }
+                    }
+                }
+            }
+            
+            // Draw the player's bubble
+            if (playerBubble.visible) {
+                context.drawImage(bubbleImage, playerBubble.type * 40, 0, 40, 40, playerBubble.x - 20, playerBubble.y - 20, 40, 40);
+            }
+            
+            // Draw aim line if not moving
+            if (playerBubble.visible && !playerBubble.moving) {
+                const startX = canvas.width / 2;
+                const startY = canvas.height - 60;
+                const endX = startX + 100 * Math.cos(playerBubble.angle * Math.PI / 180);
+                const endY = startY - 100 * Math.sin(playerBubble.angle * Math.PI / 180);
+                
+                context.beginPath();
+                context.moveTo(startX, startY);
+                context.lineTo(endX, endY);
+                context.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                context.lineWidth = 2;
+                context.stroke();
+            }
+        }
+        
+        // Initialize and start game loop
+        bubbleImage.onload = () => {
+            log('Bubble Shooter - Grid Integration Test');
+            log('Click "Initialize Grid" to start');
+            
+            // Initialize default grid
+            initializeGrid();
+            render();
+            
+            // Start game loop
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>

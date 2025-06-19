@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Collision Fix</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        #gameCanvas { border: 2px solid #333; display: block; margin: 10px auto; }
+        .controls { text-align: center; margin: 10px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px; border-radius: 5px; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h1>Collision Detection Test</h1>
+        <button id="startBtn">Start Game</button>
+        <button id="resetBtn">Reset</button>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <div class="debug">
+        <h3>Debug Info:</h3>
+        <div id="debugOutput"></div>
+    </div>
+
+    <!-- Console.log override completely removed for performance -->
+    <script src="game.js"></script>
+    <script>
+        // Initialize game
+        const canvas = document.getElementById('gameCanvas');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        let game = new BubbleShooterGame(canvas);
+        
+        startBtn.addEventListener('click', () => {
+            debugOutput.innerHTML = '<strong>Starting game...</strong><br>';
+            game.startGame();
+            // Console.log removed for performance
+        });
+        
+        resetBtn.addEventListener('click', () => {
+            debugOutput.innerHTML = '<strong>Resetting game...</strong><br>';
+            game = new BubbleShooterGame(canvas);
+        });
+        
+        // Auto-test collision after 2 seconds
+        setTimeout(() => {
+            debugOutput.innerHTML += '<br>=== COLLISION TEST INFO ===<br>';
+            debugOutput.innerHTML += 'Instructions: Click Start Game, then immediately click to fire a bubble at the initial cluster<br>';
+            debugOutput.innerHTML += 'Expected: Bubble should stick to initial cluster immediately<br>';
+            debugOutput.innerHTML += 'Watch debug output for collision detection details<br>';
+        }, 1000);
+    </script>
+</body>
+</html>

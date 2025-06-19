@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TDD Performance Fix Test</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: Arial, sans-serif; 
+            background: #1a1a2e;
+            color: white;
+        }
+        #gameCanvas { 
+            border: 2px solid #333; 
+            display: block; 
+            margin: 10px auto; 
+        }
+        .controls { 
+            text-align: center; 
+            margin: 10px; 
+        }
+        .test-results { 
+            background: #2d3748; 
+            padding: 15px; 
+            margin: 10px; 
+            border-radius: 5px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+        }
+        .test-status {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .test-passed {
+            background: #2d5a2d;
+            border-left: 4px solid #4CAF50;
+        }
+        .test-failed {
+            background: #5a2d2d;
+            border-left: 4px solid #f44336;
+        }
+        .button {
+            background: #4ECDC4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .button:hover {
+            background: #45B7D1;
+        }
+        .button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h1>🧪 TDD Performance Fix Test Suite</h1>
+        <p>This test verifies that console.log optimization doesn't break game functionality</p>
+        
+        <button id="runTestsBtn" class="button">Run Performance Tests</button>
+        <button id="runGameBtn" class="button">Test Game Manually</button>
+        <button id="clearResultsBtn" class="button">Clear Results</button>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="600" style="display: none;"></canvas>
+    
+    <div class="test-results">
+        <h3>Test Results:</h3>
+        <div id="testOutput">Click "Run Performance Tests" to start automated testing...</div>
+    </div>
+    
+    <div class="test-results">
+        <h3>Performance Metrics:</h3>
+        <div id="metricsOutput">No metrics available yet.</div>
+    </div>
+
+    <script src="game.js"></script>
+    <script src="test_performance_fix.js"></script>
+    <script>
+        const runTestsBtn = document.getElementById('runTestsBtn');
+        const runGameBtn = document.getElementById('runGameBtn');
+        const clearResultsBtn = document.getElementById('clearResultsBtn');
+        const testOutput = document.getElementById('testOutput');
+        const metricsOutput = document.getElementById('metricsOutput');
+        const canvas = document.getElementById('gameCanvas');
+        
+        let testSuite = null;
+        let game = null;
+        
+        // Override console.log to capture output
+        const originalConsoleLog = console.log;
+        let consoleOutput = [];
+        
+        function interceptConsole() {
+            console.log = function(...args) {
+                consoleOutput.push(args.join(' '));
+                originalConsoleLog.apply(console, args);
+                
+                // Update test output in real-time
+                if (args[0] && (args[0].includes('🧪') || args[0].includes('📊') || args[0].includes('✅') || args[0].includes('❌'))) {
+                    testOutput.innerHTML += '<div>' + args.join(' ') + '</div>';
+                    testOutput.scrollTop = testOutput.scrollHeight;
+                }
+            };
+        }
+        
+        function restoreConsole() {
+            console.log = originalConsoleLog;
+        }
+        
+        runTestsBtn.addEventListener('click', async () => {
+            runTestsBtn.disabled = true;
+            testOutput.innerHTML = '<div>🚀 Starting TDD test suite...</div>';
+            consoleOutput = [];
+            
+            interceptConsole();
+            
+            try {
+                testSuite = new PerformanceTestSuite();
+                const results = await testSuite.runAllTests();
+                
+                // Display final summary
+                const summaryClass = results.success ? 'test-passed' : 'test-failed';
+                const summaryIcon = results.success ? '🎉' : '⚠️';
+                
+                testOutput.innerHTML += `
+                    <div class="test-status ${summaryClass}">
+                        <strong>${summaryIcon} Final Result: ${results.passed}/${results.total} tests passed</strong>
+                    </div>
+                `;
+                
+                // Display performance metrics if available
+                if (testSuite.frameMetrics && testSuite.frameMetrics.length > 0) {
+                    const avgFrameTime = testSuite.frameMetrics.reduce((a, b) => a + b, 0) / testSuite.frameMetrics.length;
+                    const fps = 1000 / avgFrameTime;
+                    
+                    metricsOutput.innerHTML = `
+                        <div><strong>Performance Metrics:</strong></div>
+                        <div>Average FPS: ${fps.toFixed(2)}</div>
+                        <div>Average Frame Time: ${avgFrameTime.toFixed(2)}ms</div>
+                        <div>Total Frames: ${testSuite.frameMetrics.length}</div>
+                        <div>Console.log Calls: ${testSuite.consoleLogCount}</div>
+                        <div>Test Duration: ${TEST_CONFIG.testDurationMs}ms</div>
+                    `;
+                }
+                
+            } catch (error) {
+                testOutput.innerHTML += `<div class="test-status test-failed">❌ Test suite failed: ${error.message}</div>`;
+                console.error('Test suite error:', error);
+            } finally {
+                restoreConsole();
+                runTestsBtn.disabled = false;
+            }
+        });
+        
+        runGameBtn.addEventListener('click', () => {
+            if (game) {
+                game = null;
+                canvas.style.display = 'none';
+                runGameBtn.textContent = 'Test Game Manually';
+                return;
+            }
+            
+            canvas.style.display = 'block';
+            game = new BubbleShooterGame(canvas);
+            game.startGame();
+            runGameBtn.textContent = 'Stop Game Test';
+            
+            testOutput.innerHTML += '<div>🎮 Manual game test started. Play the game to verify it works correctly.</div>';
+        });
+        
+        clearResultsBtn.addEventListener('click', () => {
+            testOutput.innerHTML = 'Click "Run Performance Tests" to start automated testing...';
+            metricsOutput.innerHTML = 'No metrics available yet.';
+            consoleOutput = [];
+        });
+    </script>
+</body>
+</html>
